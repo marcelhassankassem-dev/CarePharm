@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     "safety",
     "inventory",
     "sales",
+    "reservations",
 ]
 
 MIDDLEWARE = [
