@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "prescriptions",
     "safety",
     "inventory",
+    "sales",
 ]
 
 MIDDLEWARE = [
