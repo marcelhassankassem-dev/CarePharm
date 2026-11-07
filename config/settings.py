@@ -17,6 +17,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "accounts",
     "passport",
+    "prescriptions",
 ]
 
 MIDDLEWARE = [
