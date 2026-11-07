@@ -18,6 +18,7 @@ INSTALLED_APPS = [
     "accounts",
     "passport",
     "prescriptions",
+    "safety",
 ]
 
 MIDDLEWARE = [
