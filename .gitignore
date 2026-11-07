@@ -180,3 +180,5 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 db.sqlite3
+docs/*.pdf
+reference/
