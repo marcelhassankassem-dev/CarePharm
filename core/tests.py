@@ -6,6 +6,8 @@ from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
+from core.models import ActivityLog
+from core.services import log_action
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Patient
 
@@ -131,3 +133,32 @@ class SeedDemoTwiceTests(TestCase):
         self.assertEqual(DrugClass.objects.count(), drug_classes)
         self.assertEqual(Medicine.objects.count(), medicines)
         self.assertEqual(Batch.objects.count(), batches)
+
+
+class ActivityLogTests(TestCase):
+    def setUp(self):
+        self.karim = get_user_model().objects.create_user(username="karim", password="pass")
+
+    def test_8_3_log_action_saves_who_did_what(self):
+        log_action(self.karim, "Sale recorded", "2 x Amoxicillin 500 mg")
+        entry = ActivityLog.objects.get()
+        self.assertEqual(entry.user, self.karim)
+        self.assertEqual(entry.action, "Sale recorded")
+        self.assertEqual(entry.details, "2 x Amoxicillin 500 mg")
+
+    def test_8_3_details_are_optional(self):
+        log_action(self.karim, "Sale recorded")
+        self.assertEqual(ActivityLog.objects.get().details, "")
+
+    def test_8_3_system_actions_have_no_user(self):
+        log_action(None, "Reservation expired")
+        self.assertIsNone(ActivityLog.objects.get().user)
+
+    def test_8_3_time_is_set_automatically(self):
+        log_action(self.karim, "Sale recorded")
+        self.assertIsNotNone(ActivityLog.objects.get().time)
+
+    def test_8_3_deleting_a_user_keeps_their_log_entries(self):
+        log_action(self.karim, "Sale recorded")
+        self.karim.delete()
+        self.assertIsNone(ActivityLog.objects.get().user)
