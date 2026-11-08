@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "sales",
     "reservations",
     "assistant",
+    "reports",
 ]
 
 MIDDLEWARE = [
