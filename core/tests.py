@@ -14,19 +14,11 @@ CAREPHARM_APPS = [
     "core",
 ]
 
-PHARMACY_SETTINGS = [
-    "PHARMACY_NAME",
-    "PHARMACY_ADDRESS",
-    "PHARMACY_PHONE",
-    "PHARMACY_HOURS",
-]
-
 
 class ProjectSettingsTests(SimpleTestCase):
     def test_t2_all_ten_apps_are_installed(self):
         for app in CAREPHARM_APPS:
-            with self.subTest(app=app):
-                self.assertIn(app, settings.INSTALLED_APPS)
+            self.assertIn(app, settings.INSTALLED_APPS)
 
     def test_t2_time_zone_is_beirut(self):
         self.assertEqual(settings.TIME_ZONE, "Asia/Beirut")
@@ -39,6 +31,7 @@ class ProjectSettingsTests(SimpleTestCase):
         self.assertTrue(settings.SECRET_KEY)
 
     def test_t2_pharmacy_details_are_in_settings(self):
-        for name in PHARMACY_SETTINGS:
-            with self.subTest(name=name):
-                self.assertNotEqual(getattr(settings, name, ""), "")
+        self.assertTrue(settings.PHARMACY_NAME)
+        self.assertTrue(settings.PHARMACY_ADDRESS)
+        self.assertTrue(settings.PHARMACY_PHONE)
+        self.assertTrue(settings.PHARMACY_HOURS)
