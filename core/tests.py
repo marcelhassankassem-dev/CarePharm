@@ -6,8 +6,8 @@ from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
-from core.models import ActivityLog
-from core.services import log_action
+from core.models import ActivityLog, Notification
+from core.services import log_action, notifications_for, notify
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Patient
 
@@ -162,3 +162,40 @@ class ActivityLogTests(TestCase):
         log_action(self.karim, "Sale recorded")
         self.karim.delete()
         self.assertIsNone(ActivityLog.objects.get().user)
+
+
+class NotificationTests(TestCase):
+    def setUp(self):
+        self.samira = get_user_model().objects.create_user(username="samira", password="pass")
+
+    def test_t6_notify_saves_the_user_text_and_link(self):
+        notify(self.samira, "Your prescription is ready", "/prescriptions/1/")
+        notification = Notification.objects.get()
+        self.assertEqual(notification.user, self.samira)
+        self.assertEqual(notification.text, "Your prescription is ready")
+        self.assertEqual(notification.link, "/prescriptions/1/")
+
+    def test_t6_new_notification_is_unread(self):
+        notify(self.samira, "Your prescription is ready", "/prescriptions/1/")
+        self.assertFalse(Notification.objects.get().read)
+
+    def test_t6_users_only_see_their_own_notifications(self):
+        maya = get_user_model().objects.create_user(username="maya", password="pass")
+        notify(self.samira, "For Samira", "/a/")
+        notify(maya, "For Maya", "/b/")
+        texts = [notification.text for notification in notifications_for(self.samira)]
+        self.assertEqual(texts, ["For Samira"])
+
+    def test_t6_unread_notifications_come_first(self):
+        first = notify(self.samira, "Read", "/a/")
+        first.read = True
+        first.save()
+        notify(self.samira, "Unread", "/b/")
+        texts = [notification.text for notification in notifications_for(self.samira)]
+        self.assertEqual(texts, ["Unread", "Read"])
+
+    def test_t6_newest_notifications_come_first_among_unread(self):
+        notify(self.samira, "Older", "/a/")
+        notify(self.samira, "Newer", "/b/")
+        texts = [notification.text for notification in notifications_for(self.samira)]
+        self.assertEqual(texts, ["Newer", "Older"])
