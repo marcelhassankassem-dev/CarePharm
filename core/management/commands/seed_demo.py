@@ -1,11 +1,15 @@
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
+from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Patient
 
 DEMO_PASSWORD = "carepharm123"
+SUPPLIER = "Cedar Medical Supplies"
 
 
 def get_or_create_user(username, role):
@@ -47,7 +51,55 @@ def create_patients():
     create_patient("Ahmad", date(1980, 6, 2), "03 100 004", None)
 
 
+def create_medicine(name, strength, barcode, drug_class_name, price, minimum_quantity):
+    drug_class, created = DrugClass.objects.get_or_create(name=drug_class_name)
+    medicine, created = Medicine.objects.get_or_create(
+        barcode=barcode,
+        defaults={
+            "name": name,
+            "strength": strength,
+            "drug_class": drug_class,
+            "price": Decimal(price),
+            "minimum_quantity": minimum_quantity,
+        },
+    )
+    return medicine
+
+
+def create_batch(medicine, batch_number, days_until_expiry, quantity, unit_cost):
+    Batch.objects.get_or_create(
+        medicine=medicine,
+        batch_number=batch_number,
+        defaults={
+            "expiry_date": timezone.localdate() + timedelta(days=days_until_expiry),
+            "quantity": quantity,
+            "unit_cost": Decimal(unit_cost),
+            "supplier": SUPPLIER,
+        },
+    )
+
+
+def create_stock():
+    amoxicillin = create_medicine("Amoxicillin", "500 mg", "1000000000001", "Penicillins", "8.50", 20)
+    create_batch(amoxicillin, "AMX-001", 365, 120, "4.25")
+
+    ibuprofen = create_medicine("Ibuprofen", "400 mg", "1000000000002", "NSAIDs", "4.00", 30)
+    create_batch(ibuprofen, "IBU-001", 300, 12, "2.00")
+
+    atorvastatin = create_medicine("Atorvastatin", "20 mg", "1000000000003", "Statins", "12.00", 15)
+    create_batch(atorvastatin, "ATV-001", 45, 40, "6.00")
+    create_batch(atorvastatin, "ATV-002", 400, 60, "6.00")
+
+    metformin = create_medicine("Metformin", "500 mg", "1000000000004", "Biguanides", "6.00", 25)
+    create_batch(metformin, "MET-001", 500, 150, "3.00")
+
+    paracetamol = create_medicine("Paracetamol", "500 mg", "1000000000005", "Analgesics", "3.00", 40)
+    create_batch(paracetamol, "PAR-001", -20, 25, "1.50")
+    create_batch(paracetamol, "PAR-002", 240, 200, "1.50")
+
+
 class Command(BaseCommand):
     def handle(self, *args, **options):
         create_staff()
         create_patients()
+        create_stock()
