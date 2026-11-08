@@ -46,7 +46,8 @@ class ProjectSettingsTests(SimpleTestCase):
 
 
 class SeedDemoPeopleTests(TestCase):
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         call_command("seed_demo")
 
     def test_t4_staff_have_their_roles(self):
@@ -86,8 +87,11 @@ class SeedDemoPeopleTests(TestCase):
 
 
 class SeedDemoStockTests(TestCase):
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
         call_command("seed_demo")
+
+    def setUp(self):
         self.today = timezone.localdate()
 
     def test_t4_a_medicine_has_low_stock(self):
