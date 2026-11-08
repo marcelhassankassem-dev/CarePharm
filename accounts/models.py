@@ -3,11 +3,12 @@ from django.db import models
 
 
 class User(AbstractUser):
-    class Role(models.TextChoices):
-        PATIENT = "patient", "Patient"
-        PHARMACIST = "pharmacist", "Pharmacist"
-        ASSISTANT = "assistant", "Assistant"
-        OWNER = "owner", "Owner"
+    ROLE_CHOICES = [
+        ("patient", "Patient"),
+        ("pharmacist", "Pharmacist"),
+        ("assistant", "Assistant"),
+        ("owner", "Owner"),
+    ]
 
-    role = models.CharField(max_length=20, choices=Role.choices, default=Role.PATIENT)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="patient")
     is_pharmacist = models.BooleanField(default=False)

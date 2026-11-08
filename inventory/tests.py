@@ -1,15 +1,16 @@
-from datetime import date, datetime, timezone
+from datetime import date, timedelta
 from decimal import Decimal
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError
 from django.db.models import ProtectedError
 from django.test import TestCase
+from django.utils import timezone
 
 from inventory.models import Batch, DrugClass, Medicine
 
 
 def create_medicine(barcode="1000000000001"):
-    penicillins, _ = DrugClass.objects.get_or_create(name="Penicillins")
+    penicillins, created = DrugClass.objects.get_or_create(name="Penicillins")
     return Medicine.objects.create(
         name="Amoxicillin",
         strength="500 mg",
@@ -20,17 +21,15 @@ def create_medicine(barcode="1000000000001"):
     )
 
 
-def create_batch(medicine, **overrides):
-    fields = {
-        "medicine": medicine,
-        "batch_number": "AMX-001",
-        "expiry_date": date(2030, 1, 31),
-        "quantity": 100,
-        "unit_cost": Decimal("4.25"),
-        "supplier": "Beirut Medical Supplies",
-    }
-    fields.update(overrides)
-    return Batch.objects.create(**fields)
+def create_batch(medicine, batch_number="AMX-001", quantity=100):
+    return Batch.objects.create(
+        medicine=medicine,
+        batch_number=batch_number,
+        expiry_date=date(2030, 1, 31),
+        quantity=quantity,
+        unit_cost=Decimal("4.25"),
+        supplier="Beirut Medical Supplies",
+    )
 
 
 class DrugClassModelTests(TestCase):
@@ -40,7 +39,7 @@ class DrugClassModelTests(TestCase):
 
     def test_t3_drug_class_name_is_unique(self):
         DrugClass.objects.create(name="Penicillins")
-        with self.assertRaises(IntegrityError), transaction.atomic():
+        with self.assertRaises(IntegrityError):
             DrugClass.objects.create(name="Penicillins")
 
 
@@ -56,7 +55,7 @@ class MedicineModelTests(TestCase):
 
     def test_t3_barcode_is_unique(self):
         create_medicine(barcode="1000000000001")
-        with self.assertRaises(IntegrityError), transaction.atomic():
+        with self.assertRaises(IntegrityError):
             create_medicine(barcode="1000000000001")
 
     def test_t3_drug_class_in_use_cannot_be_deleted(self):
@@ -83,7 +82,7 @@ class BatchModelTests(TestCase):
 
     def test_t3_batch_quantity_cannot_be_negative(self):
         medicine = create_medicine()
-        with self.assertRaises(IntegrityError), transaction.atomic():
+        with self.assertRaises(IntegrityError):
             create_batch(medicine, quantity=-1)
 
     def test_t3_received_at_defaults_to_now(self):
@@ -91,8 +90,10 @@ class BatchModelTests(TestCase):
         self.assertIsNotNone(batch.received_at)
 
     def test_t3_received_at_can_be_set_to_an_earlier_time(self):
-        earlier_time = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
-        batch = create_batch(create_medicine(), received_at=earlier_time)
+        batch = create_batch(create_medicine())
+        earlier_time = timezone.now() - timedelta(days=30)
+        batch.received_at = earlier_time
+        batch.save()
         batch.refresh_from_db()
         self.assertEqual(batch.received_at, earlier_time)
 

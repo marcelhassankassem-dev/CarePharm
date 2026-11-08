@@ -1,7 +1,7 @@
 from datetime import date
 
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError
 from django.test import TestCase
 
 from passport.models import Patient
@@ -29,7 +29,7 @@ class PatientModelTests(TestCase):
     def test_t3_user_can_have_only_one_patient_record(self):
         user = get_user_model().objects.create_user(username="maya", password="pass")
         Patient.objects.create(name="Maya", date_of_birth=date(1995, 9, 21), user=user)
-        with self.assertRaises(IntegrityError), transaction.atomic():
+        with self.assertRaises(IntegrityError):
             Patient.objects.create(name="Another", date_of_birth=date(1990, 1, 1), user=user)
 
     def test_t3_deleting_a_user_keeps_the_patient(self):
