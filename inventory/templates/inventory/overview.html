@@ -1,0 +1,1438 @@
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CarePharm | Inventory</title>
+
+  <style>
+    /* Main colors used throughout the CarePharm interface. */
+    :root {
+      --ink: #102838;
+      --muted: #566d7d;
+      --teal: #14756f;
+      --deep-teal: #0b3b49;
+      --line: #d6e7e3;
+      --pale: #edf8f5;
+      --red: #c8102e;
+      --orange: #d86113;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(
+          ellipse at 75% 9%,
+          #e4f6f0,
+          transparent 42%
+        ),
+        #f2faf7;
+    }
+
+    button, input, select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    /* ---------------- NAVIGATION BAR ---------------- */
+
+    .topbar {
+      min-height: 66px;
+      margin: 0 28px;
+      padding: 10px 18px;
+      border-radius: 0 0 19px 19px;
+      background: white;
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      box-shadow: 0 9px 25px #173b4520;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 215px;
+      color: #057c78;
+    }
+
+    .brand-mark {
+      font-size: 30px;
+      line-height: 1;
+      color: #1c9e75;
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 21px;
+      letter-spacing: -0.7px;
+    }
+
+    .brand small {
+      display: block;
+      color: #506a75;
+      font-size: 9px;
+      margin-top: -3px;
+    }
+
+    .topnav {
+      display: flex;
+      align-items: center;
+      gap: 23px;
+      white-space: nowrap;
+      flex: 1;
+    }
+
+    .nav-link {
+      color: #243e4d;
+      text-decoration: none;
+      font-size: 14px;
+      padding: 13px 0;
+    }
+
+    .nav-link.current {
+      color: var(--teal);
+      font-weight: 700;
+      border-bottom: 3px solid var(--teal);
+    }
+
+    .profile {
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+    }
+
+    .avatar {
+      width: 39px;
+      height: 39px;
+      display: grid;
+      place-items: center;
+      background: #e2f3ed;
+      border-radius: 50%;
+      color: var(--teal);
+      font-weight: 700;
+    }
+
+    .profile small {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+    }
+
+    /* ---------------- PAGE HEADER ---------------- */
+
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 32px 29px 30px;
+    }
+
+    .eyebrow {
+      font-weight: 800;
+      font-size: 12px;
+      color: #415e70;
+      margin: 2px 0 5px;
+    }
+
+    .hero {
+      position: relative;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-size: 48px;
+      line-height: 1.1;
+      margin: 0 0 5px;
+      letter-spacing: -1.5px;
+    }
+
+    .hero p {
+      font-size: 19px;
+      margin: 0;
+      color: var(--muted);
+    }
+
+
+    /* Position the slogan beside the decorative artwork. */
+    .motto {
+    position: absolute;
+    right: 190px;
+    top: 10px;
+    color: #58a79a;
+    font-size: 16px;
+    font-style: italic;
+    line-height: 1.35;
+    transform: rotate(-5deg);
+    z-index: 1;
+    }
+
+    /* Display the leaf-and-heart decoration. */
+    .hero-decoration {
+    position: absolute;
+    right: -15px;
+    top: -35px;
+    width: 220px;
+    height: auto;
+    pointer-events: none;
+    z-index: 0;
+    }
+
+
+    /* ---------------- SUMMARY CARDS ---------------- */
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 15px;
+    }
+
+    .metric {
+      background: white;
+      border-radius: 16px;
+      padding: 19px 20px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      min-height: 89px;
+      box-shadow: 0 8px 18px #1644360c;
+    }
+
+    .metric-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: #e1f3ef;
+      color: var(--teal);
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+
+    .metric.warning .metric-icon {
+      background: #ffdee3;
+      color: var(--red);
+    }
+
+    .metric.expiring .metric-icon {
+      background: #ffe5d1;
+      color: var(--orange);
+    }
+
+    .metric strong {
+      font-size: 27px;
+      display: block;
+      line-height: 1.1;
+    }
+
+    .metric small {
+      display: block;
+      color: var(--muted);
+      margin-top: 4px;
+      font-size: 13px;
+    }
+
+    /* ---------------- INVENTORY TABLE ---------------- */
+
+    .panel {
+      background: white;
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 10px 30px #13443414;
+    }
+
+    .panel-head, .tools, .filter-row {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .panel-head {
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .panel h2 {
+      margin: 0 0 4px;
+      font-size: 21px;
+    }
+
+    .panel p {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 0;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      padding: 12px 18px;
+      background: white;
+      color: var(--teal);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .btn.primary {
+      border: none;
+      color: white;
+      background: linear-gradient(
+        110deg,
+        #145566,
+        #0b3b49
+      );
+    }
+
+    .btn:focus-visible,
+    .pill:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+      outline: 3px solid #95d9ce;
+      outline-offset: 2px;
+    }
+
+    .tools {
+      flex-wrap: wrap;
+      margin-bottom: 17px;
+    }
+
+    .search {
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      padding: 11px 13px;
+      min-width: 290px;
+      width: 360px;
+      max-width: 100%;
+      color: var(--ink);
+      background: white;
+    }
+
+    .filter-row {
+      flex-wrap: wrap;
+      gap: 9px;
+    }
+
+    .pill {
+      background: white;
+      color: #344d5a;
+      border: 1px solid #d9e8e6;
+      border-radius: 22px;
+      padding: 8px 15px;
+      font-size: 13px;
+    }
+
+    .pill.selected {
+      background: var(--teal);
+      color: white;
+      border-color: var(--teal);
+      font-weight: 700;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      min-width: 925px;
+    }
+
+    thead {
+      background: #edf7f4;
+    }
+
+    th {
+      color: #7e929f;
+      font-size: 12px;
+      letter-spacing: 0.35px;
+      padding: 12px 13px;
+    }
+
+    th:first-child {
+      border-radius: 10px 0 0 10px;
+    }
+
+    th:last-child {
+      border-radius: 0 10px 10px 0;
+    }
+
+    td {
+      padding: 13px;
+      border-bottom: 1px solid #e0eae8;
+      font-size: 13px;
+      vertical-align: middle;
+    }
+
+    .med-name {
+      display: block;
+      font-weight: 750;
+      color: var(--ink);
+    }
+
+    .med-sub {
+      display: block;
+      color: #78909c;
+      font-size: 11px;
+      margin-top: 3px;
+    }
+
+    .qty {
+      font-weight: 750;
+    }
+
+    .qty.low {
+      color: var(--red);
+    }
+
+    /* Different colors indicate different stock statuses. */
+    .badge {
+      display: inline-block;
+      border-radius: 25px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .badge.status-in-stock {
+      background: #e3f4f0;
+      color: #08736e;
+    }
+
+    .badge.status-low-stock,
+    .badge.status-out-of-stock,
+    .badge.status-expired {
+      background: #ffdbe2;
+      color: #b60e30;
+    }
+
+    .badge.status-expiring {
+      background: #ffe6d6;
+      color: #b85418;
+    }
+
+    .muted {
+      color: #78909c;
+    }
+
+    .table-footer {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 17px;
+    }
+
+    .empty {
+      padding: 28px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .adjust {
+      color: #849ba3;
+      border: 1px solid var(--line);
+      background: #fafdfc;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-weight: 650;
+    }
+
+    .adjust:disabled {
+      cursor: not-allowed;
+      opacity: 0.75;
+    }
+
+    /* ---------------- DELIVERY MODAL ---------------- */
+
+    /* Native HTML dialog provides the popup and overlay. */
+    dialog {
+      width: min(560px, calc(100vw - 30px));
+      padding: 30px 32px;
+      border: none;
+      border-radius: 20px;
+      color: var(--ink);
+      box-shadow: 0 24px 60px #0e2b3459;
+    }
+
+    dialog::backdrop {
+      background: #23374682;
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding-bottom: 22px;
+      border-bottom: 1px solid #d9e6e3;
+    }
+
+    .modal-head h2 {
+      margin: 0 0 7px;
+      font-size: 24px;
+    }
+
+    .modal-head p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .icon-close {
+      border: 0;
+      background: none;
+      font-size: 24px;
+      color: var(--muted);
+      padding: 0 3px;
+    }
+
+    .delivery-form {
+      padding-top: 18px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(
+        2,
+        minmax(0, 1fr)
+      );
+      gap: 17px 16px;
+    }
+
+    .form-field {
+      min-width: 0;
+    }
+
+    .form-field.full {
+      grid-column: 1 / -1;
+    }
+
+    .form-field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 800;
+      margin-bottom: 7px;
+    }
+
+    .form-field input,
+    .form-field select {
+      display: block;
+      width: 100%;
+      min-height: 47px;
+      border-radius: 11px;
+      background: white;
+      border: 1px solid #d4e4e0;
+      padding: 9px 14px;
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .errorlist {
+      margin: 6px 0;
+      padding-left: 20px;
+      color: var(--red);
+      font-size: 12px;
+    }
+
+    .stock-preview {
+      margin-top: 18px;
+      padding: 17px;
+      border-radius: 12px;
+      background: #eaf7f3;
+      border: 1px solid #d0eae2;
+    }
+
+    .stock-preview small {
+      color: var(--muted);
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .stock-preview strong {
+      font-size: 21px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 25px;
+    }
+
+    .message {
+      background: #e5f6f1;
+      color: #106e66;
+      border: 1px solid #baded6;
+      padding: 12px 17px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+    }
+
+    /* ---------------- RESPONSIVE DESIGN ---------------- */
+
+    @media (max-width: 1080px) {
+      .topnav {
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .profile {
+        display: none;
+      }
+
+      .summary {
+        grid-template-columns: repeat(
+          2,
+          minmax(0, 1fr)
+        );
+      }
+
+      .motto {
+        display: none;
+      }
+    }
+
+    @media (max-width: 650px) {
+      .topbar {
+        margin: 0;
+        border-radius: 0;
+        flex-wrap: wrap;
+      }
+
+      .brand {
+        min-width: 0;
+      }
+
+      .topnav {
+        width: 100%;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+      }
+
+      main {
+        padding: 24px 14px;
+      }
+
+      .hero h1 {
+        font-size: 35px;
+      }
+
+      .hero p {
+        font-size: 15px;
+      }
+
+      .summary {
+        gap: 10px;
+      }
+
+      .metric {
+        padding: 13px;
+        gap: 10px;
+      }
+
+      .metric strong {
+        font-size: 22px;
+      }
+
+      .metric small {
+        font-size: 11px;
+      }
+
+      .metric-icon {
+        width: 35px;
+        height: 35px;
+      }
+
+      .panel-head {
+        align-items: flex-start;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .form-field.full {
+        grid-column: auto;
+      }
+
+      dialog {
+        padding: 23px 17px;
+      }
+    }
+
+/* Set the CarePharm logo size to match the Figma prototype. */
+.brand-logo {
+    display: block;
+    width: 164px;
+    height: auto;
+    max-height: 58px;
+    object-fit: contain;
+}
+
+/* Prevent the logo container from taking too much space. */
+.brand {
+    min-width: 164px;
+    flex-shrink: 0;
+}
+
+  </style>
+</head>
+
+<body>
+
+  <!-- ---------------- NAVIGATION ---------------- -->
+
+  <header class="topbar">
+
+
+<!-- Display the original CarePharm logo. -->
+<div class="brand">
+  <img
+    class="brand-logo"
+    src="{% static 'inventory/images/carepharm-logo.png' %}"
+    alt="CarePharm - Connecting Care and Medicines"
+  >
+</div>
+
+
+    <nav class="topnav" aria-label="Main navigation">
+
+      <!-- Other pages will be connected when implemented. -->
+      <span class="nav-link">Dashboard</span>
+      <span class="nav-link">Prescriptions</span>
+
+      <a
+        class="nav-link current"
+        href="{% url 'inventory:overview' %}"
+        aria-current="page"
+      >
+        Inventory
+      </a>
+
+      <span class="nav-link">Sales</span>
+      <span class="nav-link">Patients</span>
+      <span class="nav-link">Messages</span>
+      <span class="nav-link">Reports</span>
+    </nav>
+
+    <!-- Display the logged-in user's information. -->
+    <div class="profile">
+      <span class="avatar">
+        {{ request.user.username|first|upper }}
+      </span>
+
+      <span>
+        {{ request.user.get_full_name|default:request.user.username }}
+
+        <!-- Display the correct label for an administrator. -->
+        <small>
+        {% if request.user.is_superuser %}
+            Administrator
+        {% else %}
+            {{ request.user.get_role_display }}
+        {% endif %}
+        </small>
+
+      </span>
+    </div>
+
+  </header>
+
+  <main>
+
+    <!-- ---------------- PAGE HEADING ---------------- -->
+
+    <section class="hero">
+      <div class="eyebrow">PHARMACIST CONSOLE</div>
+
+      <h1>Inventory</h1>
+
+      <p>
+        Stock, batches and expiry dates for every medicine,
+        updated with each sale and delivery.
+      </p>
+
+      <span class="motto" aria-hidden="true">
+        Safer<br>
+        medicines<br>
+        healthier<br>
+        tomorrows ♡
+      </span>
+
+    <!-- Decorative artwork from the CarePharm prototype. -->
+    <img
+    class="hero-decoration"
+    src="{% static 'inventory/images/carepharm-decoration.png' %}"
+    alt=""
+    aria-hidden="true"
+    >
+
+    </section>
+
+    <!-- ---------------- INVENTORY SUMMARY ---------------- -->
+
+    <!-- These values come from inventory/views.py. -->
+    <section class="summary" aria-label="Inventory summary">
+
+      <div class="metric">
+        <span class="metric-icon" aria-hidden="true">⬡</span>
+
+        <div>
+          <strong>{{ in_stock_count }}</strong>
+          <small>Medicines in stock</small>
+        </div>
+      </div>
+
+      <div class="metric warning">
+        <span class="metric-icon" aria-hidden="true">!</span>
+
+        <div>
+          <strong>{{ low_stock_count }}</strong>
+          <small>Below minimum</small>
+        </div>
+      </div>
+
+      <div class="metric expiring">
+        <span class="metric-icon" aria-hidden="true">◷</span>
+
+        <div>
+          <strong>{{ expiring_count }}</strong>
+          <small>Expiring within 90 days</small>
+        </div>
+      </div>
+
+      <div class="metric">
+        <span class="metric-icon" aria-hidden="true">⇢</span>
+
+        <div>
+          <strong>{{ deliveries_today }}</strong>
+          <small>Deliveries today</small>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Display Django messages after submitting a delivery. -->
+    {% for message in messages %}
+      <div class="message" role="status">
+        {{ message }}
+      </div>
+    {% endfor %}
+
+    <!-- ---------------- STOCK LIST ---------------- -->
+
+    <section class="panel" aria-labelledby="stock-heading">
+
+      <div class="panel-head">
+        <div>
+          <h2 id="stock-heading">Stock List</h2>
+          <p>
+            Stock goes down with each sale
+            and up with each delivery.
+          </p>
+        </div>
+
+        <!-- Open the delivery popup. -->
+        <button
+          type="button"
+          class="btn primary"
+          id="openDelivery"
+        >
+          ＋ &nbsp;Record Delivery
+        </button>
+      </div>
+
+      <!-- ---------------- SEARCH AND FILTERS ---------------- -->
+
+      <div class="tools">
+
+        <!-- Search by medicine name or batch number. -->
+        <input
+          class="search"
+          id="stockSearch"
+          type="search"
+          placeholder="Search by medicine or batch"
+          aria-label="Search by medicine or batch"
+        >
+
+        <div
+          class="filter-row"
+          role="group"
+          aria-label="Filter medicines by status"
+        >
+
+          <button
+            class="pill selected"
+            type="button"
+            data-filter="all"
+            aria-pressed="true"
+          >
+            All {{ inventory_rows|length }}
+          </button>
+
+          <button
+            class="pill"
+            type="button"
+            data-filter="low-stock"
+            aria-pressed="false"
+          >
+            Low stock {{ low_stock_count }}
+          </button>
+
+          <button
+            class="pill"
+            type="button"
+            data-filter="expiring"
+            aria-pressed="false"
+          >
+            Near expiry {{ expiring_count }}
+          </button>
+
+          <button
+            class="pill"
+            type="button"
+            data-filter="out-of-stock"
+            aria-pressed="false"
+          >
+            Out of stock
+          </button>
+
+        </div>
+      </div>
+
+      <!-- ---------------- INVENTORY TABLE ---------------- -->
+
+      <div class="table-wrap">
+
+        <table id="stockList">
+
+          <thead>
+            <tr>
+              <th>MEDICINE</th>
+              <th>BATCH</th>
+              <th>EXPIRY</th>
+              <th>IN STOCK</th>
+              <th>MINIMUM</th>
+              <th>STATUS</th>
+              <th>UPDATED</th>
+              <th>ACTION</th>
+            </tr>
+          </thead>
+
+          <tbody>
+
+            <!-- Generate a row for every batch from the database. -->
+            {% for row in inventory_rows %}
+
+              <tr
+                class="stock-row"
+                data-status="{{ row.status|slugify }}"
+                data-search="{{ row.medicine.name }} {{ row.medicine.strength }} {{ row.batch.batch_number }}"
+                data-medicine-id="{{ row.medicine.pk }}"
+                data-stock="{{ row.available_stock }}"
+                data-minimum="{{ row.medicine.minimum_quantity }}"
+              >
+
+                <!-- Medicine information. -->
+                <td>
+                  <span class="med-name">
+                    {{ row.medicine.name }}
+                    {{ row.medicine.strength }}
+                  </span>
+
+                  <span class="med-sub">
+                    {{ row.medicine.drug_class.name }}
+                  </span>
+                </td>
+
+                <!-- Batch number. -->
+                <td>{{ row.batch.batch_number }}</td>
+
+                <!-- Batch expiry date. -->
+                <td>
+                  {{ row.batch.expiry_date|date:"d M Y" }}
+                </td>
+
+                <!-- Quantity stored in this batch. -->
+                <td>
+                  <span class="qty {% if row.status == 'Low stock' or row.status == 'Out of stock' %}low{% endif %}">
+                    {{ row.batch.quantity }}
+                  </span>
+                </td>
+
+                <!-- Minimum stock threshold for the medicine. -->
+                <td>
+                  {{ row.medicine.minimum_quantity }}
+                </td>
+
+                <!-- Display the stock status with a color badge. -->
+                <td>
+                  <span class="badge status-{{ row.status|slugify }}">
+                    {{ row.status }}
+                  </span>
+                </td>
+
+                <!-- Last recorded receipt date for this batch. -->
+                <td class="muted">
+                  {{ row.batch.received_at|date:"d M Y" }}
+                </td>
+
+                <!-- Stock adjustment will belong to SCRUM-31. -->
+                <td>
+                  <button
+                    type="button"
+                    class="adjust"
+                    disabled
+                    title="Stock adjustment will be added in SCRUM-31"
+                  >
+                    Adjust
+                  </button>
+                </td>
+
+              </tr>
+
+            {% empty %}
+
+              <tr>
+                <td colspan="8" class="empty">
+                  No stock batches have been recorded yet.
+                </td>
+              </tr>
+
+            {% endfor %}
+
+            <!-- Displayed when search/filter returns no matches. -->
+            <tr id="noMatches" hidden>
+              <td colspan="8" class="empty">
+                No matching stock records.
+              </td>
+            </tr>
+
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Number of currently visible batches. -->
+      <div
+        class="table-footer"
+        id="tableCount"
+        aria-live="polite"
+      >
+        Showing {{ inventory_rows|length }} stock batches
+      </div>
+
+    </section>
+  </main>
+
+  <!-- ---------------- RECORD DELIVERY MODAL ---------------- -->
+
+  <!-- Dialog opens when the pharmacist clicks Record Delivery. -->
+  <dialog
+    id="deliveryModal"
+    aria-labelledby="delivery-heading"
+  >
+
+    <div class="modal-head">
+      <div>
+        <h2 id="delivery-heading">
+          Record Delivery
+        </h2>
+
+        <p>
+          Enter the delivery once.
+          Stock updates automatically.
+        </p>
+      </div>
+
+      <!-- Close button. -->
+      <button
+        type="button"
+        class="icon-close"
+        id="closeDelivery"
+        aria-label="Close delivery form"
+      >
+        ×
+      </button>
+    </div>
+
+    <!-- Submit the form to the same Django view. -->
+    <form
+    class="delivery-form"
+    method="post"
+    id="deliveryForm"
+    >
+      <!-- Protection against CSRF attacks. -->
+      {% csrf_token %}
+
+    <!-- Hidden unique ID used to prevent duplicate deliveries. -->
+    {{ form.delivery_request_id }}
+
+
+      <!-- Display any general form validation errors. -->
+      {{ form.non_field_errors }}
+
+      <div class="form-grid">
+
+        <!-- Select the medicine being delivered. -->
+        <div class="form-field full">
+          <label for="{{ form.medicine.id_for_label }}">
+            Medicine
+          </label>
+
+          {{ form.medicine }}
+          {{ form.medicine.errors }}
+        </div>
+
+        <!-- Supplier of the delivery. -->
+        <div class="form-field full">
+          <label for="{{ form.supplier.id_for_label }}">
+            Supplier
+          </label>
+
+          {{ form.supplier }}
+          {{ form.supplier.errors }}
+        </div>
+
+        <!-- Batch identifier. -->
+        <div class="form-field">
+          <label for="{{ form.batch_number.id_for_label }}">
+            Batch number
+          </label>
+
+          {{ form.batch_number }}
+          {{ form.batch_number.errors }}
+        </div>
+
+        <!-- Expiry date of the new batch. -->
+        <div class="form-field">
+          <label for="{{ form.expiry_date.id_for_label }}">
+            Expiry date
+          </label>
+
+          {{ form.expiry_date }}
+          {{ form.expiry_date.errors }}
+        </div>
+
+        <!-- Quantity received in the database's stock unit. -->
+        <div class="form-field">
+          <label for="{{ form.quantity.id_for_label }}">
+            Quantity received (stock units)
+          </label>
+
+          {{ form.quantity }}
+          {{ form.quantity.errors }}
+        </div>
+
+        <!-- Cost of each stock unit. -->
+        <div class="form-field">
+          <label for="{{ form.unit_cost.id_for_label }}">
+            Unit cost
+          </label>
+
+          {{ form.unit_cost }}
+          {{ form.unit_cost.errors }}
+        </div>
+
+      </div>
+
+      <!-- ---------------- LIVE STOCK PREVIEW ---------------- -->
+
+      <!-- JavaScript updates this preview before submitting. -->
+      <div
+        class="stock-preview"
+        id="stockPreview"
+        aria-live="polite"
+      >
+
+        <small>
+          Available stock after saving (preview)
+        </small>
+
+        <strong>
+          <span id="stockBefore">—</span>
+          →
+          <span id="stockAfter">—</span>
+        </strong>
+
+        <small id="stockMinimum"></small>
+
+      </div>
+
+      <!-- ---------------- MODAL BUTTONS ---------------- -->
+
+      <div class="modal-actions">
+
+        <button
+          class="btn"
+          id="cancelDelivery"
+          type="button"
+        >
+          Cancel
+        </button>
+
+        <!-- Save a delivery and prevent repeated clicks while submitting. -->
+        <button
+        class="btn primary"
+        type="submit"
+        id="saveDeliveryButton"
+        >
+        Save Delivery
+        </button>
+
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ---------------- JAVASCRIPT ---------------- -->
+
+  <script>
+
+    // Get the popup element.
+    const modal = document.getElementById('deliveryModal');
+
+    // Open the popup when Record Delivery is clicked.
+    document.getElementById('openDelivery')
+      .addEventListener('click', () => {
+        modal.showModal();
+      });
+
+    // Close the popup using the X button.
+    document.getElementById('closeDelivery')
+      .addEventListener('click', () => {
+        modal.close();
+      });
+
+    // Close the popup using the Cancel button.
+    document.getElementById('cancelDelivery')
+      .addEventListener('click', () => {
+        modal.close();
+      });
+
+
+    // ---------------- INVENTORY SEARCH AND FILTER ----------------
+
+    // Get search input, table rows and filter buttons.
+    const search = document.getElementById('stockSearch');
+
+    const rows = [
+      ...document.querySelectorAll('.stock-row')
+    ];
+
+    const filterButtons = [
+      ...document.querySelectorAll('[data-filter]')
+    ];
+
+    // Initially display all medicines.
+    let activeFilter = 'all';
+
+
+    // Update which rows are visible in the stock table.
+    function updateStockTable() {
+
+      // Convert search text to lowercase for easier matching.
+      const query = search.value.trim().toLowerCase();
+
+      let visibleCount = 0;
+
+      rows.forEach(row => {
+
+        // Check whether the medicine or batch matches the search.
+        const matchesSearch = row.dataset.search
+          .toLowerCase()
+          .includes(query);
+
+        // Check whether the row matches the selected status.
+        const matchesFilter =
+          activeFilter === 'all' ||
+          row.dataset.status === activeFilter;
+
+        // Hide rows that do not match.
+        row.hidden = !(matchesSearch && matchesFilter);
+
+        if (!row.hidden) {
+          visibleCount++;
+        }
+
+      });
+
+      // Display an empty-result message when necessary.
+      document.getElementById('noMatches').hidden =
+        visibleCount !== 0 || rows.length === 0;
+
+      // Update the displayed number of matching batches.
+      document.getElementById('tableCount').textContent =
+        `Showing ${visibleCount} stock batches`;
+    }
+
+
+    // Update the table whenever the pharmacist types.
+    search.addEventListener('input', updateStockTable);
+
+
+    // Handle clicks on inventory status filters.
+    filterButtons.forEach(button => {
+
+      button.addEventListener('click', () => {
+
+        // Remember which filter the pharmacist selected.
+        activeFilter = button.dataset.filter;
+
+        // Highlight the currently selected button.
+        filterButtons.forEach(b => {
+
+          const selected = b === button;
+
+          b.classList.toggle('selected', selected);
+
+          b.setAttribute(
+            'aria-pressed',
+            String(selected)
+          );
+
+        });
+
+        // Apply the new filter.
+        updateStockTable();
+
+      });
+
+    });
+
+
+    // ---------------- STOCK PREVIEW ----------------
+
+    // Get the medicine and quantity fields.
+    const medicineInput = document.getElementById('id_medicine');
+
+    const quantityInput = document.getElementById('id_quantity');
+
+
+    // Calculate an estimated available stock after delivery.
+    function updateStockPreview() {
+
+      // Get the selected medicine's database ID.
+      const medicineId = medicineInput.value;
+
+      // Find a table row belonging to the selected medicine.
+      const currentRow = rows.find(row =>
+        row.dataset.medicineId === medicineId
+      );
+
+      // Read the current stock from the table data.
+      const current = currentRow
+        ? Number(currentRow.dataset.stock)
+        : 0;
+
+      // Read the minimum quantity for this medicine.
+      const minimum = currentRow
+        ? Number(currentRow.dataset.minimum)
+        : null;
+
+      // Read the delivery quantity.
+      // Negative values are treated as zero for the preview.
+      const amount = Math.max(
+        0,
+        Number(quantityInput.value) || 0
+      );
+
+      // Display stock before the delivery.
+      document.getElementById('stockBefore').textContent =
+        medicineId ? current : '—';
+
+      // Display the estimated stock after the delivery.
+      document.getElementById('stockAfter').textContent =
+        medicineId ? current + amount : '—';
+
+      // Show whether the new stock reaches the minimum level.
+      document.getElementById('stockMinimum').textContent =
+        minimum === null
+          ? ''
+          : (
+              current + amount >= minimum
+                ? `At or above minimum (${minimum})`
+                : `Below minimum (${minimum})`
+            );
+
+    }
+
+
+    // Recalculate when the selected medicine changes.
+    medicineInput.addEventListener(
+      'change',
+      updateStockPreview
+    );
+
+    // Recalculate when the received quantity changes.
+    quantityInput.addEventListener(
+      'input',
+      updateStockPreview
+    );
+
+    // Calculate the initial preview.
+    updateStockPreview();
+
+
+    // ---------------- FORM ERROR HANDLING ----------------
+
+    // If Django rejects the submitted form,
+    // reopen the popup so validation errors are visible.
+    {% if form.errors %}
+      modal.showModal();
+    {% endif %}
+
+
+
+    // ---------------- PREVENT REPEATED CLICKS ----------------
+
+    // Get the delivery form and its Save button.
+    const deliveryForm = document.getElementById("deliveryForm");
+    const saveButton = document.getElementById("saveDeliveryButton");
+
+    // Remember whether a submission has already started.
+    let isSubmitting = false;
+
+    // Run this function when the pharmacist submits the form.
+    deliveryForm.addEventListener("submit", function(event) {
+
+        // Stop another submission while the first is in progress.
+        if (isSubmitting) {
+            event.preventDefault();
+            return;
+        }
+
+        // Mark the form as being submitted.
+        isSubmitting = true;
+
+        // Disable the button to prevent additional clicks.
+        saveButton.disabled = true;
+
+        // Show that the delivery is being processed.
+        saveButton.textContent = "Saving...";
+    });
+
+    // Reset the button if the browser restores this page.
+    window.addEventListener("pageshow", function() {
+        isSubmitting = false;
+        saveButton.disabled = false;
+        saveButton.textContent = "Save Delivery";
+    });
+
+
+  </script>
+
+</body>
+</html>

@@ -29,5 +29,16 @@ class Batch(models.Model):
     supplier = models.CharField(max_length=100)
     received_at = models.DateTimeField(auto_now_add=True)
 
+    # Unique identifier for a delivery submission.
+    # Prevents the same request from creating duplicate deliveries.
+    # NULL is allowed for existing batches and demonstration data.
+    delivery_request_id = models.UUIDField(
+        unique=True,
+        null=True,
+        blank=True,
+        editable=False,
+    )
+
+
     def __str__(self):
         return f"{self.medicine} ({self.batch_number})"
