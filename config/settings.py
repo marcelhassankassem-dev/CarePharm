@@ -1,12 +1,17 @@
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "django-insecure-placeholder-only-for-local-use"
+load_dotenv(BASE_DIR / ".env")
+
+SECRET_KEY = os.environ.get("SECRET_KEY") or "django-insecure-placeholder-only-for-local-use"
 
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -74,10 +79,15 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Beirut"
 
 USE_I18N = True
 
 USE_TZ = True
 
 STATIC_URL = "static/"
+
+PHARMACY_NAME = "CarePharm"
+PHARMACY_ADDRESS = "Bliss Street, Beirut"
+PHARMACY_PHONE = "01 234 567"
+PHARMACY_HOURS = "Mon to Sat, 8:00 to 22:00"
