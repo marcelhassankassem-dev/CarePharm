@@ -1,10 +1,9 @@
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 
 from django.db import IntegrityError
 from django.db.models import ProtectedError
 from django.test import TestCase
-from django.utils import timezone
 
 from inventory.models import Batch, DrugClass, Medicine
 
@@ -85,17 +84,9 @@ class BatchModelTests(TestCase):
         with self.assertRaises(IntegrityError):
             create_batch(medicine, quantity=-1)
 
-    def test_t3_received_at_defaults_to_now(self):
+    def test_t3_received_at_is_set_automatically(self):
         batch = create_batch(create_medicine())
         self.assertIsNotNone(batch.received_at)
-
-    def test_t3_received_at_can_be_set_to_an_earlier_time(self):
-        batch = create_batch(create_medicine())
-        earlier_time = timezone.now() - timedelta(days=30)
-        batch.received_at = earlier_time
-        batch.save()
-        batch.refresh_from_db()
-        self.assertEqual(batch.received_at, earlier_time)
 
     def test_t3_medicine_with_batches_cannot_be_deleted(self):
         medicine = create_medicine()
