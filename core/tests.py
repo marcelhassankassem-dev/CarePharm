@@ -137,6 +137,9 @@ class SeedDemoStockTests(TestCase):
         self.assertGreater(batch.quantity, amoxicillin.minimum_quantity)
         self.assertGreater(batch.expiry_date, self.today + timedelta(days=90))
 
+    def test_4_1_demo_batches_were_not_received_today(self):
+        self.assertFalse(Batch.objects.filter(received_at__date=self.today).exists())
+
 
 class SeedDemoMedicineTests(TestCase):
     @classmethod
