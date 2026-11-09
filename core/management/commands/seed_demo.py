@@ -12,11 +12,17 @@ DEMO_PASSWORD = "carepharm123"
 SUPPLIER = "Cedar Medical Supplies"
 
 
-def get_or_create_user(username, role):
+def get_or_create_user(username, role, first_name="", last_name=""):
     User = get_user_model()
     if User.objects.filter(username=username).exists():
         return User.objects.get(username=username)
-    return User.objects.create_user(username=username, password=DEMO_PASSWORD, role=role)
+    return User.objects.create_user(
+        username=username,
+        password=DEMO_PASSWORD,
+        role=role,
+        first_name=first_name,
+        last_name=last_name,
+    )
 
 
 def create_staff():
@@ -27,9 +33,11 @@ def create_staff():
             password=DEMO_PASSWORD,
             role="owner",
             is_pharmacist=True,
+            first_name="Nadim",
+            last_name="Khoury",
         )
-    get_or_create_user("rana", "pharmacist")
-    get_or_create_user("karim", "assistant")
+    get_or_create_user("rana", "pharmacist", "Rana", "Haddad")
+    get_or_create_user("karim", "assistant", "Karim", "Saad")
 
 
 def create_patient(name, date_of_birth, phone, user):

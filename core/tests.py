@@ -87,6 +87,12 @@ class SeedDemoPeopleTests(TestCase):
         for username in ["nadim", "rana", "karim", "samira", "maya", "omar", "omars_father"]:
             self.assertTrue(self.client.login(username=username, password="carepharm123"))
 
+    def test_8_2_staff_have_full_names(self):
+        User = get_user_model()
+        self.assertEqual(User.objects.get(username="nadim").get_full_name(), "Nadim Khoury")
+        self.assertEqual(User.objects.get(username="rana").get_full_name(), "Rana Haddad")
+        self.assertEqual(User.objects.get(username="karim").get_full_name(), "Karim Saad")
+
 
 class SeedDemoStockTests(TestCase):
     @classmethod
