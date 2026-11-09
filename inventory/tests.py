@@ -13,6 +13,7 @@ from inventory.models import Batch, DrugClass, Medicine
 from inventory.services import (
     available_stock,
     deliveries_today_count,
+    medicine_count,
     medicines_in_stock_count,
     record_delivery,
     stock_rows,
@@ -28,6 +29,18 @@ def create_medicine(barcode="1000000000001"):
         drug_class=penicillins,
         price=Decimal("8.50"),
         minimum_quantity=20,
+    )
+
+
+def create_aspirin():
+    nsaids, created = DrugClass.objects.get_or_create(name="NSAIDs")
+    return Medicine.objects.create(
+        name="Aspirin",
+        strength="81 mg",
+        barcode="2000000000001",
+        drug_class=nsaids,
+        price=Decimal("3.50"),
+        minimum_quantity=30,
     )
 
 
@@ -228,13 +241,6 @@ class StockListServiceTests(TestCase):
     def setUpTestData(cls):
         cls.medicine = create_medicine()
 
-    def test_4_1_each_batch_has_its_own_row(self):
-        first = create_batch(self.medicine, batch_number="AMX-001")
-        second = create_batch(self.medicine, batch_number="AMX-002")
-        rows = stock_rows()
-        self.assertEqual([row["batch"] for row in rows], [first, second])
-        self.assertEqual(rows[0]["medicine"], self.medicine)
-
     def test_4_1_a_medicine_with_no_batches_still_has_a_row(self):
         rows = stock_rows()
         self.assertEqual(len(rows), 1)
@@ -268,6 +274,88 @@ class StockListServiceTests(TestCase):
         old = create_batch(self.medicine, batch_number="OLD")
         Batch.objects.filter(pk=old.pk).update(received_at=timezone.now() - timedelta(days=3))
         self.assertEqual(deliveries_today_count(), 1)
+
+
+class StockLookupServiceTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.amoxicillin = create_medicine()
+        cls.aspirin = create_aspirin()
+
+    def setUp(self):
+        self.yesterday = timezone.localdate() - timedelta(days=1)
+
+    def row_for(self, medicine):
+        return next(row for row in stock_rows() if row["medicine"] == medicine)
+
+    def test_4_2_a_medicine_with_several_batches_has_one_row(self):
+        create_batch(self.amoxicillin, batch_number="AMX-001")
+        create_batch(self.amoxicillin, batch_number="AMX-002")
+        self.assertEqual(
+            [row["medicine"] for row in stock_rows()],
+            [self.amoxicillin, self.aspirin],
+        )
+
+    def test_4_2_the_row_shows_the_total_available_stock(self):
+        create_batch(self.amoxicillin, batch_number="AMX-001", quantity=8)
+        create_batch(self.amoxicillin, batch_number="AMX-002", quantity=100)
+        self.assertEqual(self.row_for(self.amoxicillin)["available"], 108)
+
+    def test_4_2_expired_batches_are_left_out_of_the_total(self):
+        create_batch(self.amoxicillin, batch_number="OLD", quantity=25, expiry_date=self.yesterday)
+        create_batch(self.amoxicillin, batch_number="NEW", quantity=200)
+        self.assertEqual(self.row_for(self.amoxicillin)["available"], 200)
+
+    def test_4_2_the_row_shows_the_batch_that_expires_first(self):
+        create_batch(self.amoxicillin, batch_number="LATE", expiry_date=date(2031, 1, 31))
+        soon = create_batch(self.amoxicillin, batch_number="SOON", expiry_date=date(2029, 1, 31))
+        self.assertEqual(self.row_for(self.amoxicillin)["batch"], soon)
+
+    def test_4_2_an_expired_batch_is_not_the_next_batch(self):
+        create_batch(self.amoxicillin, batch_number="OLD", expiry_date=self.yesterday)
+        new = create_batch(self.amoxicillin, batch_number="NEW")
+        self.assertEqual(self.row_for(self.amoxicillin)["batch"], new)
+
+    def test_4_2_an_empty_batch_is_not_the_next_batch(self):
+        create_batch(self.amoxicillin, batch_number="EMPTY", quantity=0, expiry_date=date(2029, 1, 31))
+        full = create_batch(self.amoxicillin, batch_number="FULL")
+        self.assertEqual(self.row_for(self.amoxicillin)["batch"], full)
+
+    def test_4_2_a_medicine_with_only_expired_stock_has_no_next_batch(self):
+        create_batch(self.amoxicillin, batch_number="OLD", expiry_date=self.yesterday)
+        row = self.row_for(self.amoxicillin)
+        self.assertIsNone(row["batch"])
+        self.assertEqual(row["available"], 0)
+
+    def test_4_2_the_row_shows_the_latest_delivery(self):
+        old = create_batch(self.amoxicillin, batch_number="OLD")
+        Batch.objects.filter(pk=old.pk).update(received_at=timezone.now() - timedelta(days=3))
+        new = create_batch(self.amoxicillin, batch_number="NEW")
+        self.assertEqual(self.row_for(self.amoxicillin)["last_received"], new.received_at)
+
+    def test_4_2_a_medicine_never_delivered_has_no_delivery_date(self):
+        self.assertIsNone(self.row_for(self.aspirin)["last_received"])
+
+    def test_4_2_search_finds_part_of_a_name_in_any_case(self):
+        self.assertEqual([row["medicine"] for row in stock_rows("AMOX")], [self.amoxicillin])
+
+    def test_4_2_search_finds_a_batch_number(self):
+        create_batch(self.amoxicillin, batch_number="AMX-777")
+        self.assertEqual([row["medicine"] for row in stock_rows("777")], [self.amoxicillin])
+
+    def test_4_2_search_finds_a_barcode(self):
+        self.assertEqual([row["medicine"] for row in stock_rows("2000000000001")], [self.aspirin])
+
+    def test_4_2_a_medicine_matching_on_several_batches_appears_once(self):
+        create_batch(self.amoxicillin, batch_number="AMX-001")
+        create_batch(self.amoxicillin, batch_number="AMX-002")
+        self.assertEqual([row["medicine"] for row in stock_rows("AMX")], [self.amoxicillin])
+
+    def test_4_2_a_search_with_no_match_finds_nothing(self):
+        self.assertEqual(stock_rows("zzz"), [])
+
+    def test_4_2_medicine_count_counts_every_medicine(self):
+        self.assertEqual(medicine_count(), 2)
 
 
 class InventoryPagesTestData(TestCase):
@@ -309,7 +397,7 @@ class InventoryPageTests(InventoryPagesTestData):
         self.assertContains(response, "Medicines in stock")
         self.assertContains(response, "Deliveries today")
 
-    def test_4_1_the_list_shows_each_batch(self):
+    def test_4_1_the_list_shows_a_delivered_batch(self):
         create_batch(self.medicine, batch_number="AMX-777", quantity=64)
         response = self.client.get("/inventory/")
         self.assertContains(response, "Amoxicillin 500 mg")
@@ -335,6 +423,56 @@ class InventoryPageTests(InventoryPagesTestData):
 
     def test_4_1_the_popup_is_closed_on_the_inventory_page(self):
         self.assertNotContains(self.client.get("/inventory/"), "<dialog")
+
+
+class StockLookupPageTests(InventoryPagesTestData):
+    def setUp(self):
+        self.client.force_login(self.karim)
+        self.aspirin = create_aspirin()
+
+    def test_4_2_the_page_has_a_search_box(self):
+        response = self.client.get("/inventory/")
+        self.assertContains(response, 'name="search"')
+        self.assertContains(response, 'placeholder="Search by medicine or batch"')
+
+    def test_4_2_searching_narrows_the_list(self):
+        response = self.client.get("/inventory/?search=asp")
+        self.assertContains(response, "Aspirin 81 mg")
+        self.assertNotContains(response, "Amoxicillin 500 mg")
+
+    def test_4_2_the_search_stays_in_the_box(self):
+        self.assertContains(self.client.get("/inventory/?search=asp"), 'value="asp"')
+
+    def test_4_2_spaces_around_a_search_are_ignored(self):
+        response = self.client.get("/inventory/?search=%20asp%20")
+        self.assertContains(response, "Aspirin 81 mg")
+        self.assertNotContains(response, "Amoxicillin 500 mg")
+
+    def test_4_2_the_list_says_how_many_medicines_are_shown(self):
+        self.assertContains(self.client.get("/inventory/?search=asp"), "Showing 1 of 2 medicines")
+
+    def test_4_2_a_search_with_no_match_says_so(self):
+        self.assertContains(self.client.get("/inventory/?search=zzz"), "No medicines found.")
+
+    def test_4_2_the_cards_count_everything_while_searching(self):
+        create_batch(self.medicine)
+        create_batch(self.aspirin, batch_number="ASP-001")
+        response = self.client.get("/inventory/?search=asp")
+        self.assertEqual(response.context["medicines_in_stock"], 2)
+
+    def test_4_2_the_list_shows_the_total_available_stock(self):
+        create_batch(self.medicine, batch_number="AMX-001", quantity=40)
+        create_batch(self.medicine, batch_number="AMX-002", quantity=60)
+        self.assertContains(self.client.get("/inventory/"), ">100<")
+
+    def test_4_2_the_list_leaves_out_expired_stock(self):
+        yesterday = timezone.localdate() - timedelta(days=1)
+        create_batch(self.medicine, batch_number="OLD-001", quantity=25, expiry_date=yesterday)
+        create_batch(self.medicine, batch_number="NEW-001", quantity=200)
+        response = self.client.get("/inventory/")
+        self.assertContains(response, "NEW-001")
+        self.assertNotContains(response, "OLD-001")
+        self.assertContains(response, ">200<")
 
 
 class DeliveryPageTests(InventoryPagesTestData):
