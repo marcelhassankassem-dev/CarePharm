@@ -1,0 +1,87 @@
+{% extends "core/console.html" %}
+{% load static %}
+
+{% block title %}Inventory - CarePharm{% endblock %}
+
+{% block console_content %}
+<img class="inventory-leaves" src="{% static 'core/images/inventory-leaves.svg' %}" alt="">
+<p class="inventory-quote">Safer<br>medicines<br>healthier<br>tomorrows</p>
+
+<div class="page-heading">
+    <div>
+        <p class="page-eyebrow">Pharmacist console</p>
+        <h1>Inventory</h1>
+        <p class="page-intro">Stock, batches and expiry dates for every medicine, updated with each sale and delivery.</p>
+    </div>
+</div>
+
+<div class="stat-cards">
+    <div class="stat-card">
+        <span class="stat-bubble"><img src="{% static 'core/images/stat-package.svg' %}" alt=""></span>
+        <div>
+            <strong>{{ medicines_in_stock }}</strong>
+            <small>Medicines in stock</small>
+        </div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-bubble"><img src="{% static 'core/images/icon-truck.svg' %}" alt=""></span>
+        <div>
+            <strong>{{ deliveries_today }}</strong>
+            <small>Deliveries today</small>
+        </div>
+    </div>
+</div>
+
+<section class="card stock-list">
+    <div class="stock-list-header">
+        <div>
+            <h2>Stock List</h2>
+            <p>Stock goes down with each sale and up with each delivery.</p>
+        </div>
+        <a href="/inventory/delivery/" class="primary-button">
+            <img src="{% static 'core/images/icon-plus.svg' %}" alt="">
+            Record Delivery
+        </a>
+    </div>
+
+    <table class="data-table stock-table">
+        <thead>
+            <tr>
+                <th>Medicine</th>
+                <th>Batch</th>
+                <th>Expiry</th>
+                <th>In stock</th>
+                <th>Received</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td>
+                    <div class="stock-medicine">
+                        <span class="row-bubble"><img src="{% static 'core/images/row-pill.svg' %}" alt=""></span>
+                        <div>
+                            <strong>{{ row.medicine }}</strong>
+                            <small>{{ row.medicine.drug_class }}</small>
+                        </div>
+                    </div>
+                </td>
+                {% if row.batch %}
+                <td>{{ row.batch.batch_number }}</td>
+                <td>{{ row.batch.expiry_date|date:"d M Y" }}</td>
+                <td><strong class="stock-quantity">{{ row.batch.quantity }}</strong></td>
+                <td class="stock-received">{{ row.batch.received_at|date:"d M Y" }}</td>
+                {% else %}
+                <td>&mdash;</td>
+                <td class="no-stock">No stock left</td>
+                <td><strong class="stock-quantity no-stock">0</strong></td>
+                <td class="stock-received">&mdash;</td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+{% block popup %}{% endblock %}
+{% endblock %}

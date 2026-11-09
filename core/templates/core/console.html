@@ -9,7 +9,7 @@
         <nav class="console-menu">
             <span><img src="{% static 'core/images/nav-dashboard.svg' %}" alt="">Dashboard</span>
             <span><img src="{% static 'core/images/nav-prescriptions.svg' %}" alt="">Prescriptions</span>
-            <span><img src="{% static 'core/images/nav-inventory.svg' %}" alt="">Inventory</span>
+            <a href="{% url 'inventory_page' %}" class="{% if '/inventory/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-inventory.svg' %}" alt="">Inventory</a>
             <span><img src="{% static 'core/images/nav-sales.svg' %}" alt="">Sales</span>
             <a href="{% url 'patient_list' %}" class="{% if '/patients/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-patients.svg' %}" alt="">Patients</a>
             <span><img src="{% static 'core/images/nav-messages.svg' %}" alt="">Messages</span>
