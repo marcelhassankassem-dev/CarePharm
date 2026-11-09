@@ -1,0 +1,36 @@
+{% extends "inventory/inventory.html" %}
+{% load static %}
+
+{% block title %}Record Delivery - CarePharm{% endblock %}
+
+{% block popup %}
+<div class="popup-overlay">
+    <dialog open class="popup">
+        <div class="popup-header">
+            <span class="stat-bubble"><img src="{% static 'core/images/icon-truck.svg' %}" alt=""></span>
+            <div>
+                <h2>Record Delivery</h2>
+                <p>Enter the delivery once. Stock updates automatically.</p>
+            </div>
+            <a href="/inventory/" class="popup-close" aria-label="Close"><img src="{% static 'core/images/icon-close.svg' %}" alt=""></a>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="popup-fields">
+                {% for field in form %}
+                <div class="form-field {% if forloop.counter <= 2 %}full-width{% endif %}">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {{ field.errors }}
+                </div>
+                {% endfor %}
+            </div>
+            <div class="popup-actions">
+                <a href="/inventory/" class="secondary-button">Cancel</a>
+                <button type="submit" class="primary-button">Save Delivery</button>
+            </div>
+        </form>
+    </dialog>
+</div>
+{% endblock %}

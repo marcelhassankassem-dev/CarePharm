@@ -10,6 +10,7 @@ from passport.models import Allergy, CurrentMedicine, Patient
 
 DEMO_PASSWORD = "carepharm123"
 SUPPLIER = "Cedar Medical Supplies"
+DAYS_SINCE_DEMO_DELIVERIES = 30
 
 
 def get_or_create_user(username, role, first_name="", last_name=""):
@@ -75,7 +76,7 @@ def create_medicine(name, strength, barcode, drug_class_name, price, minimum_qua
 
 
 def create_batch(medicine, batch_number, days_until_expiry, quantity, unit_cost):
-    Batch.objects.get_or_create(
+    batch, created = Batch.objects.get_or_create(
         medicine=medicine,
         batch_number=batch_number,
         defaults={
@@ -85,6 +86,9 @@ def create_batch(medicine, batch_number, days_until_expiry, quantity, unit_cost)
             "supplier": SUPPLIER,
         },
     )
+    if created:
+        received_at = timezone.now() - timedelta(days=DAYS_SINCE_DEMO_DELIVERIES)
+        Batch.objects.filter(pk=batch.pk).update(received_at=received_at)
 
 
 def create_stock():
