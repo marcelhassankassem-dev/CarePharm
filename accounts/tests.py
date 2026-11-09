@@ -1,7 +1,9 @@
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from accounts.permissions import is_pharmacy_staff
+from accounts.services import create_patient_login
 
 
 class UserModelTests(TestCase):
@@ -124,3 +126,19 @@ class SignInTests(TestCase):
 
     def test_8_1_a_signed_out_visitor_sees_no_confirmation(self):
         self.assertNotContains(self.client.get("/login/"), "You are signed in as")
+
+
+class PatientLoginTests(TestCase):
+    def test_3_1_a_new_login_is_a_patient_side_user(self):
+        omar = create_patient_login("omar", "temporary1")
+        self.assertEqual(omar.role, "patient")
+
+    def test_3_1_a_new_login_signs_in_with_its_temporary_password(self):
+        omar = create_patient_login("omar", "temporary1")
+        self.assertTrue(omar.check_password("temporary1"))
+
+    def test_3_1_a_taken_username_is_refused(self):
+        create_patient_login("omar", "temporary1")
+        with self.assertRaisesMessage(ValidationError, "That username is already taken."):
+            create_patient_login("omar", "temporary2")
+        self.assertEqual(get_user_model().objects.filter(username="omar").count(), 1)
