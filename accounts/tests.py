@@ -1,6 +1,8 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
+from accounts.permissions import is_pharmacy_staff
+
 
 class UserModelTests(TestCase):
     def test_t2_user_model_is_the_carepharm_user(self):
@@ -31,3 +33,99 @@ class UserModelTests(TestCase):
         nadim = get_user_model().objects.get(username="nadim")
         self.assertEqual(nadim.role, "owner")
         self.assertTrue(nadim.is_pharmacist)
+
+
+class PharmacyStaffTests(TestCase):
+    def test_8_1_staff_roles_are_pharmacy_staff(self):
+        for role in ["pharmacist", "assistant", "owner"]:
+            self.assertTrue(is_pharmacy_staff(get_user_model()(role=role)))
+
+    def test_8_1_a_patient_is_not_pharmacy_staff(self):
+        self.assertFalse(is_pharmacy_staff(get_user_model()(role="patient")))
+
+
+class SignInPageTests(TestCase):
+    def test_8_1_the_site_opens_on_the_patient_login(self):
+        self.assertRedirects(self.client.get("/"), "/login/")
+
+    def test_8_1_patient_login_page_has_its_own_wording(self):
+        response = self.client.get("/login/")
+        self.assertContains(response, "For patients and families")
+        self.assertContains(response, "Welcome back")
+
+    def test_8_1_staff_login_page_has_its_own_wording(self):
+        response = self.client.get("/login/staff/")
+        self.assertContains(response, "For pharmacy staff")
+        self.assertContains(response, "Welcome back")
+
+    def test_8_1_each_login_page_links_to_the_other(self):
+        self.assertContains(self.client.get("/login/"), 'href="/login/staff/"')
+        self.assertContains(self.client.get("/login/staff/"), 'href="/login/"')
+
+
+class SignInTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.samira = User.objects.create_user(username="samira", password="pass", role="patient")
+        cls.rana = User.objects.create_user(username="rana", password="pass", role="pharmacist")
+        cls.karim = User.objects.create_user(username="karim", password="pass", role="assistant")
+        cls.nadim = User.objects.create_user(username="nadim", password="pass", role="owner")
+
+    def assert_nobody_is_signed_in(self):
+        self.assertRedirects(self.client.get("/home/"), "/login/?next=/home/")
+
+    def test_8_1_patient_signs_in_on_the_patient_page(self):
+        response = self.client.post("/login/", {"username": "samira", "password": "pass"})
+        self.assertRedirects(response, "/home/")
+
+    def test_8_1_pharmacist_signs_in_on_the_staff_page(self):
+        response = self.client.post("/login/staff/", {"username": "rana", "password": "pass"})
+        self.assertRedirects(response, "/home/")
+
+    def test_8_1_assistant_signs_in_on_the_staff_page(self):
+        response = self.client.post("/login/staff/", {"username": "karim", "password": "pass"})
+        self.assertRedirects(response, "/home/")
+
+    def test_8_1_owner_signs_in_on_the_staff_page(self):
+        response = self.client.post("/login/staff/", {"username": "nadim", "password": "pass"})
+        self.assertRedirects(response, "/home/")
+
+    def test_8_1_wrong_password_is_refused(self):
+        response = self.client.post("/login/", {"username": "samira", "password": "wrong"})
+        self.assertContains(response, "Wrong username or password.")
+        self.assert_nobody_is_signed_in()
+
+    def test_8_1_unknown_username_gets_the_same_message(self):
+        response = self.client.post("/login/", {"username": "nobody", "password": "pass"})
+        self.assertContains(response, "Wrong username or password.")
+        self.assert_nobody_is_signed_in()
+
+    def test_8_1_patient_cannot_sign_in_on_the_staff_page(self):
+        response = self.client.post("/login/staff/", {"username": "samira", "password": "pass"})
+        self.assertContains(response, "This is not a staff account.")
+        self.assert_nobody_is_signed_in()
+
+    def test_8_1_staff_cannot_sign_in_on_the_patient_page(self):
+        response = self.client.post("/login/", {"username": "rana", "password": "pass"})
+        self.assertContains(response, "This is not a patient account.")
+        self.assert_nobody_is_signed_in()
+
+    def test_8_1_home_page_needs_a_signed_in_user(self):
+        self.assert_nobody_is_signed_in()
+
+    def test_8_1_home_page_shows_the_username_and_role(self):
+        self.client.force_login(self.rana)
+        response = self.client.get("/home/")
+        self.assertContains(response, "rana")
+        self.assertContains(response, "Pharmacist")
+
+    def test_8_1_signing_out_returns_to_the_login_page(self):
+        self.client.force_login(self.samira)
+        self.assertRedirects(self.client.post("/logout/"), "/login/")
+        self.assert_nobody_is_signed_in()
+
+    def test_8_1_opening_the_sign_out_address_does_not_sign_out(self):
+        self.client.force_login(self.samira)
+        self.client.get("/logout/")
+        self.assertEqual(self.client.get("/home/").status_code, 200)
