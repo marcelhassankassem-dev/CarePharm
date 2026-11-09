@@ -2,12 +2,12 @@
 
 {% block title %}Patients - CarePharm{% endblock %}
 
-{% block console %}
-<div class="console-heading">
+{% block console_content %}
+<div class="page-heading">
     <div>
-        <p class="console-eyebrow">PHARMACIST CONSOLE</p>
+        <p class="page-eyebrow">PHARMACIST CONSOLE</p>
         <h1>Patients</h1>
-        <p class="console-intro">Each patient’s medication passport: contact details, allergies, medicines and history.</p>
+        <p class="page-intro">Each patient’s medication passport: contact details, allergies, medicines and history.</p>
     </div>
     <div class="console-actions">
         <a href="{% url 'patient_login_new' %}" class="secondary-button">Add Caregiver Login</a>
@@ -37,7 +37,7 @@
         {% endfor %}
     </section>
 
-    <section class="card patient-passport">
+    <section class="card">
         {% if selected %}
         <div class="passport-header">
             <span class="avatar">{{ selected.name|slice:":2"|upper }}</span>
@@ -64,7 +64,7 @@
 
         <h3 class="section-title">Active Medicines</h3>
         {% if current_medicines %}
-        <table class="console-table">
+        <table class="data-table medicine-table">
             <thead>
                 <tr>
                     <th>MEDICINE</th>
@@ -75,7 +75,7 @@
                 {% for current in current_medicines %}
                 <tr>
                     <td><strong>{{ current.medicine }}</strong></td>
-                    <td><span class="pill success">Active</span></td>
+                    <td><span class="pill status-active">Active</span></td>
                 </tr>
                 {% endfor %}
             </tbody>
