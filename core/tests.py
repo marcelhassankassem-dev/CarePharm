@@ -10,6 +10,8 @@ from core.models import ActivityLog, Notification
 from core.services import log_action, notifications_for, notify
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, Patient
+from prescriptions.models import Prescription, PrescriptionItem
+from sales.models import Sale
 
 NEW_MEDICINES = [
     ("Amlodipine", "5 mg", "Calcium channel blockers"),
@@ -211,6 +213,38 @@ class SeedDemoPassportTests(TestCase):
         self.assertFalse(CurrentMedicine.objects.filter(patient__name="Maya").exists())
 
 
+class SeedDemoPrescriptionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo")
+
+    def test_1_1_every_status_before_returned_has_a_demo_prescription(self):
+        statuses = set(Prescription.objects.values_list("status", flat=True))
+        for status in ["received", "preparing", "ready", "collected"]:
+            self.assertIn(status, statuses)
+
+    def test_1_1_prescriptions_not_yet_ready_have_taken_no_stock(self):
+        items = PrescriptionItem.objects.filter(prescription__status__in=["received", "preparing"])
+        self.assertTrue(items.exists())
+        self.assertFalse(items.filter(batch__isnull=False).exists())
+
+    def test_1_1_ready_and_collected_prescriptions_took_their_stock(self):
+        items = PrescriptionItem.objects.filter(prescription__status__in=["ready", "collected"])
+        self.assertTrue(items.exists())
+        self.assertFalse(items.filter(batch__isnull=True).exists())
+
+    def test_1_1_a_ready_prescription_has_waited_more_than_2_days(self):
+        two_days_ago = timezone.now() - timedelta(days=2)
+        waiting = Prescription.objects.filter(status="ready", ready_at__lt=two_days_ago)
+        self.assertTrue(waiting.exists())
+
+    def test_1_1_a_collected_prescription_has_its_sale(self):
+        collected = Prescription.objects.get(status="collected")
+        sale = Sale.objects.get(source="prescription")
+        self.assertEqual(sale.patient, collected.patient)
+        self.assertEqual(sale.time, collected.collected_at)
+
+
 class SeedDemoTwiceTests(TestCase):
     def test_t4_running_twice_creates_nothing_new(self):
         call_command("seed_demo")
@@ -221,6 +255,9 @@ class SeedDemoTwiceTests(TestCase):
         batches = Batch.objects.count()
         allergies = Allergy.objects.count()
         current_medicines = CurrentMedicine.objects.count()
+        prescriptions = Prescription.objects.count()
+        sales = Sale.objects.count()
+        quantities = list(Batch.objects.order_by("id").values_list("quantity", flat=True))
 
         call_command("seed_demo")
 
@@ -231,6 +268,9 @@ class SeedDemoTwiceTests(TestCase):
         self.assertEqual(Batch.objects.count(), batches)
         self.assertEqual(Allergy.objects.count(), allergies)
         self.assertEqual(CurrentMedicine.objects.count(), current_medicines)
+        self.assertEqual(Prescription.objects.count(), prescriptions)
+        self.assertEqual(Sale.objects.count(), sales)
+        self.assertEqual(list(Batch.objects.order_by("id").values_list("quantity", flat=True)), quantities)
 
 
 class ActivityLogTests(TestCase):

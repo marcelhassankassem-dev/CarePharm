@@ -1,0 +1,129 @@
+{% extends "core/console.html" %}
+
+{% block title %}Prescription - CarePharm{% endblock %}
+
+{% block console_content %}
+<div class="page-heading">
+    <div>
+        <p class="page-eyebrow">Pharmacist console</p>
+        <h1>Prescription</h1>
+        <p class="page-intro">For {{ prescription.patient.name }}, received {{ prescription.created_at|date:"d M Y, H:i" }}.</p>
+    </div>
+    <a href="/prescriptions/" class="secondary-button">Back to Prescriptions</a>
+</div>
+
+<div class="prescription-layout">
+    <section class="card">
+        <div class="prescription-card-title">
+            <h2>Medicines</h2>
+            <span class="pill prescription-status {{ prescription.status }}">{{ prescription.get_status_display }}</span>
+        </div>
+
+        <table class="data-table prescription-items">
+            <thead>
+                <tr>
+                    <th>Medicine</th>
+                    <th>Quantity</th>
+                    <th>Supply</th>
+                    <th>Long-term</th>
+                    <th>Batch</th>
+                    {% if can_change and prescription.status == "received" %}<th></th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td><strong>{{ item.medicine }}</strong></td>
+                    <td>{{ item.quantity }}</td>
+                    <td>{{ item.days_of_supply }} day{{ item.days_of_supply|pluralize }}</td>
+                    <td>{% if item.long_term %}Yes{% else %}No{% endif %}</td>
+                    <td>{{ item.batch.batch_number|default:"Taken when Ready" }}</td>
+                    {% if can_change and prescription.status == "received" %}
+                    <td class="prescription-action">
+                        <form method="post" action="/prescriptions/items/{{ item.pk }}/remove/">
+                            {% csrf_token %}
+                            <button type="submit" class="row-button">Remove</button>
+                        </form>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="prescription-empty">No medicines yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if can_change and prescription.status == "received" %}
+        <form method="post" action="/prescriptions/{{ prescription.pk }}/items/" class="item-form">
+            {% csrf_token %}
+            <div class="form-field">
+                <label for="{{ item_form.medicine.id_for_label }}">Medicine</label>
+                {{ item_form.medicine }}
+            </div>
+            <div class="form-field">
+                <label for="{{ item_form.quantity.id_for_label }}">Quantity</label>
+                {{ item_form.quantity }}
+            </div>
+            <div class="form-field">
+                <label for="{{ item_form.days_of_supply.id_for_label }}">Days of supply</label>
+                {{ item_form.days_of_supply }}
+            </div>
+            <label for="{{ item_form.long_term.id_for_label }}" class="item-long-term">{{ item_form.long_term }} Long-term medicine</label>
+            <button type="submit" class="primary-button">Add Medicine</button>
+        </form>
+        {% endif %}
+    </section>
+
+    <section class="card prescription-status-card">
+        <h2>Patient</h2>
+        <p><a href="/patients/{{ prescription.patient.pk }}/" class="table-link">{{ prescription.patient.name }}</a></p>
+        <p class="prescription-muted">{{ prescription.patient.phone|default:"No phone recorded" }}</p>
+
+        <h2>Status</h2>
+        <dl class="prescription-times">
+            <dt>Received</dt>
+            <dd>{{ prescription.created_at|date:"d M Y, H:i" }}</dd>
+            <dt>Ready</dt>
+            <dd>{{ prescription.ready_at|date:"d M Y, H:i"|default:"Not yet" }}</dd>
+            <dt>Collected</dt>
+            <dd>{{ prescription.collected_at|date:"d M Y, H:i"|default:"Not yet" }}</dd>
+        </dl>
+
+        {% if can_change %}
+        {% if prescription.status == "received" %}
+        <form method="post" action="/prescriptions/{{ prescription.pk }}/preparing/">
+            {% csrf_token %}
+            <button type="submit" class="primary-button full">Start Preparing</button>
+        </form>
+        <form method="post" action="/prescriptions/{{ prescription.pk }}/delete/">
+            {% csrf_token %}
+            <button type="submit" class="secondary-button full">Delete Prescription</button>
+        </form>
+        {% elif prescription.status == "preparing" %}
+        <p class="prescription-muted">Marking it Ready takes the stock, from the batch that expires first.</p>
+        <form method="post" action="/prescriptions/{{ prescription.pk }}/ready/">
+            {% csrf_token %}
+            <button type="submit" class="primary-button full">Mark Ready</button>
+        </form>
+        {% elif prescription.status == "ready" %}
+        <form method="post" action="/prescriptions/{{ prescription.pk }}/collected/">
+            {% csrf_token %}
+            <p class="prescription-muted">Payment</p>
+            <div class="payment-choices">
+                {% for choice in collect_form.payment_method %}
+                <label>{{ choice.tag }} {{ choice.choice_label }}</label>
+                {% endfor %}
+            </div>
+            <button type="submit" class="primary-button full">Mark Collected</button>
+        </form>
+        <form method="post" action="/prescriptions/{{ prescription.pk }}/returned/">
+            {% csrf_token %}
+            <button type="submit" class="secondary-button full">Return to Stock</button>
+        </form>
+        {% endif %}
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

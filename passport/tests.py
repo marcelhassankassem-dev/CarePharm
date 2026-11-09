@@ -9,7 +9,7 @@ from django.test import TestCase
 
 from inventory.models import DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, Patient
-from passport.services import create_patient, find_patients
+from passport.services import add_current_medicine, create_patient, find_patients
 
 STAFF_PAGES = ["/patients/", "/patients/new/", "/patients/logins/new/"]
 
@@ -145,6 +145,23 @@ class CreatePatientServiceTests(TestCase):
             )
         self.assertFalse(Patient.objects.exists())
         self.assertFalse(Allergy.objects.exists())
+
+
+class AddCurrentMedicineTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.samira = Patient.objects.create(name="Samira", date_of_birth=date(1958, 3, 14))
+        cls.metformin = make_medicine("Metformin", "1", DrugClass.objects.create(name="Biguanides"))
+
+    def test_1_1_a_medicine_joins_the_current_medicines(self):
+        add_current_medicine(self.samira, self.metformin)
+        current = CurrentMedicine.objects.get(patient=self.samira)
+        self.assertEqual(current.medicine, self.metformin)
+
+    def test_1_1_a_current_medicine_is_not_added_twice(self):
+        add_current_medicine(self.samira, self.metformin)
+        add_current_medicine(self.samira, self.metformin)
+        self.assertEqual(CurrentMedicine.objects.filter(patient=self.samira).count(), 1)
 
 
 class FindPatientsTests(TestCase):
