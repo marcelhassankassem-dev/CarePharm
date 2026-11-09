@@ -7,7 +7,7 @@ from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
 from core.models import ActivityLog, Notification
-from core.services import log_action, notifications_for, notify
+from core.services import activity_log, log_action, notifications_for, notify
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, Patient
 
@@ -260,6 +260,36 @@ class ActivityLogTests(TestCase):
         log_action(self.karim, "Sale recorded")
         self.karim.delete()
         self.assertIsNone(ActivityLog.objects.get().user)
+
+
+class ActivityLogListTests(TestCase):
+    def setUp(self):
+        self.karim = get_user_model().objects.create_user(username="karim", password="pass")
+
+    def log_at(self, action, time):
+        entry = log_action(self.karim, action)
+        ActivityLog.objects.filter(pk=entry.pk).update(time=time)
+        entry.refresh_from_db()
+        return entry
+
+    def test_8_3_the_log_is_newest_first(self):
+        older = self.log_at("Recorded delivery", timezone.now() - timedelta(hours=2))
+        newer = log_action(self.karim, "Took stock")
+        self.assertEqual(list(activity_log()), [newer, older])
+
+    def test_8_3_the_whole_log_keeps_earlier_days(self):
+        older = self.log_at("Recorded delivery", timezone.now() - timedelta(days=3))
+        self.assertEqual(list(activity_log()), [older])
+
+    def test_8_3_today_only_leaves_out_earlier_days(self):
+        self.log_at("Recorded delivery", timezone.now() - timedelta(days=1))
+        today = log_action(self.karim, "Took stock")
+        self.assertEqual(list(activity_log(today_only=True)), [today])
+
+    def test_8_3_today_starts_at_midnight_in_beirut(self):
+        just_after_midnight = timezone.localtime().replace(hour=0, minute=30, second=0, microsecond=0)
+        entry = self.log_at("Recorded delivery", just_after_midnight)
+        self.assertEqual(list(activity_log(today_only=True)), [entry])
 
 
 class NotificationTests(TestCase):
