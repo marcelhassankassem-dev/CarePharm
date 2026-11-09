@@ -8,7 +8,7 @@
 
         <nav class="console-menu">
             <span><img src="{% static 'core/images/nav-dashboard.svg' %}" alt="">Dashboard</span>
-            <span><img src="{% static 'core/images/nav-prescriptions.svg' %}" alt="">Prescriptions</span>
+            <a href="{% url 'prescription_list' %}" class="{% if '/prescriptions/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-prescriptions.svg' %}" alt="">Prescriptions</a>
             <a href="{% url 'inventory_page' %}" class="{% if '/inventory/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-inventory.svg' %}" alt="">Inventory</a>
             <span><img src="{% static 'core/images/nav-sales.svg' %}" alt="">Sales</span>
             <a href="{% url 'patient_list' %}" class="{% if '/patients/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-patients.svg' %}" alt="">Patients</a>
@@ -35,7 +35,7 @@
 
     <main class="console-content">
         {% for message in messages %}
-        <p class="console-message">{{ message }}</p>
+        <p class="console-message {{ message.tags }}">{{ message }}</p>
         {% endfor %}
 
         {% block console_content %}{% endblock %}

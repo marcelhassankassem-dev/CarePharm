@@ -1,0 +1,34 @@
+{% extends "prescriptions/prescriptions.html" %}
+{% load static %}
+
+{% block title %}New Prescription - CarePharm{% endblock %}
+
+{% block popup %}
+<div class="popup-overlay">
+    <dialog open class="popup">
+        <div class="popup-header">
+            <span class="stat-bubble"><img src="{% static 'core/images/nav-prescriptions.svg' %}" alt=""></span>
+            <div>
+                <h2>New Prescription</h2>
+                <p>Choose the patient. You add the medicines next.</p>
+            </div>
+            <a href="/prescriptions/" class="popup-close" aria-label="Close"><img src="{% static 'core/images/icon-close.svg' %}" alt=""></a>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="popup-fields">
+                <div class="form-field full-width">
+                    <label for="{{ form.patient.id_for_label }}">Patient</label>
+                    {{ form.patient }}
+                    {{ form.patient.errors }}
+                </div>
+            </div>
+            <div class="popup-actions">
+                <a href="/prescriptions/" class="secondary-button">Cancel</a>
+                <button type="submit" class="primary-button wide">Create Prescription</button>
+            </div>
+        </form>
+    </dialog>
+</div>
+{% endblock %}

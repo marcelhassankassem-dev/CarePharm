@@ -1314,3 +1314,215 @@ body {
     width: 160px;
     padding: 0;
 }
+
+.console-message.error {
+    color: #a12a22;
+}
+
+.prescription-table {
+    table-layout: fixed;
+}
+
+.prescription-table th {
+    padding: 12px 16px;
+}
+
+.prescription-table th:nth-child(1) {
+    width: 330px;
+}
+
+.prescription-table th:nth-child(2) {
+    width: 360px;
+}
+
+.prescription-table th:nth-child(3) {
+    width: 210px;
+}
+
+.prescription-table th:nth-child(4) {
+    width: 170px;
+}
+
+.prescription-table th:last-child,
+.prescription-action {
+    text-align: right;
+}
+
+.prescription-table td {
+    height: 64px;
+    font-size: 13px;
+}
+
+.prescription-medicine {
+    font-size: 13.5px;
+    color: #0f2233;
+}
+
+.prescription-none {
+    color: #7c8a96;
+}
+
+.prescription-empty {
+    height: 56px;
+    color: #4f6070;
+    text-align: center;
+}
+
+.prescription-status::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    vertical-align: middle;
+}
+
+.prescription-status.received {
+    color: #1e5aa8;
+    background: #dbe7f8;
+}
+
+.prescription-status.preparing {
+    color: #d9480f;
+    background: #fde8d7;
+}
+
+.prescription-status.ready {
+    color: #14756f;
+    background: #e3f4f0;
+}
+
+.prescription-status.collected,
+.prescription-status.returned {
+    color: #4f6070;
+    background: #eef1f3;
+}
+
+.row-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 34px;
+    padding: 0 14px;
+    border: 1px solid #d6e3e0;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    color: #14756f;
+    background: white;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.row-button.filled {
+    border-color: #0b3b49;
+    color: white;
+    background: linear-gradient(to right, #145566, #0b3b49);
+}
+
+.popup-actions .primary-button.wide {
+    width: 190px;
+}
+
+.prescription-layout {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 16px;
+    align-items: start;
+}
+
+.prescription-card-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.prescription-card-title h2,
+.prescription-status-card h2 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.prescription-items td {
+    height: 56px;
+    font-size: 13.5px;
+}
+
+.item-form {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr auto auto;
+    gap: 16px;
+    align-items: end;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #e1e9e8;
+}
+
+.item-form .form-field {
+    margin-bottom: 0;
+}
+
+.item-long-term {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.prescription-status-card h2:not(:first-child) {
+    margin-top: 24px;
+}
+
+.prescription-status-card h2 + p {
+    margin: 12px 0 4px;
+}
+
+.prescription-muted {
+    margin: 0;
+    font-size: 13px;
+    color: #4f6070;
+}
+
+.prescription-times {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 16px;
+    margin: 12px 0 20px;
+    font-size: 13.5px;
+}
+
+.prescription-times dt {
+    color: #7c8a96;
+}
+
+.prescription-times dd {
+    margin: 0;
+    color: #1f3345;
+}
+
+.primary-button.full,
+.secondary-button.full {
+    width: 100%;
+    margin-top: 12px;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.payment-choices {
+    display: flex;
+    gap: 24px;
+    margin: 8px 0 4px;
+    font-size: 14px;
+}
+
+.payment-choices label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
