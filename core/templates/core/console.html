@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block content %}
+<header class="console-header">
+    <img src="{% static 'core/images/logo.png' %}" alt="CarePharm" width="164" height="58">
+    <nav class="console-menu">
+        <a href="{% url 'patient_list' %}" class="{% if '/patients/' in request.path %}active{% endif %}">Patients</a>
+    </nav>
+    <div class="console-user">
+        <span class="avatar small">{{ user.username|slice:":2"|upper }}</span>
+        <span>
+            <strong>{{ user.get_full_name|default:user.username }}</strong>
+            <small>{{ user.get_role_display }}</small>
+        </span>
+    </div>
+</header>
+
+<main class="console-page">
+    {% for message in messages %}
+    <p class="console-message">{{ message }}</p>
+    {% endfor %}
+
+    {% block console %}{% endblock %}
+</main>
+{% endblock %}

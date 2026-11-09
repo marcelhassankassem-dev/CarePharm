@@ -338,6 +338,24 @@ class AddPatientPageTests(TestCase):
         self.assertContains(response, "That username is already taken.")
         self.assertFalse(Patient.objects.exists())
 
+    def test_3_1_the_temporary_password_is_hidden_as_it_is_typed(self):
+        self.assertContains(self.client.get("/patients/new/"), 'type="password"')
+
+    def test_3_1_a_short_temporary_password_is_refused(self):
+        details = self.patient_details()
+        details["username"] = "samira"
+        details["password"] = "short"
+        response = self.client.post("/patients/new/", details)
+        self.assertContains(response, "at least 8 characters")
+        self.assertFalse(Patient.objects.exists())
+
+    def test_3_1_a_short_password_is_not_reported_as_a_missing_one(self):
+        details = self.patient_details()
+        details["username"] = "samira"
+        details["password"] = "short"
+        response = self.client.post("/patients/new/", details)
+        self.assertNotContains(response, "Enter both a username and a temporary password")
+
 
 class AddLoginPageTests(TestCase):
     def setUp(self):
@@ -366,3 +384,13 @@ class AddLoginPageTests(TestCase):
             "/patients/logins/new/", {"username": "omar", "password": "temporary1"}
         )
         self.assertContains(response, "That username is already taken.")
+
+    def test_3_1_the_caregiver_temporary_password_is_hidden_as_it_is_typed(self):
+        self.assertContains(self.client.get("/patients/logins/new/"), 'type="password"')
+
+    def test_3_1_a_short_caregiver_password_is_refused(self):
+        response = self.client.post(
+            "/patients/logins/new/", {"username": "omar", "password": "short"}
+        )
+        self.assertContains(response, "at least 8 characters")
+        self.assertFalse(get_user_model().objects.filter(username="omar").exists())

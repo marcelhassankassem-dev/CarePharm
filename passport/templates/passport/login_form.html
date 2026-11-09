@@ -1,0 +1,36 @@
+{% extends "core/console.html" %}
+
+{% block title %}Add Caregiver Login - CarePharm{% endblock %}
+
+{% block console %}
+<div class="console-heading">
+    <div>
+        <p class="console-eyebrow">PHARMACIST CONSOLE</p>
+        <h1>Add Caregiver Login</h1>
+        <p class="console-intro">Create a login for someone who has no patient record of their own.</p>
+    </div>
+</div>
+
+<form method="post" class="card console-form">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+
+    <div class="form-row">
+        <div>
+            <label for="{{ form.username.id_for_label }}">Username</label>
+            {{ form.username }}
+            {{ form.username.errors }}
+        </div>
+        <div>
+            <label for="{{ form.password.id_for_label }}">Temporary password</label>
+            {{ form.password }}
+            {{ form.password.errors }}
+        </div>
+    </div>
+
+    <div class="form-buttons">
+        <a href="{% url 'patient_list' %}" class="secondary-button">Cancel</a>
+        <button type="submit" class="primary-button">Add Login</button>
+    </div>
+</form>
+{% endblock %}

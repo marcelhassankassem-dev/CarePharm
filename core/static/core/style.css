@@ -268,3 +268,398 @@ body {
     font-size: 13px;
     color: #7c8a96;
 }
+
+.console-header {
+    display: flex;
+    align-items: center;
+    gap: 64px;
+    height: 66px;
+    margin: 0 28px;
+    padding: 0 20px 0 14px;
+    border-radius: 0 0 20px 20px;
+    background: white;
+    box-shadow: 0 8px 24px rgba(15, 51, 51, 0.08);
+}
+
+.console-menu {
+    display: flex;
+    flex: 1;
+    align-self: stretch;
+    gap: 28px;
+}
+
+.console-menu a {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    border-bottom: 3px solid transparent;
+    font-size: 14px;
+    color: #4f6070;
+    text-decoration: none;
+}
+
+.console-menu a.active {
+    border-bottom-color: #14756f;
+    font-weight: 700;
+    color: #14756f;
+}
+
+.console-user {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 14px;
+}
+
+.console-user strong,
+.console-user small {
+    display: block;
+}
+
+.console-user strong {
+    font-weight: 400;
+}
+
+.console-user small {
+    margin-top: 2px;
+    font-size: 12px;
+    color: #4f6070;
+}
+
+.avatar {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    font-size: 22px;
+    font-weight: 700;
+    color: #14756f;
+    background: #dff1ec;
+}
+
+.avatar.small {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+}
+
+.console-page {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 32px 28px 28px;
+}
+
+.console-message {
+    margin: 0 0 20px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 14px;
+    color: #14756f;
+    background: #eef8f5;
+}
+
+.console-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 26px;
+}
+
+.console-eyebrow {
+    margin: 0 0 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #4f6070;
+}
+
+.console-heading h1 {
+    margin: 0 0 4px;
+    font-size: 44px;
+}
+
+.console-intro {
+    margin: 0;
+    font-size: 20px;
+    color: #4f6070;
+}
+
+.console-actions,
+.form-buttons {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 12px;
+}
+
+.primary-button,
+.secondary-button {
+    display: inline-block;
+    padding: 14px 24px;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.primary-button {
+    border: 0;
+    color: white;
+    background: linear-gradient(to right, #145566, #0b3b49);
+}
+
+.secondary-button {
+    border: 1px solid #d6e3e0;
+    color: #14756f;
+    background: white;
+}
+
+.card {
+    border-radius: 20px;
+    background: white;
+    box-shadow: 0 8px 24px rgba(15, 51, 51, 0.08);
+}
+
+.patients-layout {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 16px;
+    align-items: start;
+}
+
+.patient-list {
+    padding: 20px 8px;
+}
+
+.patient-list form {
+    padding: 0 12px;
+}
+
+.patient-list input,
+.console-form input[type="text"],
+.console-form input[type="date"],
+.console-form input[type="password"] {
+    width: 100%;
+    height: 42px;
+    padding: 0 16px;
+    border: 1px solid #d6e3e0;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 14px;
+    background: white;
+}
+
+.list-title {
+    margin: 18px 12px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: #4f6070;
+}
+
+.patient-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-left: 3px solid transparent;
+    border-radius: 12px;
+    color: #0f2233;
+    text-decoration: none;
+}
+
+.patient-row.selected {
+    border-left-color: #14756f;
+    background: #eef8f5;
+}
+
+.patient-row-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.patient-row-text strong,
+.patient-row-text small {
+    display: block;
+}
+
+.patient-row-text strong {
+    font-size: 15px;
+}
+
+.patient-row-text small {
+    margin-top: 3px;
+    font-size: 13px;
+    color: #4f6070;
+}
+
+.pill {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.pill.danger {
+    color: #c8102e;
+    background: #fbdfe3;
+}
+
+.pill.success {
+    color: #14756f;
+    background: #dff1ec;
+}
+
+.pill.outlined {
+    margin-right: 6px;
+    padding: 7px 14px;
+    border: 1px solid #f1c3ca;
+    font-size: 14px;
+    color: #c8102e;
+    background: white;
+}
+
+.patient-passport {
+    padding: 20px;
+}
+
+.passport-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e3ecea;
+}
+
+.passport-header h2 {
+    margin: 0 0 6px;
+    font-size: 28px;
+}
+
+.passport-header p {
+    margin: 0;
+    font-size: 14px;
+    color: #4f6070;
+}
+
+.passport-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.passport-card {
+    padding: 18px;
+    border: 1px solid #d6e3e0;
+    border-radius: 12px;
+    font-size: 14px;
+}
+
+.passport-card.danger {
+    border-color: #f1c3ca;
+    background: #fbecee;
+}
+
+.passport-card.danger h3 {
+    color: #c8102e;
+}
+
+.passport-card h3 {
+    margin: 0 0 14px;
+    font-size: 15px;
+}
+
+.passport-card p {
+    margin: 0;
+}
+
+.section-title {
+    margin: 24px 0 12px;
+    font-size: 18px;
+}
+
+.console-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.console-table th {
+    padding: 11px 16px;
+    font-size: 12px;
+    letter-spacing: 0.6px;
+    text-align: left;
+    color: #4f6070;
+    background: #eef8f5;
+}
+
+.console-table th:first-child {
+    border-radius: 12px 0 0 12px;
+}
+
+.console-table th:last-child {
+    border-radius: 0 12px 12px 0;
+}
+
+.console-table td {
+    padding: 13px 16px;
+    border-bottom: 1px solid #e3ecea;
+}
+
+.empty-note {
+    margin: 16px 12px;
+    font-size: 14px;
+    color: #4f6070;
+}
+
+.console-form {
+    padding: 8px 24px 24px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.console-form label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1f3345;
+}
+
+.form-choices label {
+    margin-bottom: 0;
+    font-weight: 400;
+}
+
+.form-choices > div {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px 16px;
+}
+
+.form-buttons {
+    justify-content: flex-end;
+    margin-top: 28px;
+}
+
+.errorlist {
+    margin: 8px 0 0;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    color: #a12a22;
+    background: #fdecea;
+    list-style: none;
+}
