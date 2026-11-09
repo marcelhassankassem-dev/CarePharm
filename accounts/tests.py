@@ -397,6 +397,9 @@ class StaffMenuBarTests(StaffPagesTestData):
         self.assertContains(response, "Nadim Khoury")
         self.assertContains(response, "Owner")
 
+    def test_8_2_the_owners_name_links_to_the_staff_page(self):
+        self.assertContains(self.client.get("/staff/add/"), 'href="/staff/"')
+
     def test_8_2_the_bar_has_a_sign_out_button(self):
         self.assertContains(self.client.get("/staff/"), 'action="/logout/"')
 
