@@ -105,6 +105,41 @@ def create_stock():
     create_batch(paracetamol, "PAR-001", -20, 25, "1.50")
     create_batch(paracetamol, "PAR-002", 240, 200, "1.50")
 
+    create_medicine("Metformin", "850 mg", "1000000000006", "Biguanides", "7.50", 25)
+
+    amlodipine = create_medicine("Amlodipine", "5 mg", "1000000000007", "Calcium channel blockers", "9.00", 20)
+    create_batch(amlodipine, "AML-001", 420, 90, "4.50")
+
+    omeprazole = create_medicine("Omeprazole", "20 mg", "1000000000008", "Proton pump inhibitors", "7.00", 20)
+    create_batch(omeprazole, "OME-001", 380, 80, "3.50")
+
+    lisinopril = create_medicine("Lisinopril", "10 mg", "1000000000009", "ACE inhibitors", "8.00", 20)
+    create_batch(lisinopril, "LIS-001", 450, 70, "4.00")
+
+    losartan = create_medicine("Losartan", "50 mg", "1000000000010", "Angiotensin receptor blockers", "10.00", 15)
+    create_batch(losartan, "LOS-001", 500, 60, "5.00")
+
+    cetirizine = create_medicine("Cetirizine", "10 mg", "1000000000011", "Antihistamines", "5.00", 25)
+    create_batch(cetirizine, "CET-001", 360, 100, "2.50")
+
+    salbutamol = create_medicine("Salbutamol inhaler", "100 mcg", "1000000000012", "Bronchodilators", "11.00", 10)
+    create_batch(salbutamol, "SAL-001", 400, 40, "5.50")
+
+    levothyroxine = create_medicine("Levothyroxine", "50 mcg", "1000000000013", "Thyroid hormones", "6.50", 20)
+    create_batch(levothyroxine, "LEV-001", 480, 75, "3.25")
+
+    aspirin = create_medicine("Aspirin", "81 mg", "1000000000014", "NSAIDs", "3.50", 30)
+    create_batch(aspirin, "ASP-001", 540, 130, "1.75")
+
+    azithromycin = create_medicine("Azithromycin", "250 mg", "1000000000015", "Macrolides", "13.00", 15)
+    create_batch(azithromycin, "AZI-001", 330, 50, "6.50")
+
+    ampicillin = create_medicine("Ampicillin", "250 mg", "1000000000016", "Penicillins", "7.50", 15)
+    create_batch(ampicillin, "AMP-001", 310, 55, "3.75")
+
+    syrup = create_medicine("Paracetamol syrup", "120 mg/5 ml", "1000000000017", "Analgesics", "4.50", 20)
+    create_batch(syrup, "SYR-001", 270, 85, "2.25")
+
 
 def add_allergy(patient_name, drug_class_name):
     Allergy.objects.get_or_create(
@@ -113,18 +148,18 @@ def add_allergy(patient_name, drug_class_name):
     )
 
 
-def add_current_medicine(patient_name, medicine_name):
+def add_current_medicine(patient_name, medicine_name, strength):
     CurrentMedicine.objects.get_or_create(
         patient=Patient.objects.get(name=patient_name),
-        medicine=Medicine.objects.get(name=medicine_name),
+        medicine=Medicine.objects.get(name=medicine_name, strength=strength),
     )
 
 
 def create_passports():
     add_allergy("Ahmad", "Penicillins")
-    add_current_medicine("Ahmad", "Metformin")
-    add_current_medicine("Samira", "Metformin")
-    add_current_medicine("Samira", "Atorvastatin")
+    add_current_medicine("Ahmad", "Metformin", "500 mg")
+    add_current_medicine("Samira", "Metformin", "500 mg")
+    add_current_medicine("Samira", "Atorvastatin", "20 mg")
 
 
 class Command(BaseCommand):

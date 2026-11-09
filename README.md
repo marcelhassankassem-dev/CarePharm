@@ -47,4 +47,4 @@ The password for every demo user is `carepharm123`. These accounts exist only fo
 
 Ahmad is a demo patient with no login.
 
-Patients sign in at `/login/` and staff at `/login/staff/`. The owner manages staff accounts at `/staff/`.
+Patients sign in at `/login/` and staff at `/login/staff/`. The owner manages staff accounts at `/staff/`, and medicines and drug classes at `/admin/`.
