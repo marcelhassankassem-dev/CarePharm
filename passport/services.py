@@ -47,5 +47,10 @@ def allergies_of(patient):
     return Allergy.objects.filter(patient=patient).select_related("drug_class")
 
 
+def add_current_medicine(patient, medicine):
+    current_medicine, created = CurrentMedicine.objects.get_or_create(patient=patient, medicine=medicine)
+    return current_medicine
+
+
 def current_medicines_of(patient):
     return CurrentMedicine.objects.filter(patient=patient).select_related("medicine")

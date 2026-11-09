@@ -7,6 +7,15 @@ from django.utils import timezone
 
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, Patient
+from prescriptions.models import Prescription
+from prescriptions.services import (
+    add_item,
+    create_prescription,
+    mark_collected,
+    mark_ready,
+    start_preparing,
+)
+from sales.models import Sale
 
 DEMO_PASSWORD = "carepharm123"
 SUPPLIER = "Cedar Medical Supplies"
@@ -166,9 +175,53 @@ def create_passports():
     add_current_medicine("Samira", "Atorvastatin", "20 mg")
 
 
+def days_ago(days):
+    return timezone.now() - timedelta(days=days)
+
+
+def demo_prescription(patient_name, medicine_name, strength, quantity, days_of_supply, long_term):
+    prescription = create_prescription(Patient.objects.get(name=patient_name))
+    medicine = Medicine.objects.get(name=medicine_name, strength=strength)
+    add_item(prescription, medicine, quantity, days_of_supply, long_term)
+    return prescription
+
+
+def create_prescriptions():
+    if Prescription.objects.exists():
+        return
+    rana = get_user_model().objects.get(username="rana")
+
+    collected = demo_prescription("Samira", "Metformin", "500 mg", 60, 30, True)
+    start_preparing(collected)
+    mark_ready(rana, collected)
+    mark_collected(rana, collected, "cash")
+    collected_at = days_ago(27)
+    Prescription.objects.filter(pk=collected.pk).update(
+        created_at=days_ago(28),
+        ready_at=days_ago(28),
+        collected_at=collected_at,
+    )
+    Sale.objects.filter(patient=collected.patient, source="prescription").update(time=collected_at)
+
+    waiting = demo_prescription("Omar's Father", "Atorvastatin", "20 mg", 30, 30, True)
+    start_preparing(waiting)
+    mark_ready(rana, waiting)
+    Prescription.objects.filter(pk=waiting.pk).update(created_at=days_ago(4), ready_at=days_ago(3))
+
+    ready = demo_prescription("Maya", "Salbutamol inhaler", "100 mcg", 1, 30, False)
+    start_preparing(ready)
+    mark_ready(rana, ready)
+
+    preparing = demo_prescription("Samira", "Amlodipine", "5 mg", 30, 30, True)
+    start_preparing(preparing)
+
+    demo_prescription("Ahmad", "Amoxicillin", "500 mg", 21, 7, False)
+
+
 class Command(BaseCommand):
     def handle(self, *args, **options):
         create_staff()
         create_patients()
         create_stock()
         create_passports()
+        create_prescriptions()
