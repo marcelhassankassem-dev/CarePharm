@@ -3,6 +3,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.db.models import ProtectedError
 from django.test import TestCase
@@ -19,7 +20,9 @@ from inventory.services import (
     near_expiry_count,
     near_expiry_rows,
     record_delivery,
+    return_stock,
     stock_rows,
+    take_stock,
 )
 
 
@@ -442,6 +445,183 @@ class NearExpiryServiceTests(TestCase):
         create_batch(self.amoxicillin, expiry_date=in_days(20))
         create_batch(self.aspirin, batch_number="ASP-001", expiry_date=in_days(30))
         self.assertEqual(self.near_expiry_medicines(search="asp"), [self.aspirin])
+
+
+class StockServicesTestData(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.karim = get_user_model().objects.create_user(
+            username="karim",
+            password="pass",
+            role="assistant",
+        )
+        cls.medicine = create_medicine()
+
+    def quantities(self):
+        return list(self.medicine.batch_set.order_by("id").values_list("quantity", flat=True))
+
+
+class TakeStockTests(StockServicesTestData):
+    def test_e1_stock_is_taken_from_the_batch_that_expires_first(self):
+        create_batch(self.medicine, batch_number="LATER", expiry_date=in_days(300))
+        first = create_batch(self.medicine, batch_number="FIRST", expiry_date=in_days(100))
+        self.assertEqual(take_stock(self.karim, self.medicine, 10), first)
+
+    def test_e1_a_batch_without_enough_on_its_own_is_skipped(self):
+        create_batch(self.medicine, batch_number="SMALL", quantity=5, expiry_date=in_days(100))
+        big = create_batch(self.medicine, batch_number="BIG", quantity=100, expiry_date=in_days(300))
+        self.assertEqual(take_stock(self.karim, self.medicine, 10), big)
+
+    def test_e1_expired_batches_are_skipped(self):
+        create_batch(self.medicine, batch_number="OLD", expiry_date=in_days(-1))
+        new = create_batch(self.medicine, batch_number="NEW", expiry_date=in_days(300))
+        self.assertEqual(take_stock(self.karim, self.medicine, 10), new)
+
+    def test_e1_a_batch_expiring_today_can_be_used(self):
+        today = create_batch(self.medicine, batch_number="TODAY", expiry_date=in_days(0))
+        self.assertEqual(take_stock(self.karim, self.medicine, 10), today)
+
+    def test_e1_taking_stock_lowers_the_batch_and_the_available_stock(self):
+        batch = create_batch(self.medicine, quantity=100)
+        take_stock(self.karim, self.medicine, 30)
+        batch.refresh_from_db()
+        self.assertEqual(batch.quantity, 70)
+        self.assertEqual(available_stock(self.medicine), 70)
+
+    def test_e1_a_batch_can_be_emptied(self):
+        batch = create_batch(self.medicine, quantity=10)
+        take_stock(self.karim, self.medicine, 10)
+        batch.refresh_from_db()
+        self.assertEqual(batch.quantity, 0)
+
+    def test_e1_no_single_batch_with_enough_is_refused_even_if_the_total_is_enough(self):
+        create_batch(self.medicine, batch_number="A", quantity=5)
+        create_batch(self.medicine, batch_number="B", quantity=5)
+        with self.assertRaisesMessage(ValidationError, "No single batch of Amoxicillin 500 mg has 8."):
+            take_stock(self.karim, self.medicine, 8)
+        self.assertEqual(self.quantities(), [5, 5])
+        self.assertFalse(ActivityLog.objects.exists())
+
+    def test_e1_the_refusal_says_the_most_one_batch_can_give(self):
+        create_batch(self.medicine, batch_number="A", quantity=5)
+        create_batch(self.medicine, batch_number="B", quantity=7)
+        with self.assertRaisesMessage(ValidationError, "The most one batch can give is 7."):
+            take_stock(self.karim, self.medicine, 8)
+
+    def test_e1_a_medicine_with_no_stock_is_refused(self):
+        with self.assertRaises(ValidationError):
+            take_stock(self.karim, self.medicine, 1)
+
+    def test_e1_only_expired_stock_is_refused(self):
+        create_batch(self.medicine, quantity=100, expiry_date=in_days(-1))
+        with self.assertRaises(ValidationError):
+            take_stock(self.karim, self.medicine, 1)
+        self.assertEqual(self.quantities(), [100])
+
+    def test_e1_a_quantity_below_one_is_refused(self):
+        create_batch(self.medicine, quantity=100)
+        for quantity in [0, -5]:
+            with self.assertRaisesMessage(ValidationError, "The quantity must be at least 1."):
+                take_stock(self.karim, self.medicine, quantity)
+        self.assertEqual(self.quantities(), [100])
+
+    def test_e1_taking_stock_is_logged_with_who_did_it(self):
+        create_batch(self.medicine, batch_number="AMX-001")
+        take_stock(self.karim, self.medicine, 3)
+        entry = ActivityLog.objects.get()
+        self.assertEqual(entry.user, self.karim)
+        self.assertEqual(entry.action, "Took stock")
+        self.assertEqual(entry.details, "Amoxicillin 500 mg · batch AMX-001 · -3")
+
+    def test_e1_taking_stock_that_cannot_be_logged_changes_nothing(self):
+        create_batch(self.medicine, quantity=100)
+        with patch("inventory.services.log_action", side_effect=ValueError):
+            with self.assertRaises(ValueError):
+                take_stock(self.karim, self.medicine, 30)
+        self.assertEqual(self.quantities(), [100])
+
+
+class ReturnStockTests(StockServicesTestData):
+    def test_e1_stock_goes_back_to_the_same_batch(self):
+        create_batch(self.medicine, batch_number="OTHER", quantity=50, expiry_date=in_days(10))
+        batch = create_batch(self.medicine, batch_number="USED", quantity=70, expiry_date=in_days(300))
+        return_stock(self.karim, batch, 30)
+        self.assertEqual(self.quantities(), [50, 100])
+
+    def test_e1_stock_goes_back_even_to_a_batch_that_has_expired(self):
+        batch = create_batch(self.medicine, quantity=70, expiry_date=in_days(-1))
+        return_stock(self.karim, batch, 30)
+        batch.refresh_from_db()
+        self.assertEqual(batch.quantity, 100)
+
+    def test_e1_returning_stock_is_logged_with_who_did_it(self):
+        batch = create_batch(self.medicine, batch_number="AMX-001")
+        return_stock(self.karim, batch, 4)
+        entry = ActivityLog.objects.get()
+        self.assertEqual(entry.user, self.karim)
+        self.assertEqual(entry.action, "Returned stock")
+        self.assertEqual(entry.details, "Amoxicillin 500 mg · batch AMX-001 · +4")
+
+    def test_e1_a_return_below_one_is_refused(self):
+        batch = create_batch(self.medicine, quantity=100)
+        with self.assertRaisesMessage(ValidationError, "The quantity must be at least 1."):
+            return_stock(self.karim, batch, 0)
+        self.assertEqual(self.quantities(), [100])
+
+    def test_e1_a_return_that_cannot_be_logged_changes_nothing(self):
+        batch = create_batch(self.medicine, quantity=100)
+        with patch("inventory.services.log_action", side_effect=ValueError):
+            with self.assertRaises(ValueError):
+                return_stock(self.karim, batch, 30)
+        self.assertEqual(self.quantities(), [100])
+
+
+class StockCalculationTests(StockServicesTestData):
+    def deliver(self, batch_number, quantity, days_until_expiry):
+        return record_delivery(
+            self.karim,
+            self.medicine,
+            "Cedar Medical Supplies",
+            batch_number,
+            in_days(days_until_expiry),
+            quantity,
+            Decimal("4.25"),
+        )
+
+    def test_e1_a_day_of_deliveries_sales_and_returns_adds_up(self):
+        self.deliver("AMX-A", 40, 60)
+        self.deliver("AMX-B", 100, 400)
+        self.assertEqual(available_stock(self.medicine), 140)
+
+        sold = take_stock(self.karim, self.medicine, 30)
+        self.assertEqual(sold.batch_number, "AMX-A")
+        self.assertEqual(available_stock(self.medicine), 110)
+
+        reserved = take_stock(self.karim, self.medicine, 20)
+        self.assertEqual(reserved.batch_number, "AMX-B")
+        self.assertEqual(available_stock(self.medicine), 90)
+
+        return_stock(self.karim, reserved, 20)
+        self.assertEqual(available_stock(self.medicine), 110)
+        self.assertEqual(self.quantities(), [10, 100])
+
+    def test_e1_expired_stock_never_counts_or_sells(self):
+        old = create_batch(self.medicine, batch_number="OLD", quantity=25, expiry_date=in_days(-20))
+        self.deliver("NEW", 200, 240)
+        self.assertEqual(available_stock(self.medicine), 200)
+        self.assertNotEqual(take_stock(self.karim, self.medicine, 5), old)
+        self.assertEqual(available_stock(self.medicine), 195)
+        old.refresh_from_db()
+        self.assertEqual(old.quantity, 25)
+
+    def test_e1_every_change_is_in_the_activity_log(self):
+        batch = self.deliver("AMX-A", 50, 100)
+        take_stock(self.karim, self.medicine, 10)
+        return_stock(self.karim, batch, 10)
+        self.assertEqual(
+            list(ActivityLog.objects.order_by("id").values_list("action", flat=True)),
+            ["Recorded delivery", "Took stock", "Returned stock"],
+        )
 
 
 class InventoryPagesTestData(TestCase):
