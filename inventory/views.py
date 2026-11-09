@@ -41,18 +41,28 @@ def inventory_overview(request):
         )
 
 
-    # Save the delivery when a valid form is submitted.
+
+    # Save a valid delivery.
     if request.method == "POST" and form.is_valid():
 
-        record_delivery(**form.cleaned_data)
+        try:
+            # Record the delivery or retrieve its existing batch
+            # if this same request was already processed.
+            record_delivery(**form.cleaned_data)
 
-        messages.success(
-            request,
-            "Delivery recorded successfully."
-        )
+        except ValidationError as error:
+            # Display service errors in the delivery popup.
+            form.add_error(None, error)
 
-        # Prevent saving the same delivery on page refresh.
-        return redirect("inventory:overview")
+        else:
+            messages.success(
+                request,
+                "Delivery recorded successfully."
+            )
+
+            # Redirect after a successful submission.
+            return redirect("inventory:overview")
+
 
     # Get today's date and the expiry warning threshold.
     today = timezone.localdate()
@@ -71,30 +81,42 @@ def inventory_overview(request):
     low_stock_count = 0
     expiring_count = 0
 
+
+
+    # Process each medicine to calculate stock and prepare table rows.
     for medicine in medicines:
 
         # Get all batches belonging to this medicine.
         batches = list(medicine.batch_set.all())
 
-        # Calculate available stock from unexpired batches.
+        # Calculate available stock, excluding expired batches.
         available_stock = sum(
             batch.quantity
             for batch in batches
             if batch.expiry_date > today
         )
 
-        # Count medicines that have available stock.
+        # Count medicines that have stock available.
         if available_stock > 0:
             in_stock_count += 1
 
-        # Count medicines whose stock is below the minimum.
+        # Count medicines below their minimum stock level.
         if available_stock < medicine.minimum_quantity:
             low_stock_count += 1
 
-        # Create one table row for each medicine batch.
+        # SCRUM-30: Show a medicine even when it has no batches.
+        if not batches:
+            inventory_rows.append({
+                "medicine": medicine,
+                "batch": None,
+                "available_stock": 0,
+                "status": "Out of stock",
+            })
+
+        # Process each existing batch.
         for batch in batches:
 
-            # Determine whether this batch is near expiry.
+            # Check whether the batch expires within 90 days.
             near_expiry = (
                 batch.quantity > 0
                 and today < batch.expiry_date <= expiry_limit
@@ -103,7 +125,7 @@ def inventory_overview(request):
             if near_expiry:
                 expiring_count += 1
 
-            # Determine the status displayed in the table.
+            # Determine the status of this batch.
             if batch.expiry_date <= today:
                 status = "Expired"
             elif available_stock == 0:
@@ -115,6 +137,7 @@ def inventory_overview(request):
             else:
                 status = "In stock"
 
+            # Add the batch to the inventory table.
             inventory_rows.append({
                 "medicine": medicine,
                 "batch": batch,

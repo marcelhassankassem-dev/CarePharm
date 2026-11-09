@@ -941,7 +941,7 @@
               <tr
                 class="stock-row"
                 data-status="{{ row.status|slugify }}"
-                data-search="{{ row.medicine.name }} {{ row.medicine.strength }} {{ row.batch.batch_number }}"
+                data-search="{{ row.medicine.name }} {{ row.medicine.strength }} {{ row.medicine.barcode }} {{ row.batch.batch_number }}"
                 data-medicine-id="{{ row.medicine.pk }}"
                 data-stock="{{ row.available_stock }}"
                 data-minimum="{{ row.medicine.minimum_quantity }}"
@@ -960,19 +960,40 @@
                 </td>
 
                 <!-- Batch number. -->
-                <td>{{ row.batch.batch_number }}</td>
 
-                <!-- Batch expiry date. -->
+                <!-- Display batch number or a dash if no batch exists. -->
                 <td>
-                  {{ row.batch.expiry_date|date:"d M Y" }}
+                {% if row.batch %}
+                    {{ row.batch.batch_number }}
+                {% else %}
+                    —
+                {% endif %}
                 </td>
 
-                <!-- Quantity stored in this batch. -->
+
+
+                <!-- Display the expiry date if a batch exists. -->
                 <td>
-                  <span class="qty {% if row.status == 'Low stock' or row.status == 'Out of stock' %}low{% endif %}">
+                {% if row.batch %}
+                    {{ row.batch.expiry_date|date:"d M Y" }}
+                {% else %}
+                    —
+                {% endif %}
+                </td>
+
+
+
+                <!-- Display batch quantity, or zero for medicines with no batches. -->
+                <td>
+                <span class="qty {% if row.status == 'Low stock' or row.status == 'Out of stock' %}low{% endif %}">
+                    {% if row.batch %}
                     {{ row.batch.quantity }}
-                  </span>
+                    {% else %}
+                    0
+                    {% endif %}
+                </span>
                 </td>
+
 
                 <!-- Minimum stock threshold for the medicine. -->
                 <td>
@@ -986,9 +1007,12 @@
                   </span>
                 </td>
 
-                <!-- Last recorded receipt date for this batch. -->
                 <td class="muted">
-                  {{ row.batch.received_at|date:"d M Y" }}
+                {% if row.batch %}
+                    {{ row.batch.received_at|date:"d M Y" }}
+                {% else %}
+                    —
+                {% endif %}
                 </td>
 
                 <!-- Stock adjustment will belong to SCRUM-31. -->

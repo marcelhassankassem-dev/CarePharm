@@ -341,3 +341,35 @@ class DeliveryViewTests(TestCase):
 
         # Confirm no delivery was recorded.
         self.assertEqual(Batch.objects.count(), 0)
+
+
+    # SCRUM-30: A medicine must appear even without deliveries.
+    def test_medicine_without_batches_appears_in_inventory(self):
+
+        # Log in as a pharmacist.
+        self.client.force_login(self.pharmacist)
+
+        # Open the inventory page.
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+
+        # Find our test medicine in the inventory rows.
+        rows = [
+            row for row in response.context["inventory_rows"]
+            if row["medicine"] == self.medicine
+        ]
+
+        # The medicine should appear exactly once.
+        self.assertEqual(len(rows), 1)
+
+        # It has no batches and therefore no available stock.
+        self.assertIsNone(rows[0]["batch"])
+        self.assertEqual(rows[0]["available_stock"], 0)
+
+        # Its status must be Out of stock.
+        self.assertEqual(rows[0]["status"], "Out of stock")
+
+        # Check that the medicine is displayed in the HTML.
+        self.assertContains(response, "Amoxicillin")
+        self.assertContains(response, "Out of stock")
