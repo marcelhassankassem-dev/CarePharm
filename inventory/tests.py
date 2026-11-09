@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.db.models import ProtectedError
 from django.test import TestCase
@@ -93,3 +94,54 @@ class BatchModelTests(TestCase):
         create_batch(medicine)
         with self.assertRaises(ProtectedError):
             medicine.delete()
+
+
+class MedicineAdminTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.owner = User.objects.create_superuser(username="nadim", password="pass", role="owner")
+        cls.pharmacist = User.objects.create_user(username="rana", password="pass", role="pharmacist")
+        cls.medicine = create_medicine()
+
+    def test_t8_the_owner_can_open_the_medicines(self):
+        self.client.force_login(self.owner)
+        self.assertContains(self.client.get("/admin/inventory/medicine/"), "Amoxicillin 500 mg")
+
+    def test_t8_the_owner_can_open_the_drug_classes(self):
+        self.client.force_login(self.owner)
+        self.assertContains(self.client.get("/admin/inventory/drugclass/"), "Penicillins")
+
+    def test_t8_the_owner_can_change_a_price(self):
+        self.client.force_login(self.owner)
+        self.client.post(
+            f"/admin/inventory/medicine/{self.medicine.pk}/change/",
+            {
+                "name": "Amoxicillin",
+                "strength": "500 mg",
+                "barcode": "1000000000001",
+                "drug_class": self.medicine.drug_class.pk,
+                "price": "9.75",
+                "minimum_quantity": 20,
+            },
+        )
+        self.medicine.refresh_from_db()
+        self.assertEqual(self.medicine.price, Decimal("9.75"))
+
+    def test_t8_the_owner_can_add_a_drug_class(self):
+        self.client.force_login(self.owner)
+        self.client.post("/admin/inventory/drugclass/add/", {"name": "Macrolides"})
+        self.assertTrue(DrugClass.objects.filter(name="Macrolides").exists())
+
+    def test_t8_a_pharmacist_cannot_open_the_medicines(self):
+        self.client.force_login(self.pharmacist)
+        response = self.client.get("/admin/inventory/medicine/")
+        self.assertRedirects(
+            response,
+            "/admin/login/?next=/admin/inventory/medicine/",
+            fetch_redirect_response=False,
+        )
+
+    def test_t8_batches_are_not_in_the_admin(self):
+        self.client.force_login(self.owner)
+        self.assertEqual(self.client.get("/admin/inventory/batch/").status_code, 404)
