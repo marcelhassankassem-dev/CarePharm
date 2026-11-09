@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Max, Q, Sum
 from django.utils import timezone
@@ -24,6 +25,36 @@ def record_delivery(user, medicine, supplier, batch_number, expiry_date, quantit
         unit_cost=unit_cost,
     )
     log_action(user, "Recorded delivery", f"{medicine} · batch {batch_number} · +{quantity}")
+    return batch
+
+
+def check_quantity(quantity):
+    if quantity < 1:
+        raise ValidationError("The quantity must be at least 1.")
+
+
+@transaction.atomic
+def take_stock(user, medicine, quantity):
+    check_quantity(quantity)
+    unexpired = medicine.batch_set.filter(expiry_date__gte=timezone.localdate())
+    batch = unexpired.filter(quantity__gte=quantity).order_by("expiry_date", "id").first()
+    if batch is None:
+        largest = unexpired.aggregate(Max("quantity"))["quantity__max"] or 0
+        raise ValidationError(
+            f"No single batch of {medicine} has {quantity}. The most one batch can give is {largest}."
+        )
+    batch.quantity -= quantity
+    batch.save()
+    log_action(user, "Took stock", f"{medicine} · batch {batch.batch_number} · -{quantity}")
+    return batch
+
+
+@transaction.atomic
+def return_stock(user, batch, quantity):
+    check_quantity(quantity)
+    batch.quantity += quantity
+    batch.save()
+    log_action(user, "Returned stock", f"{batch.medicine} · batch {batch.batch_number} · +{quantity}")
     return batch
 
 
