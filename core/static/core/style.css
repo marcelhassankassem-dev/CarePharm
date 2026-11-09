@@ -1014,10 +1014,105 @@ body {
     margin-bottom: 8px;
 }
 
+.stat-bubble.orange {
+    background: url("images/stat-bubble-orange.svg");
+}
+
+.stock-list-actions {
+    display: flex;
+    gap: 16px;
+}
+
+.near-expiry-period {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 204px;
+    height: 42px;
+    padding: 0 10px 0 12px;
+    white-space: nowrap;
+    border: 1px solid #d6e3e0;
+    border-radius: 10px;
+    font-size: 13.5px;
+    color: #1f3345;
+    background: white;
+}
+
+.near-expiry-period img {
+    margin-right: 2px;
+}
+
+.near-expiry-period input[type="number"] {
+    width: 44px;
+    height: 28px;
+    padding: 0 4px;
+    border: 1px solid #d6e3e0;
+    border-radius: 6px;
+    font: inherit;
+    text-align: center;
+    appearance: textfield;
+}
+
+.near-expiry-period input[type="number"]::-webkit-inner-spin-button {
+    appearance: none;
+}
+
+.stock-list > .errorlist {
+    margin: 0 0 12px;
+    padding: 0;
+    font-size: 13px;
+    color: #a12a22;
+    text-align: right;
+    list-style: none;
+}
+
+.stock-tools {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.stock-filters {
+    display: flex;
+    gap: 8px;
+}
+
+.stock-filters a {
+    display: flex;
+    align-items: center;
+    height: 34px;
+    padding: 0 14px;
+    border: 1px solid #e1e9e8;
+    border-radius: 17px;
+    font-size: 12.5px;
+    color: #1f3345;
+    background: white;
+    text-decoration: none;
+}
+
+.stock-filters a.selected {
+    border-color: #14756f;
+    font-weight: 700;
+    color: white;
+    background: #14756f;
+}
+
+.days-left {
+    display: block;
+    margin-top: 3px;
+    font-size: 12.5px;
+    color: #7c8a96;
+}
+
+.days-left.near-expiry {
+    font-weight: 700;
+    color: #d9480f;
+}
+
 .stock-search {
     position: relative;
     width: 360px;
-    margin-bottom: 16px;
 }
 
 .stock-search img {

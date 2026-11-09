@@ -5,6 +5,8 @@ from django.utils import timezone
 from core.services import log_action
 from inventory.models import Batch, Medicine
 
+NEAR_EXPIRY_DAYS = 90
+
 
 def available_stock(medicine):
     batches = medicine.batch_set.filter(expiry_date__gte=timezone.localdate())
@@ -41,18 +43,36 @@ def find_medicines(search=""):
     return medicines
 
 
-def stock_rows(search=""):
-    rows = []
-    for medicine in find_medicines(search):
-        rows.append(
-            {
-                "medicine": medicine,
-                "batch": next_batch(medicine),
-                "available": available_stock(medicine),
-                "last_received": medicine.batch_set.aggregate(Max("received_at"))["received_at__max"],
-            }
-        )
-    return rows
+def stock_row(medicine, days):
+    batch = next_batch(medicine)
+    days_left = None
+    if batch:
+        days_left = (batch.expiry_date - timezone.localdate()).days
+    return {
+        "medicine": medicine,
+        "batch": batch,
+        "available": available_stock(medicine),
+        "last_received": medicine.batch_set.aggregate(Max("received_at"))["received_at__max"],
+        "days_left": days_left,
+        "near_expiry": days_left is not None and days_left <= days,
+    }
+
+
+def stock_rows(search="", days=NEAR_EXPIRY_DAYS):
+    return [stock_row(medicine, days) for medicine in find_medicines(search)]
+
+
+def soonest_expiry(row):
+    return row["days_left"]
+
+
+def near_expiry_rows(days=NEAR_EXPIRY_DAYS, search=""):
+    rows = [row for row in stock_rows(search, days) if row["near_expiry"]]
+    return sorted(rows, key=soonest_expiry)
+
+
+def near_expiry_count(days=NEAR_EXPIRY_DAYS):
+    return len(near_expiry_rows(days))
 
 
 def medicine_count():
