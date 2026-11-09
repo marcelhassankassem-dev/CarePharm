@@ -1,0 +1,64 @@
+{% extends "core/console.html" %}
+
+{% block title %}Add Patient - CarePharm{% endblock %}
+
+{% block console_content %}
+<div class="page-heading">
+    <div>
+        <p class="page-eyebrow">PHARMACIST CONSOLE</p>
+        <h1>Add Patient</h1>
+        <p class="page-intro">Create a medication passport for a new patient.</p>
+    </div>
+</div>
+
+<form method="post" class="card patient-form">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+
+    <h3 class="section-title">Contact Details</h3>
+    <div class="form-row">
+        <div class="form-field">
+            <label for="{{ form.name.id_for_label }}">Name</label>
+            {{ form.name }}
+            {{ form.name.errors }}
+        </div>
+        <div class="form-field">
+            <label for="{{ form.date_of_birth.id_for_label }}">Date of birth</label>
+            {{ form.date_of_birth }}
+            {{ form.date_of_birth.errors }}
+        </div>
+        <div class="form-field">
+            <label for="{{ form.phone.id_for_label }}">Phone (optional)</label>
+            {{ form.phone }}
+            {{ form.phone.errors }}
+        </div>
+    </div>
+
+    <h3 class="section-title">Allergies</h3>
+    <div class="form-choices">{{ form.allergies }}</div>
+    {{ form.allergies.errors }}
+
+    <h3 class="section-title">Current Medicines</h3>
+    <div class="form-choices">{{ form.current_medicines }}</div>
+    {{ form.current_medicines.errors }}
+
+    <h3 class="section-title">Patient Login (optional)</h3>
+    <div class="form-row">
+        <div class="form-field">
+            <label for="{{ form.username.id_for_label }}">Username</label>
+            {{ form.username }}
+            {{ form.username.errors }}
+        </div>
+        <div class="form-field">
+            <label for="{{ form.password.id_for_label }}">Temporary password</label>
+            {{ form.password }}
+            {{ form.password.errors }}
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="primary-button">Add Patient</button>
+        <a href="{% url 'patient_list' %}" class="table-link">Cancel</a>
+    </div>
+</form>
+{% endblock %}

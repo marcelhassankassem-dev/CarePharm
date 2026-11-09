@@ -9,7 +9,7 @@ from django.utils import timezone
 from core.models import ActivityLog, Notification
 from core.services import log_action, notifications_for, notify
 from inventory.models import Batch, DrugClass, Medicine
-from passport.models import Patient
+from passport.models import Allergy, CurrentMedicine, Patient
 
 CAREPHARM_APPS = [
     "accounts",
@@ -123,6 +123,29 @@ class SeedDemoStockTests(TestCase):
         self.assertGreater(batch.expiry_date, self.today + timedelta(days=90))
 
 
+class SeedDemoPassportTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo")
+
+    def test_3_1_ahmad_is_allergic_to_penicillins(self):
+        allergy = Allergy.objects.get(patient__name="Ahmad")
+        self.assertEqual(allergy.drug_class.name, "Penicillins")
+
+    def test_3_1_ahmad_takes_metformin(self):
+        current_medicine = CurrentMedicine.objects.get(patient__name="Ahmad")
+        self.assertEqual(current_medicine.medicine.name, "Metformin")
+
+    def test_3_1_samira_takes_metformin_and_atorvastatin(self):
+        current_medicines = CurrentMedicine.objects.filter(patient__name="Samira")
+        names = sorted(current_medicine.medicine.name for current_medicine in current_medicines)
+        self.assertEqual(names, ["Atorvastatin", "Metformin"])
+
+    def test_3_1_maya_has_nothing_recorded(self):
+        self.assertFalse(Allergy.objects.filter(patient__name="Maya").exists())
+        self.assertFalse(CurrentMedicine.objects.filter(patient__name="Maya").exists())
+
+
 class SeedDemoTwiceTests(TestCase):
     def test_t4_running_twice_creates_nothing_new(self):
         call_command("seed_demo")
@@ -131,6 +154,8 @@ class SeedDemoTwiceTests(TestCase):
         drug_classes = DrugClass.objects.count()
         medicines = Medicine.objects.count()
         batches = Batch.objects.count()
+        allergies = Allergy.objects.count()
+        current_medicines = CurrentMedicine.objects.count()
 
         call_command("seed_demo")
 
@@ -139,6 +164,8 @@ class SeedDemoTwiceTests(TestCase):
         self.assertEqual(DrugClass.objects.count(), drug_classes)
         self.assertEqual(Medicine.objects.count(), medicines)
         self.assertEqual(Batch.objects.count(), batches)
+        self.assertEqual(Allergy.objects.count(), allergies)
+        self.assertEqual(CurrentMedicine.objects.count(), current_medicines)
 
 
 class ActivityLogTests(TestCase):

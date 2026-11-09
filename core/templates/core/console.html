@@ -11,7 +11,7 @@
             <span><img src="{% static 'core/images/nav-prescriptions.svg' %}" alt="">Prescriptions</span>
             <span><img src="{% static 'core/images/nav-inventory.svg' %}" alt="">Inventory</span>
             <span><img src="{% static 'core/images/nav-sales.svg' %}" alt="">Sales</span>
-            <span><img src="{% static 'core/images/nav-patients.svg' %}" alt="">Patients</span>
+            <a href="{% url 'patient_list' %}" class="{% if '/patients/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-patients.svg' %}" alt="">Patients</a>
             <span><img src="{% static 'core/images/nav-messages.svg' %}" alt="">Messages</span>
             <span><img src="{% static 'core/images/nav-reports.svg' %}" alt="">Reports</span>
         </nav>
@@ -20,9 +20,9 @@
             <span class="profile-initials">{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}</span>
             <span class="profile-name">
                 {% if user.role == "owner" %}
-                <a href="/staff/">{{ user.get_full_name }}</a>
+                <a href="/staff/">{{ user.get_full_name|default:user.username }}</a>
                 {% else %}
-                {{ user.get_full_name }}
+                {{ user.get_full_name|default:user.username }}
                 {% endif %}
                 <small>{{ user.get_role_display }}</small>
             </span>
@@ -34,6 +34,10 @@
     </header>
 
     <main class="console-content">
+        {% for message in messages %}
+        <p class="console-message">{{ message }}</p>
+        {% endfor %}
+
         {% block console_content %}{% endblock %}
     </main>
 </div>

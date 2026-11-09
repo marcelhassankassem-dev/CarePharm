@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from inventory.models import Batch, DrugClass, Medicine
-from passport.models import Patient
+from passport.models import Allergy, CurrentMedicine, Patient
 
 DEMO_PASSWORD = "carepharm123"
 SUPPLIER = "Cedar Medical Supplies"
@@ -106,8 +106,30 @@ def create_stock():
     create_batch(paracetamol, "PAR-002", 240, 200, "1.50")
 
 
+def add_allergy(patient_name, drug_class_name):
+    Allergy.objects.get_or_create(
+        patient=Patient.objects.get(name=patient_name),
+        drug_class=DrugClass.objects.get(name=drug_class_name),
+    )
+
+
+def add_current_medicine(patient_name, medicine_name):
+    CurrentMedicine.objects.get_or_create(
+        patient=Patient.objects.get(name=patient_name),
+        medicine=Medicine.objects.get(name=medicine_name),
+    )
+
+
+def create_passports():
+    add_allergy("Ahmad", "Penicillins")
+    add_current_medicine("Ahmad", "Metformin")
+    add_current_medicine("Samira", "Metformin")
+    add_current_medicine("Samira", "Atorvastatin")
+
+
 class Command(BaseCommand):
     def handle(self, *args, **options):
         create_staff()
         create_patients()
         create_stock()
+        create_passports()

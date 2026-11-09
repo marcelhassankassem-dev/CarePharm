@@ -1,0 +1,91 @@
+{% extends "core/console.html" %}
+
+{% block title %}Patients - CarePharm{% endblock %}
+
+{% block console_content %}
+<div class="page-heading">
+    <div>
+        <p class="page-eyebrow">PHARMACIST CONSOLE</p>
+        <h1>Patients</h1>
+        <p class="page-intro">Each patient’s medication passport: contact details, allergies, medicines and history.</p>
+    </div>
+    <div class="console-actions">
+        <a href="{% url 'patient_login_new' %}" class="secondary-button">Add Caregiver Login</a>
+        <a href="{% url 'patient_new' %}" class="primary-button">+ Add Patient</a>
+    </div>
+</div>
+
+<div class="patients-layout">
+    <section class="card patient-list">
+        <form method="get" action="{% url 'patient_list' %}">
+            <input type="search" name="search" value="{{ search }}" placeholder="Search by name or phone" aria-label="Search by name or phone">
+        </form>
+        <p class="list-title">ALL PATIENTS · {{ patients|length }}</p>
+        {% for patient in patients %}
+        <a href="{% url 'patient_detail' patient.pk %}" class="patient-row {% if patient.pk == selected.pk %}selected{% endif %}">
+            <span class="avatar small">{{ patient.name|slice:":2"|upper }}</span>
+            <span class="patient-row-text">
+                <strong>{{ patient.name }}</strong>
+                <small>{{ patient.phone|default:"No phone recorded" }}</small>
+            </span>
+            {% if patient.allergy_count %}
+            <span class="pill danger">Allergy</span>
+            {% endif %}
+        </a>
+        {% empty %}
+        <p class="empty-note">No patients found.</p>
+        {% endfor %}
+    </section>
+
+    <section class="card">
+        {% if selected %}
+        <div class="passport-header">
+            <span class="avatar">{{ selected.name|slice:":2"|upper }}</span>
+            <div>
+                <h2>{{ selected.name }}</h2>
+                <p>Born {{ selected.date_of_birth|date:"j M Y" }}{% if selected.phone %} · {{ selected.phone }}{% endif %}</p>
+            </div>
+        </div>
+
+        <div class="passport-cards">
+            <div class="passport-card {% if allergies %}danger{% endif %}">
+                <h3>Allergies</h3>
+                {% for allergy in allergies %}
+                <span class="pill outlined">{{ allergy.drug_class }}</span>
+                {% empty %}
+                <p>No allergies recorded</p>
+                {% endfor %}
+            </div>
+            <div class="passport-card">
+                <h3>Contact</h3>
+                <p>{{ selected.phone|default:"No phone recorded" }}</p>
+            </div>
+        </div>
+
+        <h3 class="section-title">Active Medicines</h3>
+        {% if current_medicines %}
+        <table class="data-table medicine-table">
+            <thead>
+                <tr>
+                    <th>MEDICINE</th>
+                    <th>STATUS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for current in current_medicines %}
+                <tr>
+                    <td><strong>{{ current.medicine }}</strong></td>
+                    <td><span class="pill status-active">Active</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-note">No active medicines recorded</p>
+        {% endif %}
+        {% else %}
+        <p class="empty-note">Choose a patient to see their passport.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
