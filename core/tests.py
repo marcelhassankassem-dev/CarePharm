@@ -11,6 +11,21 @@ from core.services import log_action, notifications_for, notify
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, Patient
 
+NEW_MEDICINES = [
+    ("Amlodipine", "5 mg", "Calcium channel blockers"),
+    ("Omeprazole", "20 mg", "Proton pump inhibitors"),
+    ("Lisinopril", "10 mg", "ACE inhibitors"),
+    ("Losartan", "50 mg", "Angiotensin receptor blockers"),
+    ("Cetirizine", "10 mg", "Antihistamines"),
+    ("Salbutamol inhaler", "100 mcg", "Bronchodilators"),
+    ("Levothyroxine", "50 mcg", "Thyroid hormones"),
+    ("Aspirin", "81 mg", "NSAIDs"),
+    ("Azithromycin", "250 mg", "Macrolides"),
+    ("Ampicillin", "250 mg", "Penicillins"),
+    ("Paracetamol syrup", "120 mg/5 ml", "Analgesics"),
+    ("Metformin", "850 mg", "Biguanides"),
+]
+
 CAREPHARM_APPS = [
     "accounts",
     "passport",
@@ -121,6 +136,53 @@ class SeedDemoStockTests(TestCase):
         batch = amoxicillin.batch_set.get()
         self.assertGreater(batch.quantity, amoxicillin.minimum_quantity)
         self.assertGreater(batch.expiry_date, self.today + timedelta(days=90))
+
+
+class SeedDemoMedicineTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo")
+
+    def test_t8_the_new_medicines_have_the_right_drug_class(self):
+        for name, strength, drug_class in NEW_MEDICINES:
+            medicine = Medicine.objects.get(name=name, strength=strength)
+            self.assertEqual(medicine.drug_class.name, drug_class)
+
+    def test_t8_a_penicillin_allergy_matches_more_than_one_medicine(self):
+        penicillins = Medicine.objects.filter(drug_class__name="Penicillins")
+        self.assertEqual(sorted(medicine.name for medicine in penicillins), ["Amoxicillin", "Ampicillin"])
+
+    def test_t8_ibuprofen_and_aspirin_share_a_drug_class(self):
+        nsaids = Medicine.objects.filter(drug_class__name="NSAIDs")
+        self.assertEqual(sorted(medicine.name for medicine in nsaids), ["Aspirin", "Ibuprofen"])
+
+    def test_t8_metformin_comes_in_two_strengths(self):
+        metformin = Medicine.objects.filter(name="Metformin")
+        self.assertEqual(sorted(medicine.strength for medicine in metformin), ["500 mg", "850 mg"])
+
+    def test_t8_metformin_850_has_no_stock(self):
+        metformin = Medicine.objects.get(name="Metformin", strength="850 mg")
+        self.assertFalse(metformin.batch_set.exists())
+
+    def test_t8_ahmad_still_takes_metformin_500(self):
+        current_medicine = CurrentMedicine.objects.get(patient__name="Ahmad")
+        self.assertEqual(str(current_medicine.medicine), "Metformin 500 mg")
+
+    def test_t8_samira_still_takes_metformin_500(self):
+        current_medicine = CurrentMedicine.objects.get(
+            patient__name="Samira",
+            medicine__name="Metformin",
+        )
+        self.assertEqual(current_medicine.medicine.strength, "500 mg")
+
+    def test_t8_only_ibuprofen_and_metformin_850_are_low_on_stock(self):
+        low_on_stock = []
+        for medicine in Medicine.objects.all():
+            batches = medicine.batch_set.filter(expiry_date__gte=timezone.localdate())
+            available = sum(batch.quantity for batch in batches)
+            if available < medicine.minimum_quantity:
+                low_on_stock.append(str(medicine))
+        self.assertEqual(sorted(low_on_stock), ["Ibuprofen 400 mg", "Metformin 850 mg"])
 
 
 class SeedDemoPassportTests(TestCase):
