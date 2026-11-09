@@ -1,0 +1,9 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="18.6667" height="17.8333" viewBox="0 0 18.6667 17.8333" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="stethoscope">
+<path id="stethoscope path 1" d="M8.5 1V2.66667" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="#4F6070"/>
+<path id="stethoscope path 2" d="M3.5 1V2.66667" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="#4F6070"/>
+<path id="stethoscope path 3" d="M3.5 1.83325H2.66667C2.22464 1.83325 1.80072 2.00885 1.48816 2.32141C1.17559 2.63397 1 3.05789 1 3.49992V6.83325C1 8.15933 1.52678 9.4311 2.46447 10.3688C3.40215 11.3065 4.67392 11.8333 6 11.8333C7.32608 11.8333 8.59785 11.3065 9.53553 10.3688C10.4732 9.4311 11 8.15933 11 6.83325V3.49992C11 3.05789 10.8244 2.63397 10.5118 2.32141C10.1993 2.00885 9.77536 1.83325 9.33333 1.83325H8.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="#4F6070"/>
+<path id="stethoscope path 4" d="M6 11.8333C6 13.1593 6.52678 14.4311 7.46447 15.3688C8.40215 16.3065 9.67392 16.8333 11 16.8333C12.3261 16.8333 13.5979 16.3065 14.5355 15.3688C15.4732 14.4311 16 13.1593 16 11.8333V9.33325" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="#4F6070"/>
+<path id="stethoscope path 5" d="M17.6667 7.66667C17.6667 8.58714 16.9205 9.33333 16 9.33333C15.0796 9.33333 14.3334 8.58714 14.3334 7.66667C14.3334 6.74619 15.0796 6 16 6C16.9205 6 17.6667 6.74619 17.6667 7.66667Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="#4F6070"/>
+</g>
+</svg>

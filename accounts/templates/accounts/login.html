@@ -1,0 +1,109 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Sign in - CarePharm{% endblock %}
+
+{% block content %}
+<main class="login-page">
+    <section class="login-photo">
+        <div class="login-logo">
+            <img src="{% static 'core/images/logo.png' %}" alt="CarePharm" width="164" height="58">
+        </div>
+
+        {% if side == "staff" %}
+        <p class="login-eyebrow">For pharmacy staff</p>
+        <h2>Run your pharmacy<br>from one simple screen.</h2>
+        <p class="login-intro">Track prescriptions, keep stock correct and catch safety issues before a medicine reaches the patient.</p>
+        <ul class="login-chips">
+            <li>Prescriptions</li>
+            <li>Inventory</li>
+            <li>Safety checks</li>
+        </ul>
+        {% else %}
+        <p class="login-eyebrow">For patients and families</p>
+        <h2>Your medicines and your<br>pharmacy, in one place.</h2>
+        <p class="login-intro">Check if a medicine is in stock, reserve it for two hours, and get reminded before your refill runs out.</p>
+        <ul class="login-chips">
+            <li>Reserve medicines</li>
+            <li>Refill reminders</li>
+            <li>Prescription status</li>
+        </ul>
+        {% endif %}
+    </section>
+
+    <section class="login-side">
+        <div class="login-box">
+            <h1>Welcome back</h1>
+            <p class="login-subtitle">Choose how you use CarePharm, then sign in.</p>
+
+            <div class="login-cards">
+                <a href="/login/" class="login-card {% if side == 'patient' %}selected{% endif %}">
+                    <span class="card-icon"><img src="{% static 'core/images/icon-user.svg' %}" alt=""></span>
+                    <span class="card-radio">
+                        {% if side == "patient" %}
+                        <img src="{% static 'core/images/radio-selected.svg' %}" alt="">
+                        <img class="card-check" src="{% static 'core/images/icon-check.svg' %}" alt="">
+                        {% else %}
+                        <img src="{% static 'core/images/radio.svg' %}" alt="">
+                        {% endif %}
+                    </span>
+                    <strong>Patient</strong>
+                    <small>Find, reserve and refill</small>
+                </a>
+                <a href="/login/staff/" class="login-card {% if side == 'staff' %}selected{% endif %}">
+                    <span class="card-icon"><img src="{% static 'core/images/icon-stethoscope.svg' %}" alt=""></span>
+                    <span class="card-radio">
+                        {% if side == "staff" %}
+                        <img src="{% static 'core/images/radio-selected.svg' %}" alt="">
+                        <img class="card-check" src="{% static 'core/images/icon-check.svg' %}" alt="">
+                        {% else %}
+                        <img src="{% static 'core/images/radio.svg' %}" alt="">
+                        {% endif %}
+                    </span>
+                    <strong>Pharmacist</strong>
+                    <small>Prescriptions and stock</small>
+                </a>
+            </div>
+
+            {% if user.is_authenticated %}
+            <p class="login-success">You are signed in as {{ user.username }}.</p>
+            {% endif %}
+
+            {% if problem %}
+            <p class="login-problem">{{ problem }}</p>
+            {% endif %}
+
+            <form method="post">
+                {% csrf_token %}
+                <label for="username">Username</label>
+                <div class="login-field">
+                    <img src="{% static 'core/images/icon-user.svg' %}" alt="">
+                    <input id="username" type="text" name="username" value="{{ request.POST.username }}" placeholder="Your username" required autofocus>
+                </div>
+
+                <label for="password">Password</label>
+                <div class="login-field">
+                    <img src="{% static 'core/images/icon-lock.svg' %}" alt="">
+                    <input id="password" type="password" name="password" placeholder="Your password" required>
+                </div>
+
+                <button type="submit" class="login-button">
+                    Sign In
+                    <img src="{% static 'core/images/icon-arrow.svg' %}" alt="">
+                </button>
+            </form>
+
+            {% if side == "staff" %}
+            <p class="login-footer">Staff accounts are created by the pharmacy owner.</p>
+            {% else %}
+            <p class="login-footer">Patient accounts are created at the pharmacy.</p>
+            {% endif %}
+        </div>
+
+        <p class="login-privacy">
+            <img src="{% static 'core/images/icon-shield.svg' %}" alt="">
+            Your health information stays private and secure.
+        </p>
+    </section>
+</main>
+{% endblock %}
