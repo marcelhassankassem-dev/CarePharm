@@ -24,3 +24,14 @@ class DeliveryForm(forms.ModelForm):
         if expiry_date <= timezone.localdate():
             raise forms.ValidationError("The expiry date must be in the future.")
         return expiry_date
+
+
+class StockListForm(forms.Form):
+    SHOW_CHOICES = [
+        ("all", "All"),
+        ("expiring", "Near expiry"),
+    ]
+
+    search = forms.CharField(required=False)
+    days = forms.IntegerField(required=False, min_value=1, max_value=365)
+    show = forms.ChoiceField(choices=SHOW_CHOICES, required=False)
