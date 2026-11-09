@@ -24,6 +24,13 @@
         </div>
     </div>
     <div class="stat-card">
+        <span class="stat-bubble orange"><img src="{% static 'core/images/stat-clock.svg' %}" alt=""></span>
+        <div>
+            <strong>{{ near_expiry_count }}</strong>
+            <small>Expiring within {{ days }} day{{ days|pluralize }}</small>
+        </div>
+    </div>
+    <div class="stat-card">
         <span class="stat-bubble"><img src="{% static 'core/images/icon-truck.svg' %}" alt=""></span>
         <div>
             <strong>{{ deliveries_today }}</strong>
@@ -38,16 +45,36 @@
             <h2>Stock List</h2>
             <p>Stock goes down with each sale and up with each delivery.</p>
         </div>
-        <a href="/inventory/delivery/" class="primary-button">
-            <img src="{% static 'core/images/icon-plus.svg' %}" alt="">
-            Record Delivery
-        </a>
+        <div class="stock-list-actions">
+            <form method="get" action="/inventory/" class="near-expiry-period">
+                <img src="{% static 'core/images/icon-clock.svg' %}" alt="">
+                <label for="near-expiry-days">Near expiry:</label>
+                <input id="near-expiry-days" type="number" name="days" value="{{ days }}" min="1" max="365">
+                <span>days</span>
+                <input type="hidden" name="show" value="expiring">
+                <input type="hidden" name="search" value="{{ search }}">
+            </form>
+            <a href="/inventory/delivery/" class="primary-button">
+                <img src="{% static 'core/images/icon-plus.svg' %}" alt="">
+                Record Delivery
+            </a>
+        </div>
     </div>
 
-    <form method="get" action="/inventory/" class="stock-search">
-        <img src="{% static 'core/images/icon-search.svg' %}" alt="">
-        <input type="search" name="search" value="{{ search }}" placeholder="Search by medicine or batch" aria-label="Search by medicine or batch">
-    </form>
+    {{ list_form.days.errors }}
+
+    <div class="stock-tools">
+        <form method="get" action="/inventory/" class="stock-search">
+            <img src="{% static 'core/images/icon-search.svg' %}" alt="">
+            <input type="search" name="search" value="{{ search }}" placeholder="Search by medicine or batch" aria-label="Search by medicine or batch">
+            <input type="hidden" name="show" value="{{ show }}">
+            <input type="hidden" name="days" value="{{ days }}">
+        </form>
+        <nav class="stock-filters">
+            <a href="/inventory/?days={{ days }}&amp;search={{ search|urlencode }}" class="{% if show == 'all' %}selected{% endif %}">All {{ medicine_count }}</a>
+            <a href="/inventory/?show=expiring&amp;days={{ days }}&amp;search={{ search|urlencode }}" class="{% if show == 'expiring' %}selected{% endif %}">Near expiry {{ near_expiry_count }}</a>
+        </nav>
+    </div>
 
     <table class="data-table stock-table">
         <thead>
@@ -73,7 +100,12 @@
                 </td>
                 {% if row.batch %}
                 <td>{{ row.batch.batch_number }}</td>
-                <td>{{ row.batch.expiry_date|date:"d M Y" }}</td>
+                <td>
+                    {{ row.batch.expiry_date|date:"d M Y" }}
+                    <small class="days-left {% if row.near_expiry %}near-expiry{% endif %}">
+                        {% if row.days_left == 0 %}today{% else %}in {{ row.days_left }} day{{ row.days_left|pluralize }}{% endif %}
+                    </small>
+                </td>
                 <td><strong class="stock-quantity">{{ row.available }}</strong></td>
                 {% else %}
                 <td>&mdash;</td>
