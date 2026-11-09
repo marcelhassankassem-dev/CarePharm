@@ -11,10 +11,13 @@ from django.utils import timezone
 from core.models import ActivityLog
 from inventory.models import Batch, DrugClass, Medicine
 from inventory.services import (
+    NEAR_EXPIRY_DAYS,
     available_stock,
     deliveries_today_count,
     medicine_count,
     medicines_in_stock_count,
+    near_expiry_count,
+    near_expiry_rows,
     record_delivery,
     stock_rows,
 )
@@ -358,6 +361,89 @@ class StockLookupServiceTests(TestCase):
         self.assertEqual(medicine_count(), 2)
 
 
+def in_days(days):
+    return timezone.localdate() + timedelta(days=days)
+
+
+class NearExpiryServiceTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.amoxicillin = create_medicine()
+        cls.aspirin = create_aspirin()
+
+    def near_expiry_medicines(self, days=NEAR_EXPIRY_DAYS, search=""):
+        return [row["medicine"] for row in near_expiry_rows(days, search)]
+
+    def test_4_5_the_default_period_is_90_days(self):
+        self.assertEqual(NEAR_EXPIRY_DAYS, 90)
+
+    def test_4_5_a_batch_expiring_within_the_period_is_near_expiry(self):
+        create_batch(self.amoxicillin, expiry_date=in_days(45))
+        self.assertEqual(self.near_expiry_medicines(), [self.amoxicillin])
+
+    def test_4_5_the_last_day_of_the_period_counts(self):
+        create_batch(self.amoxicillin, expiry_date=in_days(90))
+        self.assertEqual(self.near_expiry_medicines(), [self.amoxicillin])
+
+    def test_4_5_the_day_after_the_period_does_not_count(self):
+        create_batch(self.amoxicillin, expiry_date=in_days(91))
+        self.assertEqual(self.near_expiry_medicines(), [])
+
+    def test_4_5_a_batch_expiring_today_is_near_expiry(self):
+        create_batch(self.amoxicillin, expiry_date=in_days(0))
+        self.assertEqual(self.near_expiry_medicines(), [self.amoxicillin])
+
+    def test_4_5_expired_batches_are_not_near_expiry(self):
+        create_batch(self.amoxicillin, expiry_date=in_days(-1))
+        self.assertEqual(self.near_expiry_medicines(), [])
+
+    def test_4_5_empty_batches_are_not_near_expiry(self):
+        create_batch(self.amoxicillin, quantity=0, expiry_date=in_days(10))
+        self.assertEqual(self.near_expiry_medicines(), [])
+
+    def test_4_5_the_period_can_be_chosen(self):
+        create_batch(self.amoxicillin, expiry_date=in_days(45))
+        self.assertEqual(self.near_expiry_medicines(days=30), [])
+        self.assertEqual(self.near_expiry_medicines(days=60), [self.amoxicillin])
+
+    def test_4_5_the_list_shows_the_batch_that_expires_first(self):
+        create_batch(self.amoxicillin, batch_number="LATER", expiry_date=in_days(80))
+        first = create_batch(self.amoxicillin, batch_number="FIRST", expiry_date=in_days(20))
+        self.assertEqual(near_expiry_rows(NEAR_EXPIRY_DAYS)[0]["batch"], first)
+
+    def test_4_5_the_list_runs_soonest_first(self):
+        create_batch(self.amoxicillin, expiry_date=in_days(60))
+        create_batch(self.aspirin, batch_number="ASP-001", expiry_date=in_days(10))
+        self.assertEqual(self.near_expiry_medicines(), [self.aspirin, self.amoxicillin])
+
+    def test_4_5_the_count_matches_the_list(self):
+        create_batch(self.amoxicillin, expiry_date=in_days(60))
+        create_batch(self.aspirin, batch_number="ASP-001", expiry_date=in_days(200))
+        self.assertEqual(near_expiry_count(NEAR_EXPIRY_DAYS), 1)
+        self.assertEqual(near_expiry_count(365), 2)
+
+    def test_4_5_rows_say_how_many_days_are_left(self):
+        create_batch(self.amoxicillin, expiry_date=in_days(45))
+        row = next(row for row in stock_rows() if row["medicine"] == self.amoxicillin)
+        self.assertEqual(row["days_left"], 45)
+        self.assertTrue(row["near_expiry"])
+
+    def test_4_5_a_row_outside_the_period_is_not_marked(self):
+        create_batch(self.amoxicillin, expiry_date=in_days(200))
+        row = next(row for row in stock_rows() if row["medicine"] == self.amoxicillin)
+        self.assertFalse(row["near_expiry"])
+
+    def test_4_5_a_medicine_with_no_stock_has_no_days_left(self):
+        row = next(row for row in stock_rows() if row["medicine"] == self.aspirin)
+        self.assertIsNone(row["days_left"])
+        self.assertFalse(row["near_expiry"])
+
+    def test_4_5_search_works_inside_the_near_expiry_list(self):
+        create_batch(self.amoxicillin, expiry_date=in_days(20))
+        create_batch(self.aspirin, batch_number="ASP-001", expiry_date=in_days(30))
+        self.assertEqual(self.near_expiry_medicines(search="asp"), [self.aspirin])
+
+
 class InventoryPagesTestData(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -473,6 +559,69 @@ class StockLookupPageTests(InventoryPagesTestData):
         self.assertContains(response, "NEW-001")
         self.assertNotContains(response, "OLD-001")
         self.assertContains(response, ">200<")
+
+
+class NearExpiryPageTests(InventoryPagesTestData):
+    def setUp(self):
+        self.client.force_login(self.nadim)
+        self.aspirin = create_aspirin()
+        create_batch(self.medicine, batch_number="AMX-045", expiry_date=in_days(45))
+        create_batch(self.aspirin, batch_number="ASP-200", expiry_date=in_days(200))
+
+    def test_4_5_the_card_counts_medicines_expiring_within_90_days(self):
+        response = self.client.get("/inventory/")
+        self.assertContains(response, "Expiring within 90 days")
+        self.assertEqual(response.context["near_expiry_count"], 1)
+
+    def test_4_5_the_card_follows_the_chosen_period(self):
+        response = self.client.get("/inventory/?show=expiring&days=365")
+        self.assertContains(response, "Expiring within 365 days")
+        self.assertEqual(response.context["near_expiry_count"], 2)
+
+    def test_4_5_the_near_expiry_list_shows_only_expiring_medicines(self):
+        response = self.client.get("/inventory/?show=expiring")
+        self.assertContains(response, "Amoxicillin 500 mg")
+        self.assertNotContains(response, "Aspirin 81 mg")
+
+    def test_4_5_the_period_can_be_chosen_on_the_page(self):
+        response = self.client.get("/inventory/?show=expiring&days=30")
+        self.assertNotContains(response, "Amoxicillin 500 mg")
+        self.assertContains(response, "No medicines found.")
+
+    def test_4_5_the_days_field_shows_the_chosen_period(self):
+        response = self.client.get("/inventory/?show=expiring&days=30")
+        self.assertContains(response, 'name="days"')
+        self.assertContains(response, 'value="30"')
+
+    def test_4_5_the_days_field_starts_at_90(self):
+        self.assertEqual(self.client.get("/inventory/").context["days"], 90)
+
+    def test_4_5_an_invalid_period_falls_back_to_90(self):
+        for days in ["abc", "0", "-5", "1000"]:
+            response = self.client.get(f"/inventory/?show=expiring&days={days}")
+            self.assertEqual(response.context["days"], 90)
+            self.assertContains(response, 'class="errorlist')
+
+    def test_4_5_the_pills_link_to_both_lists(self):
+        response = self.client.get("/inventory/")
+        self.assertContains(response, "Near expiry 1")
+        self.assertContains(response, "show=expiring")
+        self.assertContains(response, "All 2")
+
+    def test_4_5_the_list_without_a_filter_shows_everything(self):
+        response = self.client.get("/inventory/")
+        self.assertContains(response, "Amoxicillin 500 mg")
+        self.assertContains(response, "Aspirin 81 mg")
+
+    def test_4_5_rows_show_the_days_left(self):
+        response = self.client.get("/inventory/")
+        self.assertContains(response, "in 45 days")
+        self.assertContains(response, "in 200 days")
+
+    def test_4_5_searching_keeps_the_near_expiry_list(self):
+        response = self.client.get("/inventory/?show=expiring&search=amox")
+        self.assertContains(response, 'name="show" value="expiring"')
+        self.assertContains(response, "Amoxicillin 500 mg")
 
 
 class DeliveryPageTests(InventoryPagesTestData):
