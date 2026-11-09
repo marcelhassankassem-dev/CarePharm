@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Max, Q, Sum
 from django.utils import timezone
 
 from core.services import log_action
@@ -25,15 +25,38 @@ def record_delivery(user, medicine, supplier, batch_number, expiry_date, quantit
     return batch
 
 
-def stock_rows():
+def next_batch(medicine):
+    batches = medicine.batch_set.filter(expiry_date__gte=timezone.localdate(), quantity__gt=0)
+    return batches.order_by("expiry_date", "id").first()
+
+
+def find_medicines(search=""):
+    medicines = Medicine.objects.select_related("drug_class").order_by("name", "strength")
+    if search:
+        medicines = medicines.filter(
+            Q(name__icontains=search)
+            | Q(barcode__icontains=search)
+            | Q(batch__batch_number__icontains=search)
+        ).distinct()
+    return medicines
+
+
+def stock_rows(search=""):
     rows = []
-    for medicine in Medicine.objects.select_related("drug_class").order_by("name", "strength"):
-        batches = medicine.batch_set.order_by("expiry_date", "id")
-        if not batches:
-            rows.append({"medicine": medicine, "batch": None})
-        for batch in batches:
-            rows.append({"medicine": medicine, "batch": batch})
+    for medicine in find_medicines(search):
+        rows.append(
+            {
+                "medicine": medicine,
+                "batch": next_batch(medicine),
+                "available": available_stock(medicine),
+                "last_received": medicine.batch_set.aggregate(Max("received_at"))["received_at__max"],
+            }
+        )
     return rows
+
+
+def medicine_count():
+    return Medicine.objects.count()
 
 
 def medicines_in_stock_count():

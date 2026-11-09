@@ -5,15 +5,18 @@ from accounts.permissions import staff_required
 from inventory.forms import DeliveryForm
 from inventory.services import (
     deliveries_today_count,
+    medicine_count,
     medicines_in_stock_count,
     record_delivery,
     stock_rows,
 )
 
 
-def stock_page_data():
+def stock_page_data(search=""):
     return {
-        "rows": stock_rows(),
+        "rows": stock_rows(search),
+        "search": search,
+        "medicine_count": medicine_count(),
         "medicines_in_stock": medicines_in_stock_count(),
         "deliveries_today": deliveries_today_count(),
     }
@@ -21,7 +24,8 @@ def stock_page_data():
 
 @staff_required
 def inventory_page(request):
-    return render(request, "inventory/inventory.html", stock_page_data())
+    search = request.GET.get("search", "").strip()
+    return render(request, "inventory/inventory.html", stock_page_data(search))
 
 
 @staff_required
