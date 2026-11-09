@@ -2,25 +2,43 @@
 {% load static %}
 
 {% block content %}
-<header class="console-header">
-    <img src="{% static 'core/images/logo.png' %}" alt="CarePharm" width="164" height="58">
-    <nav class="console-menu">
-        <a href="{% url 'patient_list' %}" class="{% if '/patients/' in request.path %}active{% endif %}">Patients</a>
-    </nav>
-    <div class="console-user">
-        <span class="avatar small">{{ user.username|slice:":2"|upper }}</span>
-        <span>
-            <strong>{{ user.get_full_name|default:user.username }}</strong>
-            <small>{{ user.get_role_display }}</small>
-        </span>
-    </div>
-</header>
+<div class="console-page">
+    <header class="console-nav">
+        <img src="{% static 'core/images/logo.png' %}" alt="CarePharm" width="164" height="58">
 
-<main class="console-page">
-    {% for message in messages %}
-    <p class="console-message">{{ message }}</p>
-    {% endfor %}
+        <nav class="console-menu">
+            <span><img src="{% static 'core/images/nav-dashboard.svg' %}" alt="">Dashboard</span>
+            <span><img src="{% static 'core/images/nav-prescriptions.svg' %}" alt="">Prescriptions</span>
+            <span><img src="{% static 'core/images/nav-inventory.svg' %}" alt="">Inventory</span>
+            <span><img src="{% static 'core/images/nav-sales.svg' %}" alt="">Sales</span>
+            <a href="{% url 'patient_list' %}" class="{% if '/patients/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-patients.svg' %}" alt="">Patients</a>
+            <span><img src="{% static 'core/images/nav-messages.svg' %}" alt="">Messages</span>
+            <span><img src="{% static 'core/images/nav-reports.svg' %}" alt="">Reports</span>
+        </nav>
 
-    {% block console %}{% endblock %}
-</main>
+        <div class="console-profile">
+            <span class="profile-initials">{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}</span>
+            <span class="profile-name">
+                {% if user.role == "owner" %}
+                <a href="/staff/">{{ user.get_full_name|default:user.username }}</a>
+                {% else %}
+                {{ user.get_full_name|default:user.username }}
+                {% endif %}
+                <small>{{ user.get_role_display }}</small>
+            </span>
+            <form method="post" action="/logout/">
+                {% csrf_token %}
+                <button type="submit" class="sign-out-button">Sign out</button>
+            </form>
+        </div>
+    </header>
+
+    <main class="console-content">
+        {% for message in messages %}
+        <p class="console-message">{{ message }}</p>
+        {% endfor %}
+
+        {% block console_content %}{% endblock %}
+    </main>
+</div>
 {% endblock %}

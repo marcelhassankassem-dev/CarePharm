@@ -1,0 +1,116 @@
+{% extends "core/console.html" %}
+{% load static %}
+
+{% block title %}Staff and Roles - CarePharm{% endblock %}
+
+{% block console_content %}
+<div class="page-heading">
+    <div>
+        <p class="page-eyebrow">Owner settings</p>
+        <h1>Staff and Roles</h1>
+        <p class="page-intro">Who can use CarePharm and what each role is allowed to do.</p>
+    </div>
+    <a href="/staff/add/" class="primary-button">
+        <img src="{% static 'core/images/icon-plus.svg' %}" alt="">
+        Add Staff Member
+    </a>
+</div>
+
+<div class="staff-cards">
+    <section class="card staff-accounts">
+        <div class="card-header">
+            <span class="card-icon-bubble"><img src="{% static 'core/images/card-users.svg' %}" alt=""></span>
+            <div>
+                <h2>Staff Accounts</h2>
+                <p>{{ active_count }} pe{{ active_count|pluralize:"rson,ople" }} can sign in to this pharmacy</p>
+            </div>
+        </div>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Last sign-in</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for member in members %}
+                <tr>
+                    <td>
+                        <div class="staff-name">
+                            <span class="staff-initials">{{ member.first_name|first|upper }}{{ member.last_name|first|upper }}</span>
+                            <div>
+                                <strong>{{ member.get_full_name }}</strong>
+                                <small>{{ member.username }}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td><span class="pill role-{{ member.role }}">{{ member.get_role_display }}</span></td>
+                    <td>
+                        {% if member.is_active %}
+                        <span class="pill status-active">Active</span>
+                        {% else %}
+                        <span class="pill status-disabled">Disabled</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if member.last_login %}
+                        {{ member.last_login|date:"M j, H:i" }}
+                        {% else %}
+                        Never
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if member.role != "owner" %}
+                        <a href="/staff/{{ member.pk }}/edit/" class="table-link">Edit</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section class="card role-permissions">
+        <div class="card-header">
+            <span class="card-icon-bubble"><img src="{% static 'core/images/card-shield.svg' %}" alt=""></span>
+            <div>
+                <h2>Role Permissions</h2>
+                <p>What each role can do</p>
+            </div>
+        </div>
+
+        <table class="data-table permissions-table">
+            <thead>
+                <tr>
+                    <th>Permission</th>
+                    <th>Owner</th>
+                    <th>Pharmacist</th>
+                    <th>Assistant</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for permission, allowed_roles in role_permissions %}
+                <tr {% if permission == "Continue past a safety warning" %}class="permission-highlight"{% endif %}>
+                    <td>{{ permission }}</td>
+                    {% for allowed in allowed_roles %}
+                    <td>
+                        {% if allowed %}
+                        <span class="permission-mark yes"><img src="{% static 'core/images/permission-check.svg' %}" alt="Yes"></span>
+                        {% else %}
+                        <span class="permission-mark no"><img src="{% static 'core/images/permission-minus.svg' %}" alt="No"></span>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <p class="permissions-note">Only pharmacists can continue past a safety warning.</p>
+    </section>
+</div>
+{% endblock %}
