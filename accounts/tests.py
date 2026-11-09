@@ -72,24 +72,31 @@ class SignInTests(TestCase):
         cls.karim = User.objects.create_user(username="karim", password="pass", role="assistant")
         cls.nadim = User.objects.create_user(username="nadim", password="pass", role="owner")
 
+    def assert_signed_in_as(self, user):
+        self.assertEqual(self.client.session["_auth_user_id"], str(user.pk))
+
     def assert_nobody_is_signed_in(self):
-        self.assertRedirects(self.client.get("/home/"), "/login/?next=/home/")
+        self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_8_1_patient_signs_in_on_the_patient_page(self):
         response = self.client.post("/login/", {"username": "samira", "password": "pass"})
-        self.assertRedirects(response, "/home/")
+        self.assertRedirects(response, "/login/")
+        self.assert_signed_in_as(self.samira)
 
     def test_8_1_pharmacist_signs_in_on_the_staff_page(self):
         response = self.client.post("/login/staff/", {"username": "rana", "password": "pass"})
-        self.assertRedirects(response, "/home/")
+        self.assertRedirects(response, "/login/staff/")
+        self.assert_signed_in_as(self.rana)
 
     def test_8_1_assistant_signs_in_on_the_staff_page(self):
         response = self.client.post("/login/staff/", {"username": "karim", "password": "pass"})
-        self.assertRedirects(response, "/home/")
+        self.assertRedirects(response, "/login/staff/")
+        self.assert_signed_in_as(self.karim)
 
     def test_8_1_owner_signs_in_on_the_staff_page(self):
         response = self.client.post("/login/staff/", {"username": "nadim", "password": "pass"})
-        self.assertRedirects(response, "/home/")
+        self.assertRedirects(response, "/login/staff/")
+        self.assert_signed_in_as(self.nadim)
 
     def test_8_1_wrong_password_is_refused(self):
         response = self.client.post("/login/", {"username": "samira", "password": "wrong"})
@@ -111,21 +118,9 @@ class SignInTests(TestCase):
         self.assertContains(response, "This is not a patient account.")
         self.assert_nobody_is_signed_in()
 
-    def test_8_1_home_page_needs_a_signed_in_user(self):
-        self.assert_nobody_is_signed_in()
-
-    def test_8_1_home_page_shows_the_username_and_role(self):
+    def test_8_1_a_signed_in_user_sees_a_confirmation(self):
         self.client.force_login(self.rana)
-        response = self.client.get("/home/")
-        self.assertContains(response, "rana")
-        self.assertContains(response, "Pharmacist")
+        self.assertContains(self.client.get("/login/staff/"), "You are signed in as rana.")
 
-    def test_8_1_signing_out_returns_to_the_login_page(self):
-        self.client.force_login(self.samira)
-        self.assertRedirects(self.client.post("/logout/"), "/login/")
-        self.assert_nobody_is_signed_in()
-
-    def test_8_1_opening_the_sign_out_address_does_not_sign_out(self):
-        self.client.force_login(self.samira)
-        self.client.get("/logout/")
-        self.assertEqual(self.client.get("/home/").status_code, 200)
+    def test_8_1_a_signed_out_visitor_sees_no_confirmation(self):
+        self.assertNotContains(self.client.get("/login/"), "You are signed in as")
