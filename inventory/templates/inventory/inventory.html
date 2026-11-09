@@ -44,6 +44,11 @@
         </a>
     </div>
 
+    <form method="get" action="/inventory/" class="stock-search">
+        <img src="{% static 'core/images/icon-search.svg' %}" alt="">
+        <input type="search" name="search" value="{{ search }}" placeholder="Search by medicine or batch" aria-label="Search by medicine or batch">
+    </form>
+
     <table class="data-table stock-table">
         <thead>
             <tr>
@@ -69,18 +74,23 @@
                 {% if row.batch %}
                 <td>{{ row.batch.batch_number }}</td>
                 <td>{{ row.batch.expiry_date|date:"d M Y" }}</td>
-                <td><strong class="stock-quantity">{{ row.batch.quantity }}</strong></td>
-                <td class="stock-received">{{ row.batch.received_at|date:"d M Y" }}</td>
+                <td><strong class="stock-quantity">{{ row.available }}</strong></td>
                 {% else %}
                 <td>&mdash;</td>
                 <td class="no-stock">No stock left</td>
                 <td><strong class="stock-quantity no-stock">0</strong></td>
-                <td class="stock-received">&mdash;</td>
                 {% endif %}
+                <td class="stock-received">{{ row.last_received|date:"d M Y"|default:"&mdash;" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="stock-empty">No medicines found.</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+
+    <p class="stock-count">Showing {{ rows|length }} of {{ medicine_count }} medicines</p>
 </section>
 
 {% block popup %}{% endblock %}

@@ -1011,7 +1011,47 @@ body {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    margin-bottom: 20px;
+    margin-bottom: 8px;
+}
+
+.stock-search {
+    position: relative;
+    width: 360px;
+    margin-bottom: 16px;
+}
+
+.stock-search img {
+    position: absolute;
+    top: 12px;
+    left: 16px;
+}
+
+.stock-search input {
+    width: 100%;
+    height: 42px;
+    padding-left: 44px;
+    border: 1px solid #d6e3e0;
+    border-radius: 10px;
+    font: inherit;
+    font-size: 14px;
+    background: white;
+}
+
+.stock-search input::placeholder {
+    color: #7c8a96;
+}
+
+.stock-table .stock-empty {
+    height: 56px;
+    color: #4f6070;
+    text-align: center;
+}
+
+.stock-count {
+    margin: 16px 0 0;
+    padding-left: 16px;
+    font-size: 13px;
+    color: #4f6070;
 }
 
 .stock-list-header h2 {
