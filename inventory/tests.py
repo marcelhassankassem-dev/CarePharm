@@ -341,3 +341,68 @@ class DeliveryViewTests(TestCase):
 
         # Confirm no delivery was recorded.
         self.assertEqual(Batch.objects.count(), 0)
+
+
+
+# SCRUM-33: Test the near-expiry inventory functionality.
+class NearExpiryViewTests(TestCase):
+
+    def setUp(self):
+        # Create a medicine and a pharmacist.
+        self.medicine = create_medicine()
+
+        User = get_user_model()
+        self.pharmacist = User.objects.create_user(
+            username="expiry_pharmacist",
+            password="testpassword123",
+            role="pharmacist",
+        )
+
+        self.url = reverse("inventory:overview")
+
+    def test_near_expiry_batches(self):
+        today = timezone.localdate()
+
+        # Helper: Create a batch with a relative expiry date.
+        def add_batch(number, days, quantity=10):
+            batch = create_batch(
+                self.medicine,
+                batch_number=number,
+                quantity=quantity,
+            )
+
+            batch.expiry_date = today + timedelta(days=days)
+            batch.save(update_fields=["expiry_date"])
+
+        # Different situations to test.
+        add_batch("SOON-001", 1)
+        add_batch("DAY-090", 90)
+        add_batch("DAY-091", 91)
+        add_batch("EXPIRED", -1)
+        add_batch("EMPTY", 30, quantity=0)
+
+        # Open the inventory dashboard.
+        self.client.force_login(self.pharmacist)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+
+        # Only two batches should be considered near expiry.
+        self.assertEqual(
+            response.context["expiring_count"], 2
+        )
+
+        # Verify the status assigned to each batch.
+        statuses = {
+            row["batch"].batch_number: row["status"]
+            for row in response.context["inventory_rows"]
+            if row["batch"] is not None
+        }
+
+        self.assertEqual(statuses["SOON-001"], "Expiring")
+        self.assertEqual(statuses["DAY-090"], "Expiring")
+        self.assertEqual(statuses["DAY-091"], "In stock")
+        self.assertEqual(statuses["EXPIRED"], "Expired")
+
+        # An empty batch should not be labeled Expiring.
+        self.assertNotEqual(statuses["EMPTY"], "Expiring")
