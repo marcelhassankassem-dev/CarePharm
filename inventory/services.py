@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Max, Q, Sum
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from core.services import log_action
@@ -82,6 +83,10 @@ def next_batch(medicine):
 
 def adjustable_batches(medicine):
     return medicine.batch_set.filter(expiry_date__gte=timezone.localdate()).order_by("expiry_date", "id")
+
+
+def get_medicine(medicine_id):
+    return get_object_or_404(Medicine, pk=medicine_id)
 
 
 def find_medicines(search=""):
