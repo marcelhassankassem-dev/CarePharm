@@ -15,6 +15,8 @@ from inventory.services import (
     NEAR_EXPIRY_DAYS,
     available_stock,
     deliveries_today_count,
+    low_stock_count,
+    low_stock_rows,
     medicine_count,
     medicines_in_stock_count,
     near_expiry_count,
@@ -23,8 +25,6 @@ from inventory.services import (
     return_stock,
     stock_rows,
     take_stock,
-    low_stock_count,
-    low_stock_rows,
 )
 
 
@@ -902,84 +902,74 @@ class DeliveryPageTests(InventoryPagesTestData):
         self.assertFalse(Batch.objects.exists())
 
 
-# SCRUM-32: Tests for low-stock detection and filtering.
 class LowStockTests(TestCase):
-
     @classmethod
     def setUpTestData(cls):
-        cls.medicine = create_medicine()  # Minimum: 20
-        cls.aspirin = create_aspirin()     # Minimum: 30
+        cls.medicine = create_medicine()
+        cls.aspirin = create_aspirin()
 
-        cls.staff = get_user_model().objects.create_user(
-            username="low_stock_staff",
-            password="pass",
-            role="assistant",
-        )
-
-    def test_zero_stock_is_low_stock(self):
-        # Amoxicillin has enough stock; Aspirin has none.
+    def test_4_4_a_medicine_with_no_stock_is_low(self):
         create_batch(self.medicine, quantity=20)
-
-        rows = low_stock_rows()
-
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["medicine"], self.aspirin)
+        self.assertEqual([row["medicine"] for row in low_stock_rows()], [self.aspirin])
         self.assertEqual(low_stock_count(), 1)
 
-    def test_below_minimum_is_detected(self):
-        # Amoxicillin has 19 units, below its minimum of 20.
+    def test_4_4_stock_below_the_minimum_is_low(self):
         create_batch(self.medicine, quantity=19)
-        create_batch(
-            self.aspirin,
-            batch_number="ASP-001",
-            quantity=30,
-        )
+        create_batch(self.aspirin, batch_number="ASP-001", quantity=30)
+        self.assertEqual([row["medicine"] for row in low_stock_rows()], [self.medicine])
 
-        rows = low_stock_rows()
+    def test_4_4_expired_stock_does_not_count(self):
+        create_batch(self.medicine, quantity=100, expiry_date=in_days(-1))
+        create_batch(self.aspirin, batch_number="ASP-001", quantity=30)
+        self.assertEqual([row["medicine"] for row in low_stock_rows()], [self.medicine])
 
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["medicine"], self.medicine)
+    def test_4_4_the_near_expiry_mark_follows_the_chosen_period(self):
+        create_batch(self.medicine, quantity=5, expiry_date=in_days(60))
+        create_batch(self.aspirin, batch_number="ASP-001", quantity=30)
+        self.assertFalse(low_stock_rows(days=30)[0]["near_expiry"])
+        self.assertTrue(low_stock_rows(days=90)[0]["near_expiry"])
 
-    def test_expired_stock_is_not_counted(self):
-        # Expired stock should not count as available.
-        create_batch(
-            self.medicine,
-            quantity=100,
-            expiry_date=timezone.localdate() - timedelta(days=1),
-        )
-        create_batch(
-            self.aspirin,
-            batch_number="ASP-001",
-            quantity=30,
-        )
 
-        rows = low_stock_rows()
+class LowStockPageTests(InventoryPagesTestData):
+    def setUp(self):
+        self.client.force_login(self.karim)
+        self.aspirin = create_aspirin()
 
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["medicine"], self.medicine)
+    def position_of(self, response, words):
+        return response.content.decode().index(words)
 
-    def test_low_stock_filter_displays_correct_medicine(self):
-        # Only Aspirin should appear when filtering.
+    def test_4_4_the_low_stock_list_shows_only_low_medicines(self):
         create_batch(self.medicine, quantity=20)
-        self.client.force_login(self.staff)
-
         response = self.client.get("/inventory/?show=low_stock")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["low_stock_count"], 1)
-        self.assertEqual(len(response.context["rows"]), 1)
         self.assertContains(response, "Aspirin 81 mg")
         self.assertNotContains(response, "Amoxicillin 500 mg")
 
-    def test_search_works_with_low_stock_filter(self):
-        # Both medicines are low, but search selects Aspirin.
+    def test_4_4_searching_keeps_the_low_stock_list(self):
         create_batch(self.medicine, quantity=19)
-        self.client.force_login(self.staff)
-
-        response = self.client.get(
-            "/inventory/?show=low_stock&search=asp"
-        )
-
-        self.assertEqual(len(response.context["rows"]), 1)
+        response = self.client.get("/inventory/?show=low_stock&search=asp")
+        self.assertContains(response, 'name="show" value="low_stock"')
         self.assertContains(response, "Aspirin 81 mg")
         self.assertNotContains(response, "Amoxicillin 500 mg")
+
+    def test_4_4_the_card_counts_medicines_below_their_minimum(self):
+        create_batch(self.medicine, quantity=20)
+        response = self.client.get("/inventory/")
+        self.assertContains(response, "Below minimum")
+        self.assertEqual(response.context["low_stock_count"], 1)
+
+    def test_4_4_below_minimum_is_the_second_card(self):
+        response = self.client.get("/inventory/")
+        self.assertLess(self.position_of(response, "Medicines in stock"), self.position_of(response, "Below minimum"))
+        self.assertLess(self.position_of(response, "Below minimum"), self.position_of(response, "Expiring within"))
+
+    def test_4_4_the_card_is_red_with_a_warning_icon(self):
+        response = self.client.get("/inventory/")
+        self.assertContains(response, 'class="stat-bubble red"')
+        self.assertContains(response, "stat-alert.svg")
+
+    def test_4_4_the_low_stock_pill_comes_after_all(self):
+        response = self.client.get("/inventory/")
+        self.assertContains(response, "Low stock 2")
+        self.assertContains(response, "show=low_stock")
+        self.assertLess(self.position_of(response, "All 2"), self.position_of(response, "Low stock 2"))
+        self.assertLess(self.position_of(response, "Low stock 2"), self.position_of(response, "Near expiry"))
