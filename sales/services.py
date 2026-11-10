@@ -74,11 +74,11 @@ def sale_total(lines):
 
 
 @transaction.atomic
-def complete_sale(staff, payment_method, current_sale):
+def complete_sale(staff, payment_method, current_sale, patient=None):
     if not current_sale:
         raise ValidationError("Add at least one medicine first.")
     items = []
     for line in sale_lines(current_sale):
         take_stock(staff, line["medicine"], line["quantity"])
         items.append((line["medicine"], line["quantity"]))
-    return record_sale(staff, payment_method, items, "counter")
+    return record_sale(staff, payment_method, items, "counter", patient)

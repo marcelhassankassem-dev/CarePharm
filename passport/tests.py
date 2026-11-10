@@ -8,6 +8,7 @@ from django.db.models import ProtectedError
 from django.test import TestCase
 
 from inventory.models import DrugClass, Medicine
+from passport.forms import PatientChoiceForm
 from passport.models import Allergy, CurrentMedicine, Patient
 from passport.services import add_current_medicine, create_patient, find_patients
 
@@ -192,6 +193,28 @@ class FindPatientsTests(TestCase):
         maya, samira = find_patients()
         self.assertEqual(maya.allergy_count, 0)
         self.assertEqual(samira.allergy_count, 1)
+
+
+class PatientChoiceFormTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.samira = Patient.objects.create(name="Samira", date_of_birth=date(1958, 3, 14))
+        cls.ahmad = Patient.objects.create(name="Ahmad", date_of_birth=date(1980, 6, 2))
+
+    def test_5_2_every_patient_is_offered_by_name(self):
+        patients = list(PatientChoiceForm().fields["patient"].queryset)
+        self.assertEqual(patients, [self.ahmad, self.samira])
+
+    def test_5_2_the_list_starts_with_select_a_patient(self):
+        self.assertEqual(PatientChoiceForm().fields["patient"].empty_label, "Select a patient")
+
+    def test_5_2_a_patient_is_required(self):
+        self.assertFalse(PatientChoiceForm({"patient": ""}).is_valid())
+
+    def test_5_2_the_chosen_patient_is_given_back(self):
+        form = PatientChoiceForm({"patient": self.samira.pk})
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data["patient"], self.samira)
 
 
 class StaffOnlyPagesTests(TestCase):
