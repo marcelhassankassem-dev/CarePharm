@@ -83,6 +83,32 @@
         {% else %}
         <p class="empty-note">No active medicines recorded</p>
         {% endif %}
+
+        <h3 class="section-title">Dispensing History</h3>
+        {% if history %}
+        <table class="data-table history-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Medicine</th>
+                    <th>Quantity</th>
+                    <th>Dispensed by</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for line in history %}
+                <tr>
+                    <td>{{ line.sale.time|date:"j M Y" }}</td>
+                    <td><strong>{{ line.medicine }}</strong></td>
+                    <td>{{ line.quantity }}</td>
+                    <td>{{ line.sale.staff.get_full_name|default:line.sale.staff.username }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-note">No medicines dispensed yet</p>
+        {% endif %}
         {% else %}
         <p class="empty-note">Choose a patient to see their passport.</p>
         {% endif %}

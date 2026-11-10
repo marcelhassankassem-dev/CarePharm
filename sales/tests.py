@@ -180,6 +180,7 @@ class DispensingHistoryPageTests(SaleTestData):
         self.address = f"/patients/{self.samira.pk}/"
 
     def test_3_2_the_passport_has_a_dispensing_history(self):
+        record_sale(self.rana, "cash", [(self.metformin, 60)], "prescription", self.samira)
         response = self.client.get(self.address)
         self.assertContains(response, "Dispensing History")
         self.assertContains(response, "Dispensed by")

@@ -12,6 +12,7 @@ from passport.services import (
     find_patients,
     get_patient,
 )
+from sales.services import dispensing_history
 
 
 @staff_required
@@ -28,6 +29,7 @@ def patient_list(request, patient_id=None):
             "selected": selected,
             "allergies": allergies_of(selected),
             "current_medicines": current_medicines_of(selected),
+            "history": dispensing_history(selected) if selected else [],
         },
     )
 
