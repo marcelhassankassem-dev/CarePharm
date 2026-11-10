@@ -42,11 +42,41 @@ def uncollected_count():
     return uncollected_prescriptions().count()
 
 
-def uncollected_rows(search=""):
-    prescriptions = uncollected_prescriptions().select_related("patient").order_by("-created_at", "-id")
+def patients_matching(prescriptions, search):
     if search:
         prescriptions = prescriptions.filter(Q(patient__name__icontains=search) | Q(patient__phone__icontains=search))
+    return prescriptions
+
+
+def uncollected_rows(search=""):
+    prescriptions = uncollected_prescriptions().select_related("patient").order_by("-created_at", "-id")
+    prescriptions = patients_matching(prescriptions, search)
     return [{"prescription": prescription, "items": list(items_of(prescription))} for prescription in prescriptions]
+
+
+def ready_prescriptions():
+    return Prescription.objects.filter(status="ready")
+
+
+def ready_count():
+    return ready_prescriptions().count()
+
+
+def days_waiting(prescription):
+    return (timezone.localdate() - timezone.localdate(prescription.ready_at)).days
+
+
+def ready_rows(search=""):
+    prescriptions = ready_prescriptions().select_related("patient").order_by("ready_at", "id")
+    prescriptions = patients_matching(prescriptions, search)
+    return [
+        {
+            "prescription": prescription,
+            "items": list(items_of(prescription)),
+            "days_waiting": days_waiting(prescription),
+        }
+        for prescription in prescriptions
+    ]
 
 
 def add_item(prescription, medicine, quantity, days_of_supply, long_term=False):
