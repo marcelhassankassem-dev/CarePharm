@@ -24,6 +24,13 @@
         </div>
     </div>
     <div class="stat-card">
+        <span class="stat-bubble red"><img src="{% static 'core/images/stat-alert.svg' %}" alt=""></span>
+        <div>
+            <strong>{{ low_stock_count }}</strong>
+            <small>Below minimum</small>
+        </div>
+    </div>
+    <div class="stat-card">
         <span class="stat-bubble orange"><img src="{% static 'core/images/stat-clock.svg' %}" alt=""></span>
         <div>
             <strong>{{ near_expiry_count }}</strong>
@@ -72,6 +79,7 @@
         </form>
         <nav class="stock-filters">
             <a href="/inventory/?days={{ days }}&amp;search={{ search|urlencode }}" class="{% if show == 'all' %}selected{% endif %}">All {{ medicine_count }}</a>
+            <a href="/inventory/?show=low_stock&amp;days={{ days }}&amp;search={{ search|urlencode }}" class="{% if show == 'low_stock' %}selected{% endif %}">Low stock {{ low_stock_count }}</a>
             <a href="/inventory/?show=expiring&amp;days={{ days }}&amp;search={{ search|urlencode }}" class="{% if show == 'expiring' %}selected{% endif %}">Near expiry {{ near_expiry_count }}</a>
         </nav>
     </div>

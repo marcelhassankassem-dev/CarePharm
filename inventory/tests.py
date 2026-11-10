@@ -17,6 +17,8 @@ from inventory.services import (
     adjustable_batches,
     available_stock,
     deliveries_today_count,
+    low_stock_count,
+    low_stock_rows,
     medicine_count,
     medicines_in_stock_count,
     near_expiry_count,
@@ -1091,3 +1093,76 @@ class DeliveryPageTests(InventoryPagesTestData):
         response = self.client.post("/inventory/delivery/", self.delivery)
         self.assertEqual(response.status_code, 403)
         self.assertFalse(Batch.objects.exists())
+
+
+class LowStockTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.medicine = create_medicine()
+        cls.aspirin = create_aspirin()
+
+    def test_4_4_a_medicine_with_no_stock_is_low(self):
+        create_batch(self.medicine, quantity=20)
+        self.assertEqual([row["medicine"] for row in low_stock_rows()], [self.aspirin])
+        self.assertEqual(low_stock_count(), 1)
+
+    def test_4_4_stock_below_the_minimum_is_low(self):
+        create_batch(self.medicine, quantity=19)
+        create_batch(self.aspirin, batch_number="ASP-001", quantity=30)
+        self.assertEqual([row["medicine"] for row in low_stock_rows()], [self.medicine])
+
+    def test_4_4_expired_stock_does_not_count(self):
+        create_batch(self.medicine, quantity=100, expiry_date=in_days(-1))
+        create_batch(self.aspirin, batch_number="ASP-001", quantity=30)
+        self.assertEqual([row["medicine"] for row in low_stock_rows()], [self.medicine])
+
+    def test_4_4_the_near_expiry_mark_follows_the_chosen_period(self):
+        create_batch(self.medicine, quantity=5, expiry_date=in_days(60))
+        create_batch(self.aspirin, batch_number="ASP-001", quantity=30)
+        self.assertFalse(low_stock_rows(days=30)[0]["near_expiry"])
+        self.assertTrue(low_stock_rows(days=90)[0]["near_expiry"])
+
+
+class LowStockPageTests(InventoryPagesTestData):
+    def setUp(self):
+        self.client.force_login(self.karim)
+        self.aspirin = create_aspirin()
+
+    def position_of(self, response, words):
+        return response.content.decode().index(words)
+
+    def test_4_4_the_low_stock_list_shows_only_low_medicines(self):
+        create_batch(self.medicine, quantity=20)
+        response = self.client.get("/inventory/?show=low_stock")
+        self.assertContains(response, "Aspirin 81 mg")
+        self.assertNotContains(response, "Amoxicillin 500 mg")
+
+    def test_4_4_searching_keeps_the_low_stock_list(self):
+        create_batch(self.medicine, quantity=19)
+        response = self.client.get("/inventory/?show=low_stock&search=asp")
+        self.assertContains(response, 'name="show" value="low_stock"')
+        self.assertContains(response, "Aspirin 81 mg")
+        self.assertNotContains(response, "Amoxicillin 500 mg")
+
+    def test_4_4_the_card_counts_medicines_below_their_minimum(self):
+        create_batch(self.medicine, quantity=20)
+        response = self.client.get("/inventory/")
+        self.assertContains(response, "Below minimum")
+        self.assertEqual(response.context["low_stock_count"], 1)
+
+    def test_4_4_below_minimum_is_the_second_card(self):
+        response = self.client.get("/inventory/")
+        self.assertLess(self.position_of(response, "Medicines in stock"), self.position_of(response, "Below minimum"))
+        self.assertLess(self.position_of(response, "Below minimum"), self.position_of(response, "Expiring within"))
+
+    def test_4_4_the_card_is_red_with_a_warning_icon(self):
+        response = self.client.get("/inventory/")
+        self.assertContains(response, 'class="stat-bubble red"')
+        self.assertContains(response, "stat-alert.svg")
+
+    def test_4_4_the_low_stock_pill_comes_after_all(self):
+        response = self.client.get("/inventory/")
+        self.assertContains(response, "Low stock 2")
+        self.assertContains(response, "show=low_stock")
+        self.assertLess(self.position_of(response, "All 2"), self.position_of(response, "Low stock 2"))
+        self.assertLess(self.position_of(response, "Low stock 2"), self.position_of(response, "Near expiry 0"))

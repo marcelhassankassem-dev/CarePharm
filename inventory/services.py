@@ -119,6 +119,18 @@ def stock_rows(search="", days=NEAR_EXPIRY_DAYS):
     return [stock_row(medicine, days) for medicine in find_medicines(search)]
 
 
+def is_low(row):
+    return row["available"] < row["medicine"].minimum_quantity
+
+
+def low_stock_rows(days=NEAR_EXPIRY_DAYS, search=""):
+    return [row for row in stock_rows(search, days) if is_low(row)]
+
+
+def low_stock_count():
+    return len(low_stock_rows())
+
+
 def soonest_expiry(row):
     return row["days_left"]
 

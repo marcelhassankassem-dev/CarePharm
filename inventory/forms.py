@@ -44,6 +44,7 @@ class AdjustStockForm(forms.Form):
 class StockListForm(forms.Form):
     SHOW_CHOICES = [
         ("all", "All"),
+        ("low_stock", "Low stock"),
         ("expiring", "Near expiry"),
     ]
 

@@ -8,6 +8,8 @@ from inventory.services import (
     adjust_stock,
     deliveries_today_count,
     get_medicine,
+    low_stock_count,
+    low_stock_rows,
     medicine_count,
     medicines_in_stock_count,
     near_expiry_count,
@@ -20,6 +22,8 @@ from inventory.services import (
 def stock_page_data(search="", days=NEAR_EXPIRY_DAYS, show="all"):
     if show == "expiring":
         rows = near_expiry_rows(days, search)
+    elif show == "low_stock":
+        rows = low_stock_rows(days, search)
     else:
         rows = stock_rows(search, days)
     return {
@@ -29,6 +33,7 @@ def stock_page_data(search="", days=NEAR_EXPIRY_DAYS, show="all"):
         "show": show,
         "medicine_count": medicine_count(),
         "medicines_in_stock": medicines_in_stock_count(),
+        "low_stock_count": low_stock_count(),
         "near_expiry_count": near_expiry_count(days),
         "deliveries_today": deliveries_today_count(),
     }
