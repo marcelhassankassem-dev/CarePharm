@@ -65,6 +65,20 @@
     <section class="card current-sale">
         <h2>Current Sale</h2>
 
+        <div class="sale-customer">
+            <img src="{% static 'core/images/sale-customer.svg' %}" alt="">
+            {% if patient %}
+            <span>Customer: {{ patient }}{% if patient.phone %} <small>{{ patient.phone }}</small>{% endif %}</span>
+            <form method="post" action="/sales/patient/remove/">
+                {% csrf_token %}
+                <button type="submit">Remove</button>
+            </form>
+            {% else %}
+            <span>Customer: Walk-in</span>
+            <a href="/sales/patient/">Link a patient</a>
+            {% endif %}
+        </div>
+
         <div class="sale-lines">
             {% for line in lines %}
             <div class="sale-line">
@@ -114,4 +128,6 @@
         {% endif %}
     </section>
 </div>
+
+{% block popup %}{% endblock %}
 {% endblock %}
