@@ -1,14 +1,20 @@
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
+from core.models import ActivityLog
 from inventory.models import DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, Patient
 from prescriptions.models import PrescriptionItem
-from prescriptions.services import create_prescription
-from safety.services import safety_warnings
+from prescriptions.services import create_prescription, delete_prescription
+from safety.models import SafetyOverride
+from safety.services import override_warnings, safety_warnings
+
+REASON = "Prescriber confirmed the allergy is mild."
 
 
 def make_medicine(name, strength, barcode, drug_class):
@@ -182,3 +188,122 @@ class DuplicateCheckPageTests(SafetyPageTestData):
         self.assertContains(response, "2 alerts found")
         self.assertContains(response, "Possible allergy conflict")
         self.assertContains(response, "Duplicate medication check")
+
+
+class OverrideServiceTests(SafetyTestData):
+    def setUp(self):
+        self.prescription = create_prescription(self.ahmad)
+
+    def override(self, medicine, reason=REASON):
+        return override_warnings(self.rana, self.prescription, medicine, 20, 5, False, reason)
+
+    def test_2_2_each_warning_says_its_kind(self):
+        CurrentMedicine.objects.create(patient=self.ahmad, medicine=self.ampicillin)
+        warnings = safety_warnings(self.ahmad, self.ampicillin)
+        self.assertEqual([warning["kind"] for warning in warnings], ["allergy", "duplicate"])
+
+    def test_2_2_overriding_adds_the_medicine(self):
+        self.override(self.ampicillin)
+        item = PrescriptionItem.objects.get()
+        self.assertEqual(item.prescription, self.prescription)
+        self.assertEqual(item.medicine, self.ampicillin)
+        self.assertEqual(item.quantity, 20)
+        self.assertEqual(item.days_of_supply, 5)
+
+    def test_2_2_the_override_saves_who_why_and_which_warning(self):
+        self.override(self.ampicillin)
+        saved = SafetyOverride.objects.get()
+        self.assertEqual(saved.prescription, self.prescription)
+        self.assertEqual(saved.medicine, self.ampicillin)
+        self.assertEqual(saved.warning_type, "allergy")
+        self.assertEqual(saved.reason, REASON)
+        self.assertEqual(saved.pharmacist, self.rana)
+        self.assertIsNotNone(saved.time)
+
+    def test_2_2_each_warning_gets_its_own_override(self):
+        CurrentMedicine.objects.create(patient=self.ahmad, medicine=self.ampicillin)
+        self.override(self.ampicillin)
+        types = [saved.warning_type for saved in SafetyOverride.objects.order_by("id")]
+        self.assertEqual(types, ["allergy", "duplicate"])
+
+    def test_2_2_a_reason_is_required(self):
+        with self.assertRaisesMessage(ValidationError, "Enter a reason to continue."):
+            self.override(self.ampicillin, reason="   ")
+        self.assertFalse(PrescriptionItem.objects.exists())
+        self.assertFalse(SafetyOverride.objects.exists())
+
+    def test_2_2_the_decision_is_logged_for_the_pharmacist(self):
+        self.override(self.ampicillin)
+        entry = ActivityLog.objects.get(action="Safety decision")
+        self.assertEqual(entry.user, self.rana)
+        self.assertEqual(entry.details, f"Ampicillin 250 mg for Ahmad · Possible allergy conflict · Reason: {REASON}")
+
+    def test_2_2_nothing_is_saved_if_the_decision_cannot_be_logged(self):
+        with patch("safety.services.log_action", side_effect=ValueError):
+            with self.assertRaises(ValueError):
+                self.override(self.ampicillin)
+        self.assertFalse(PrescriptionItem.objects.exists())
+        self.assertFalse(SafetyOverride.objects.exists())
+
+    def test_2_2_deleting_a_received_prescription_deletes_its_overrides(self):
+        self.override(self.ampicillin)
+        delete_prescription(self.prescription)
+        self.assertFalse(SafetyOverride.objects.exists())
+        self.assertTrue(ActivityLog.objects.filter(action="Safety decision").exists())
+
+
+class OverridePageTests(SafetyPageTestData):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        User = get_user_model()
+        cls.karim = User.objects.create(username="karim", role="assistant")
+        cls.hala = User.objects.create(username="hala", role="owner")
+        cls.nadim = User.objects.create(username="nadim", role="owner", is_pharmacist=True)
+
+    def override(self, reason=REASON, follow=False):
+        entry = {"medicine": self.ampicillin.pk, "quantity": 20, "days_of_supply": 5, "override": "1", "reason": reason}
+        return self.client.post(f"{self.address}items/", entry, follow=follow)
+
+    def test_2_2_the_decision_card_offers_override_with_note(self):
+        response = self.add(self.ampicillin)
+        self.assertContains(response, "Override with Note")
+        self.assertContains(response, "Pharmacist note")
+        self.assertContains(response, 'name="reason"')
+        self.assertContains(response, "Choose how you would like to proceed. You can still override with a clinical note.")
+
+    def test_2_2_the_override_form_carries_the_entry(self):
+        response = self.add(self.ampicillin)
+        self.assertContains(response, f'<input type="hidden" name="medicine" value="{self.ampicillin.pk}">', html=True)
+        self.assertContains(response, '<input type="hidden" name="quantity" value="20">', html=True)
+        self.assertContains(response, '<input type="hidden" name="days_of_supply" value="5">', html=True)
+
+    def test_2_2_overriding_with_a_reason_adds_the_medicine(self):
+        self.assertRedirects(self.override(), self.address)
+        self.assertEqual(PrescriptionItem.objects.get().medicine, self.ampicillin)
+        self.assertEqual(SafetyOverride.objects.get().reason, REASON)
+
+    def test_2_2_overriding_says_what_was_added(self):
+        self.assertContains(self.override(follow=True), "Warning overridden. Ampicillin 250 mg added.")
+
+    def test_2_2_overriding_without_a_reason_keeps_the_safety_page(self):
+        response = self.override(reason="")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Medication Safety Assistant")
+        self.assertContains(response, "Enter a reason to continue.")
+        self.assertFalse(PrescriptionItem.objects.exists())
+
+    def test_2_2_an_assistant_cannot_override(self):
+        self.client.force_login(self.karim)
+        self.assertEqual(self.override().status_code, 403)
+        self.assertFalse(SafetyOverride.objects.exists())
+
+    def test_2_2_an_owner_who_is_not_a_pharmacist_cannot_override(self):
+        self.client.force_login(self.hala)
+        self.assertEqual(self.override().status_code, 403)
+        self.assertFalse(SafetyOverride.objects.exists())
+
+    def test_2_2_an_owner_who_is_a_pharmacist_can_override(self):
+        self.client.force_login(self.nadim)
+        self.assertRedirects(self.override(), self.address)
+        self.assertEqual(SafetyOverride.objects.get().pharmacist, self.nadim)

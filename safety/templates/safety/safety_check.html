@@ -128,17 +128,38 @@
                 <span class="card-icon-bubble"><img src="{% static 'core/images/safety-user.svg' %}" alt=""></span>
                 <div>
                     <h2>Pharmacist Decision</h2>
-                    <p>Choose how you would like to proceed.</p>
+                    <p>Choose how you would like to proceed. You can still override with a clinical note.</p>
                 </div>
                 <span class="safety-tag">You’re in control</span>
             </div>
 
-            <div class="safety-options">
-                <a href="/prescriptions/{{ prescription.pk }}/" class="safety-option">
-                    <img src="{% static 'core/images/safety-cancel.svg' %}" alt="">
-                    Cancel
-                </a>
-            </div>
+            <form method="post" action="/prescriptions/{{ prescription.pk }}/items/">
+                {% csrf_token %}
+                <input type="hidden" name="medicine" value="{{ form.cleaned_data.medicine.pk }}">
+                <input type="hidden" name="quantity" value="{{ form.cleaned_data.quantity }}">
+                <input type="hidden" name="days_of_supply" value="{{ form.cleaned_data.days_of_supply }}">
+                {% if form.cleaned_data.long_term %}
+                <input type="hidden" name="long_term" value="on">
+                {% endif %}
+
+                <div class="safety-options">
+                    <button type="submit" name="override" value="1" class="safety-option override">
+                        <img src="{% static 'core/images/safety-override.svg' %}" alt="">
+                        Override with Note
+                    </button>
+                    <a href="/prescriptions/{{ prescription.pk }}/" class="safety-option">
+                        <img src="{% static 'core/images/safety-cancel.svg' %}" alt="">
+                        Cancel
+                    </a>
+                </div>
+
+                <label for="{{ override_form.reason.id_for_label }}" class="safety-label">{{ override_form.reason.label }}</label>
+                <div class="safety-note">
+                    <img src="{% static 'core/images/safety-note.svg' %}" alt="">
+                    {{ override_form.reason }}
+                </div>
+                {{ override_form.reason.errors }}
+            </form>
 
             <p class="safety-disclaimer"><img src="{% static 'core/images/safety-info.svg' %}" alt="">Final decision is made by the pharmacist. The assistant provides guidance only.</p>
         </section>
