@@ -20,6 +20,7 @@ from inventory.services import (
     low_stock_count,
     low_stock_rows,
     medicine_count,
+    medicine_with_barcode,
     medicines_in_stock_count,
     near_expiry_count,
     near_expiry_rows,
@@ -366,6 +367,21 @@ class StockLookupServiceTests(TestCase):
 
     def test_4_2_medicine_count_counts_every_medicine(self):
         self.assertEqual(medicine_count(), 2)
+
+
+class BarcodeLookupTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.amoxicillin = create_medicine(barcode="1000000000001")
+
+    def test_5_1b_a_full_barcode_finds_its_medicine(self):
+        self.assertEqual(medicine_with_barcode("1000000000001"), self.amoxicillin)
+
+    def test_5_1b_part_of_a_barcode_finds_nothing(self):
+        self.assertIsNone(medicine_with_barcode("100000000000"))
+
+    def test_5_1b_an_unknown_barcode_finds_nothing(self):
+        self.assertIsNone(medicine_with_barcode("9999999999999"))
 
 
 def in_days(days):

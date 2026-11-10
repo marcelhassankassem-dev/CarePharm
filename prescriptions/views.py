@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.shortcuts import redirect, render
 
 from accounts.permissions import can_act_as_pharmacist, pharmacist_required, staff_required
-from prescriptions.forms import CollectForm, ItemForm, NewPrescriptionForm
+from prescriptions.forms import ItemForm, NewPrescriptionForm
 from prescriptions.services import (
     add_item,
     create_prescription,
@@ -21,6 +21,7 @@ from prescriptions.services import (
 )
 from safety.services import safety_warnings
 from safety.views import safety_check_page
+from sales.forms import PaymentForm
 
 
 def list_page_data(request):
@@ -69,7 +70,7 @@ def prescription_detail(request, prescription_id):
             "items": items_of(prescription),
             "can_change": can_act_as_pharmacist(request.user),
             "item_form": ItemForm(),
-            "collect_form": CollectForm(),
+            "collect_form": PaymentForm(),
         },
     )
 
@@ -134,7 +135,7 @@ def prescription_ready(request, prescription_id):
 def prescription_collected(request, prescription_id):
     prescription = get_prescription(prescription_id)
     if request.method == "POST":
-        form = CollectForm(request.POST)
+        form = PaymentForm(request.POST)
         if form.is_valid():
             payment_method = form.cleaned_data["payment_method"]
             run_action(request, mark_collected, request.user, prescription, payment_method)

@@ -2,7 +2,6 @@ from django import forms
 
 from inventory.models import Medicine
 from passport.models import Patient
-from sales.models import Sale
 
 
 class NewPrescriptionForm(forms.Form):
@@ -20,7 +19,3 @@ class ItemForm(forms.Form):
     quantity = forms.IntegerField(min_value=1)
     days_of_supply = forms.IntegerField(min_value=1)
     long_term = forms.BooleanField(label="Long-term medicine", required=False)
-
-
-class CollectForm(forms.Form):
-    payment_method = forms.ChoiceField(choices=Sale.PAYMENT_CHOICES, widget=forms.RadioSelect)
