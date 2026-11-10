@@ -58,9 +58,30 @@ def return_stock(user, batch, quantity):
     return batch
 
 
+@transaction.atomic
+def adjust_stock(user, batch, counted_quantity):
+    if batch.expiry_date < timezone.localdate():
+        raise ValidationError("Expired batches cannot be adjusted. Their quantity is the record of what was lost.")
+    if counted_quantity < 0:
+        raise ValidationError("The counted quantity cannot be below 0.")
+    quantity_before = batch.quantity
+    batch.quantity = counted_quantity
+    batch.save()
+    log_action(
+        user,
+        "Adjusted stock",
+        f"{batch.medicine} · batch {batch.batch_number} · {quantity_before} → {counted_quantity}",
+    )
+    return batch
+
+
 def next_batch(medicine):
     batches = medicine.batch_set.filter(expiry_date__gte=timezone.localdate(), quantity__gt=0)
     return batches.order_by("expiry_date", "id").first()
+
+
+def adjustable_batches(medicine):
+    return medicine.batch_set.filter(expiry_date__gte=timezone.localdate()).order_by("expiry_date", "id")
 
 
 def find_medicines(search=""):
