@@ -29,6 +29,11 @@ def record_sale(staff, payment_method, items, source, patient=None):
     return sale
 
 
+def dispensing_history(patient):
+    lines = SaleItem.objects.filter(sale__patient=patient).select_related("sale__staff", "medicine")
+    return lines.order_by("-sale__time", "id")
+
+
 def medicine_cards(search=""):
     return [
         {"medicine": row["medicine"], "available": row["available"], "low": is_low(row)}

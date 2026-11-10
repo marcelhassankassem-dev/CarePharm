@@ -994,6 +994,32 @@ body {
     font-size: 14px;
 }
 
+.history-table {
+    table-layout: fixed;
+}
+
+.history-table th:nth-child(1) {
+    width: 184px;
+}
+
+.history-table th:nth-child(2) {
+    width: 260px;
+}
+
+.history-table th:nth-child(3) {
+    width: 180px;
+}
+
+.history-table td {
+    height: 44px;
+    font-size: 13.5px;
+}
+
+.history-table strong {
+    font-size: 14px;
+    color: #0f2233;
+}
+
 .empty-note {
     margin: 16px 12px;
     font-size: 14px;
