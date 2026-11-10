@@ -493,3 +493,10 @@ class ActivityLogCardTests(StaffPagesTestData):
 
     def test_8_3_the_card_links_to_the_whole_log(self):
         self.assertContains(self.client.get("/staff/"), 'href="/staff/?show=all"')
+
+    def test_2_2_safety_decisions_stand_out_in_the_log(self):
+        log_action(self.rana, "Safety decision", "Ampicillin 250 mg for Ahmad")
+        log_action(self.karim, "Recorded delivery")
+        response = self.client.get("/staff/")
+        self.assertContains(response, '<td class="log-action safety-decision">Safety decision</td>', html=True)
+        self.assertContains(response, '<td class="log-action">Recorded delivery</td>', html=True)
