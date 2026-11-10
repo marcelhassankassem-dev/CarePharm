@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
@@ -9,6 +10,7 @@ from prescriptions.models import Prescription, PrescriptionItem
 from sales.services import record_sale
 
 ITEMS_ARE_LOCKED = "Medicines can only be changed while the prescription is Received."
+UNCOLLECTED_STATUSES = ["received", "preparing", "ready"]
 
 
 def check_status(prescription, status, problem):
@@ -32,8 +34,18 @@ def items_of(prescription):
     return prescription.prescriptionitem_set.select_related("medicine", "batch").order_by("id")
 
 
-def prescription_rows():
-    prescriptions = Prescription.objects.select_related("patient").order_by("-created_at", "-id")
+def uncollected_prescriptions():
+    return Prescription.objects.filter(status__in=UNCOLLECTED_STATUSES)
+
+
+def uncollected_count():
+    return uncollected_prescriptions().count()
+
+
+def uncollected_rows(search=""):
+    prescriptions = uncollected_prescriptions().select_related("patient").order_by("-created_at", "-id")
+    if search:
+        prescriptions = prescriptions.filter(Q(patient__name__icontains=search) | Q(patient__phone__icontains=search))
     return [{"prescription": prescription, "items": list(items_of(prescription))} for prescription in prescriptions]
 
 

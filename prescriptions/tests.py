@@ -18,9 +18,10 @@ from prescriptions.services import (
     mark_collected,
     mark_ready,
     mark_returned,
-    prescription_rows,
     remove_item,
     start_preparing,
+    uncollected_count,
+    uncollected_rows,
 )
 from sales.models import Sale
 
@@ -340,12 +341,57 @@ class PrescriptionRowsTests(PrescriptionTestData):
         older = create_prescription(self.samira)
         Prescription.objects.filter(pk=older.pk).update(created_at=timezone.now() - timedelta(days=1))
         newer = create_prescription(self.samira)
-        self.assertEqual([row["prescription"] for row in prescription_rows()], [newer, older])
+        self.assertEqual([row["prescription"] for row in uncollected_rows()], [newer, older])
 
     def test_1_1_each_row_lists_its_medicines(self):
         self.prescription_with_items()
-        items = prescription_rows()[0]["items"]
+        items = uncollected_rows()[0]["items"]
         self.assertEqual([item.medicine for item in items], [self.amoxicillin, self.metformin])
+
+
+class UncollectedListTests(PrescriptionTestData):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.ahmad = Patient.objects.create(name="Ahmad", date_of_birth=date(1980, 6, 2), phone="03 100 004")
+
+    def listed(self, search=""):
+        return [row["prescription"] for row in uncollected_rows(search)]
+
+    def test_1_2_received_preparing_and_ready_are_listed(self):
+        waiting = [
+            Prescription.objects.create(patient=self.samira, status=status)
+            for status in ["received", "preparing", "ready"]
+        ]
+        self.assertCountEqual(self.listed(), waiting)
+
+    def test_1_2_collected_and_returned_are_left_out(self):
+        for status in ["collected", "returned"]:
+            Prescription.objects.create(patient=self.samira, status=status)
+        self.assertEqual(self.listed(), [])
+
+    def test_1_2_the_count_leaves_out_collected_and_returned(self):
+        for status in ["received", "preparing", "ready", "collected", "returned"]:
+            Prescription.objects.create(patient=self.samira, status=status)
+        self.assertEqual(uncollected_count(), 3)
+
+    def test_1_2_search_finds_part_of_a_name_in_any_case(self):
+        samiras = create_prescription(self.samira)
+        create_prescription(self.ahmad)
+        self.assertEqual(self.listed("sAM"), [samiras])
+
+    def test_1_2_search_finds_part_of_a_phone(self):
+        ahmads = create_prescription(self.ahmad)
+        create_prescription(self.samira)
+        self.assertEqual(self.listed("100 004"), [ahmads])
+
+    def test_1_2_search_leaves_out_collected_prescriptions(self):
+        Prescription.objects.create(patient=self.samira, status="collected")
+        self.assertEqual(self.listed("Samira"), [])
+
+    def test_1_2_search_with_no_match_finds_nothing(self):
+        create_prescription(self.samira)
+        self.assertEqual(self.listed("Nour"), [])
 
 
 class PrescriptionPagesTestData(PrescriptionTestData):
@@ -443,18 +489,69 @@ class PrescriptionListPageTests(PrescriptionPagesTestData):
         self.assertContains(self.client.get("/prescriptions/"), f'href="/prescriptions/{prescription.pk}/"')
 
     def test_1_1_each_status_shows_its_next_step(self):
-        for status in ["preparing", "ready", "collected", "returned"]:
+        for status in ["preparing", "ready"]:
             Prescription.objects.create(patient=self.samira, status=status)
         response = self.client.get("/prescriptions/")
-        for words in ["Mark Ready", "Mark Collected", "View", "Preparing", "Ready", "Collected", "Returned"]:
+        for words in ["Mark Ready", "Mark Collected", "Preparing", "Ready"]:
             self.assertContains(response, words)
 
     def test_1_1_an_empty_list_says_so(self):
-        self.assertContains(self.client.get("/prescriptions/"), "No prescriptions yet.")
+        self.assertContains(self.client.get("/prescriptions/"), "No uncollected prescriptions.")
 
     def test_1_1_an_assistant_does_not_see_the_new_prescription_button(self):
         self.client.force_login(self.karim)
         self.assertNotContains(self.client.get("/prescriptions/"), 'href="/prescriptions/new/"')
+
+
+class UncollectedListPageTests(PrescriptionPagesTestData):
+    def setUp(self):
+        self.client.force_login(self.rana)
+        self.ahmad = Patient.objects.create(name="Ahmad", date_of_birth=date(1980, 6, 2), phone="03 100 004")
+
+    def test_1_2_collected_and_returned_prescriptions_are_not_listed(self):
+        Prescription.objects.create(patient=self.ahmad, status="collected")
+        Prescription.objects.create(patient=self.ahmad, status="returned")
+        self.assertNotContains(self.client.get("/prescriptions/"), "Ahmad")
+
+    def test_1_2_the_page_has_the_figma_search_box(self):
+        response = self.client.get("/prescriptions/")
+        self.assertContains(response, 'name="search"')
+        self.assertContains(response, 'placeholder="Search by patient name or phone"')
+
+    def test_1_2_the_tab_counts_every_uncollected_prescription(self):
+        create_prescription(self.samira)
+        create_prescription(self.ahmad)
+        Prescription.objects.create(patient=self.ahmad, status="collected")
+        response = self.client.get("/prescriptions/", {"search": "Samira"})
+        self.assertContains(response, "Prescriptions 2")
+        self.assertContains(response, "Showing 1 of 2 prescriptions")
+
+    def test_1_2_searching_by_name_shows_only_that_patient(self):
+        create_prescription(self.samira)
+        create_prescription(self.ahmad)
+        response = self.client.get("/prescriptions/", {"search": "ahm"})
+        self.assertContains(response, "Ahmad")
+        self.assertNotContains(response, "Samira")
+
+    def test_1_2_searching_by_phone_shows_only_that_patient(self):
+        create_prescription(self.samira)
+        create_prescription(self.ahmad)
+        response = self.client.get("/prescriptions/", {"search": "100 001"})
+        self.assertContains(response, "Samira")
+        self.assertNotContains(response, "Ahmad")
+
+    def test_1_2_the_box_keeps_the_search(self):
+        self.assertContains(self.client.get("/prescriptions/", {"search": "ahm"}), 'value="ahm"')
+
+    def test_1_2_a_search_with_no_match_says_so(self):
+        create_prescription(self.samira)
+        response = self.client.get("/prescriptions/", {"search": "Nour"})
+        self.assertContains(response, 'No prescriptions match "Nour".')
+
+    def test_1_2_an_assistant_can_search(self):
+        self.client.force_login(self.karim)
+        create_prescription(self.ahmad)
+        self.assertContains(self.client.get("/prescriptions/", {"search": "ahm"}), "Ahmad")
 
 
 class NewPrescriptionPageTests(PrescriptionPagesTestData):
