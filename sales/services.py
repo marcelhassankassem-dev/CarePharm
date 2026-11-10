@@ -29,6 +29,11 @@ def record_sale(staff, payment_method, items, source, patient=None):
     return sale
 
 
+def dispensing_history(patient):
+    lines = SaleItem.objects.filter(sale__patient=patient).select_related("sale__staff", "medicine")
+    return lines.order_by("-sale__time", "id")
+
+
 def medicine_cards(search=""):
     return [
         {"medicine": row["medicine"], "available": row["available"], "low": is_low(row)}
@@ -74,11 +79,11 @@ def sale_total(lines):
 
 
 @transaction.atomic
-def complete_sale(staff, payment_method, current_sale):
+def complete_sale(staff, payment_method, current_sale, patient=None):
     if not current_sale:
         raise ValidationError("Add at least one medicine first.")
     items = []
     for line in sale_lines(current_sale):
         take_stock(staff, line["medicine"], line["quantity"])
         items.append((line["medicine"], line["quantity"]))
-    return record_sale(staff, payment_method, items, "counter")
+    return record_sale(staff, payment_method, items, "counter", patient)
