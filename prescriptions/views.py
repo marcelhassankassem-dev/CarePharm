@@ -15,15 +15,15 @@ from prescriptions.services import (
     mark_collected,
     mark_ready,
     mark_returned,
-    prescription_rows,
     remove_item,
     start_preparing,
+    uncollected_rows,
 )
 from safety.services import safety_warnings
 
 
 def list_page_data(request):
-    return {"rows": prescription_rows(), "can_change": can_act_as_pharmacist(request.user)}
+    return {"rows": uncollected_rows(), "can_change": can_act_as_pharmacist(request.user)}
 
 
 def run_action(request, action, *args):
