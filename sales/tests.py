@@ -440,3 +440,68 @@ class SalePageTests(SalePagesTestData):
         self.assertContains(response, "Stock after sale: 10 → 2")
         self.assertFalse(Sale.objects.exists())
         self.assertEqual(self.quantity_of(self.batch), 30)
+
+
+class ScanBarcodeTests(SalePagesTestData):
+    def setUp(self):
+        self.client.force_login(self.karim)
+        self.batch = make_batch(self.amoxicillin, "AMX-001", quantity=30)
+
+    def scan(self, code, follow=False):
+        return self.client.post("/sales/scan/", {"search": code}, follow=follow)
+
+    def quantity_of(self, batch):
+        batch.refresh_from_db()
+        return batch.quantity
+
+    def test_5_1b_the_search_box_sends_to_the_scan_address(self):
+        response = self.client.get("/sales/")
+        self.assertContains(response, 'action="/sales/scan/"')
+        self.assertContains(response, "autofocus")
+        self.assertContains(response, "sale-barcode.svg")
+
+    def test_5_1b_scanning_a_barcode_adds_the_medicine(self):
+        self.assertRedirects(self.scan("1000000000001"), "/sales/")
+        self.assertContains(self.client.get("/sales/"), "Stock after sale: 30 → 29")
+
+    def test_5_1b_a_scan_is_confirmed(self):
+        response = self.scan("1000000000001", follow=True)
+        self.assertContains(response, "Amoxicillin 500 mg added to the sale.")
+
+    def test_5_1b_scanning_again_adds_one_more(self):
+        self.scan("1000000000001")
+        self.scan("1000000000001")
+        self.assertContains(self.client.get("/sales/"), "Stock after sale: 30 → 28")
+
+    def test_5_1b_spaces_around_the_code_are_ignored(self):
+        self.scan(" 1000000000001 ")
+        self.assertContains(self.client.get("/sales/"), "Stock after sale: 30 → 29")
+
+    def test_5_1b_scanning_does_not_take_stock_yet(self):
+        self.scan("1000000000001")
+        self.assertEqual(self.quantity_of(self.batch), 30)
+        self.assertFalse(Sale.objects.exists())
+
+    def test_5_1b_a_scanned_medicine_with_no_stock_is_refused(self):
+        response = self.scan("1000000000004", follow=True)
+        self.assertContains(response, "Not enough Metformin 500 mg in stock: 0 available.")
+        self.assertContains(response, "No medicines in this sale yet.")
+
+    def test_5_1b_a_name_is_searched_instead(self):
+        self.assertRedirects(self.scan("metf"), "/sales/?search=metf")
+        self.assertContains(self.client.get("/sales/"), "No medicines in this sale yet.")
+
+    def test_5_1b_part_of_a_barcode_is_searched_not_added(self):
+        self.assertRedirects(self.scan("100000000000"), "/sales/?search=100000000000")
+        self.assertContains(self.client.get("/sales/"), "No medicines in this sale yet.")
+
+    def test_5_1b_an_empty_box_shows_every_medicine(self):
+        self.assertRedirects(self.scan(""), "/sales/")
+
+    def test_5_1b_opening_the_scan_address_changes_nothing(self):
+        self.assertRedirects(self.client.get("/sales/scan/", {"search": "1000000000001"}), "/sales/")
+        self.assertContains(self.client.get("/sales/"), "No medicines in this sale yet.")
+
+    def test_5_1b_patient_side_users_cannot_scan(self):
+        self.client.force_login(self.maya)
+        self.assertEqual(self.scan("1000000000001").status_code, 403)

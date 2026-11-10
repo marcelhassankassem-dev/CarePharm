@@ -14,9 +14,11 @@
 
 <div class="sales-layout">
     <section class="card sales-catalog">
-        <form method="get" action="/sales/" class="sales-search">
+        <form method="post" action="/sales/scan/" class="sales-search">
+            {% csrf_token %}
             <img src="{% static 'core/images/icon-search.svg' %}" alt="">
-            <input type="search" name="search" value="{{ search }}" placeholder="Search a medicine or scan its barcode" aria-label="Search a medicine or scan its barcode">
+            <input type="search" name="search" value="{{ search }}" placeholder="Search a medicine or scan its barcode" aria-label="Search a medicine or scan its barcode" autofocus>
+            <img src="{% static 'core/images/sale-barcode.svg' %}" alt="" class="sales-barcode">
         </form>
 
         <div class="sales-products">

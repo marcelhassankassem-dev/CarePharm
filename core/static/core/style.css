@@ -2089,10 +2089,16 @@ body {
     left: 16px;
 }
 
+.sales-search .sales-barcode {
+    top: 16px;
+    left: auto;
+    right: 16px;
+}
+
 .sales-search input {
     width: 100%;
     height: 46px;
-    padding-left: 44px;
+    padding: 0 48px 0 44px;
     border: 1.5px solid #14756f;
     border-radius: 12px;
     font: inherit;
