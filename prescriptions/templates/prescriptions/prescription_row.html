@@ -1,0 +1,25 @@
+<tr>
+    <td>
+        <div class="staff-name">
+            <span class="staff-initials">{{ prescription.patient.name|slice:":2"|upper }}</span>
+            <div>
+                <strong>{{ prescription.patient.name }}</strong>
+                <small>{{ prescription.patient.phone|default:"No phone recorded" }}</small>
+            </div>
+        </div>
+    </td>
+    <td>
+        {% if items %}
+        <strong class="prescription-medicine">{{ items.0.medicine }}{% if items|length > 1 %} + {{ items|length|add:"-1" }} more{% endif %}</strong>
+        {% else %}
+        <span class="prescription-none">No medicines yet</span>
+        {% endif %}
+    </td>
+    <td>{{ prescription.created_at|date:"d M Y, H:i" }}</td>
+    <td><span class="pill prescription-status {{ prescription.status }}">{{ prescription.get_status_display }}</span></td>
+    <td class="prescription-action">
+        <a href="/prescriptions/{{ prescription.pk }}/" class="row-button {% if prescription.status == 'received' %}filled{% endif %}">
+            {% if prescription.status == "received" %}Open{% elif prescription.status == "preparing" %}Mark Ready{% elif prescription.status == "ready" %}Mark Collected{% else %}View{% endif %}
+        </a>
+    </td>
+</tr>

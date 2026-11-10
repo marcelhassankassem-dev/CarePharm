@@ -2491,3 +2491,267 @@ body {
     font-size: 13px;
     color: #4f6070;
 }
+
+.dashboard-cards {
+    position: relative;
+    display: flex;
+    gap: 16px;
+    margin: -17px 0 15px;
+}
+
+.dashboard-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 217.83px;
+    height: 127px;
+    padding: 16px;
+    border-radius: 16px;
+    background: white;
+    box-shadow: 0 4px 16px rgba(15, 51, 51, 0.06);
+    text-decoration: none;
+}
+
+.dashboard-card-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.dashboard-bubble {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 20px;
+    background: #e3f4f0;
+}
+
+.dashboard-card.red .dashboard-bubble {
+    background: #fbd9dd;
+}
+
+.dashboard-card.orange .dashboard-bubble {
+    background: #ffe3cc;
+}
+
+.dashboard-card-top strong {
+    font-size: 30px;
+    color: #0f2233;
+}
+
+.dashboard-card-label {
+    margin-top: 8px;
+    font-size: 13.5px;
+    color: #4f6070;
+}
+
+.dashboard-tag {
+    margin-top: 8px;
+    height: 23px;
+    padding: 0 10px;
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 23px;
+    color: #0e4a5a;
+    background: #e3f4f0;
+}
+
+.dashboard-card.red .dashboard-tag {
+    color: #a8001f;
+    background: #f8c6cd;
+}
+
+.dashboard-card.orange .dashboard-tag {
+    color: #8f4400;
+    background: #ffd8b5;
+}
+
+.dashboard-layout {
+    display: grid;
+    grid-template-columns: 900px 471px;
+    gap: 16px;
+    align-items: start;
+}
+
+.dashboard-layout .card {
+    padding: 16px;
+}
+
+.dashboard-prescriptions {
+    display: flex;
+    flex-direction: column;
+    min-height: 614px;
+}
+
+.dashboard-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.dashboard-card-header > div {
+    flex: 1;
+}
+
+.dashboard-card-header h2 {
+    margin: 0 0 4px;
+    font-size: 20px;
+    color: #0f2233;
+}
+
+.dashboard-card-header p {
+    margin: 0;
+    font-size: 13px;
+    color: #4f6070;
+}
+
+.dashboard-header-bubble {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 19px;
+    background: #e3f4f0;
+}
+
+.dashboard-filters {
+    display: flex;
+    gap: 8px;
+}
+
+.dashboard-filters a {
+    display: flex;
+    align-items: center;
+    height: 31px;
+    padding: 0 14px;
+    border: 1px solid #e1e9e8;
+    border-radius: 99px;
+    font-size: 12.5px;
+    color: #1f3345;
+    background: white;
+    text-decoration: none;
+}
+
+.dashboard-filters a.selected {
+    height: 29px;
+    margin-top: 1px;
+    border: 0;
+    font-weight: 700;
+    color: white;
+    background: #14756f;
+}
+
+.dashboard-table th {
+    padding: 10px 14px;
+}
+
+.dashboard-table th:nth-child(1) {
+    width: 200px;
+}
+
+.dashboard-table th:nth-child(2) {
+    width: 220px;
+}
+
+.dashboard-table th:nth-child(3) {
+    width: 160px;
+}
+
+.dashboard-table th:nth-child(4) {
+    width: 130px;
+}
+
+.dashboard-table td {
+    height: 61px;
+}
+
+.dashboard-more {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #14756f;
+    text-decoration: none;
+}
+
+.dashboard-view-all {
+    align-self: flex-start;
+    margin-top: auto;
+}
+
+.dashboard-alerts .dashboard-card-header {
+    margin-bottom: 6px;
+}
+
+.stock-alert {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 51px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid #e1e9e8;
+}
+
+.stock-alert:last-child {
+    margin-bottom: 0;
+    border-bottom: 0;
+}
+
+.stock-alert > div {
+    flex: 1;
+}
+
+.stock-alert strong {
+    display: block;
+    font-size: 13.5px;
+    color: #0f2233;
+}
+
+.stock-alert small {
+    display: block;
+    margin-top: 2px;
+    font-size: 12.5px;
+    color: #7c8a96;
+}
+
+.stock-alert-bubble {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 17px;
+    background: #fbd9dd;
+}
+
+.stock-alert-bubble.expiring {
+    background: #ffe3cc;
+}
+
+.stock-alert-tag {
+    height: 23px;
+    padding: 0 10px;
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 23px;
+    color: #a8001f;
+    background: #f8c6cd;
+}
+
+.stock-alert-tag.expiring {
+    color: #8f4400;
+    background: #ffd8b5;
+}
+
+.dashboard-empty {
+    margin: 8px 0;
+    font-size: 14px;
+    color: #4f6070;
+}

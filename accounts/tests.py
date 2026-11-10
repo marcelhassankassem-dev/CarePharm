@@ -101,12 +101,12 @@ class SignInTests(TestCase):
 
     def test_8_1_pharmacist_signs_in_on_the_staff_page(self):
         response = self.client.post("/login/staff/", {"username": "rana", "password": "pass"})
-        self.assertRedirects(response, "/login/staff/")
+        self.assertRedirects(response, "/dashboard/")
         self.assert_signed_in_as(self.rana)
 
     def test_8_1_assistant_signs_in_on_the_staff_page(self):
         response = self.client.post("/login/staff/", {"username": "karim", "password": "pass"})
-        self.assertRedirects(response, "/login/staff/")
+        self.assertRedirects(response, "/dashboard/")
         self.assert_signed_in_as(self.karim)
 
     def test_8_1_owner_signs_in_on_the_staff_page(self):
@@ -310,7 +310,7 @@ class AddStaffTests(StaffPagesTestData):
         response = self.client.post(
             "/login/staff/", {"username": "hala", "password": "temporary-pass"}
         )
-        self.assertRedirects(response, "/login/staff/")
+        self.assertRedirects(response, "/dashboard/")
 
     def test_8_2_a_new_member_cannot_open_the_django_admin(self):
         self.client.post("/staff/add/", NEW_STAFF)

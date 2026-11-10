@@ -1,0 +1,119 @@
+{% extends "core/console.html" %}
+{% load static %}
+
+{% block title %}Dashboard - CarePharm{% endblock %}
+
+{% block console_content %}
+<img class="inventory-leaves" src="{% static 'core/images/inventory-leaves.svg' %}" alt="">
+<p class="inventory-quote">Safer<br>medicines<br>healthier<br>tomorrows</p>
+
+<div class="page-heading">
+    <div>
+        <p class="page-eyebrow">Pharmacist console</p>
+        <h1>Today's Overview</h1>
+        <p class="page-intro">Everything that needs your attention today, in one place.</p>
+    </div>
+</div>
+
+<div class="dashboard-cards">
+    <a href="/prescriptions/" class="dashboard-card">
+        <span class="dashboard-card-top">
+            <span class="dashboard-bubble"><img src="{% static 'core/images/dash-clipboard.svg' %}" alt=""></span>
+            <strong>{{ counts.all }}</strong>
+        </span>
+        <span class="dashboard-card-label">Pending prescriptions</span>
+        <span class="dashboard-tag">{{ counts.ready }} ready to collect</span>
+    </a>
+    <a href="/inventory/?show=low_stock" class="dashboard-card red">
+        <span class="dashboard-card-top">
+            <span class="dashboard-bubble"><img src="{% static 'core/images/dash-package.svg' %}" alt=""></span>
+            <strong>{{ low_stock_count }}</strong>
+        </span>
+        <span class="dashboard-card-label">Low stock</span>
+        <span class="dashboard-tag">Below minimum</span>
+    </a>
+    <a href="/inventory/?show=expiring" class="dashboard-card orange">
+        <span class="dashboard-card-top">
+            <span class="dashboard-bubble"><img src="{% static 'core/images/dash-clock.svg' %}" alt=""></span>
+            <strong>{{ near_expiry_count }}</strong>
+        </span>
+        <span class="dashboard-card-label">Near expiry</span>
+        <span class="dashboard-tag">Within {{ near_expiry_days }} days</span>
+    </a>
+</div>
+
+<div class="dashboard-layout">
+    <section class="card dashboard-prescriptions">
+        <div class="dashboard-card-header">
+            <span class="dashboard-header-bubble"><img src="{% static 'core/images/dash-header-clipboard.svg' %}" alt=""></span>
+            <div>
+                <h2>Prescriptions to Prepare</h2>
+                <p>Open a prescription to run the safety check before dispensing.</p>
+            </div>
+            <nav class="dashboard-filters">
+                <a href="/dashboard/" class="{% if not status %}selected{% endif %}">All {{ counts.all }}</a>
+                <a href="/dashboard/?status=received" class="{% if status == 'received' %}selected{% endif %}">Received {{ counts.received }}</a>
+                <a href="/dashboard/?status=preparing" class="{% if status == 'preparing' %}selected{% endif %}">Preparing {{ counts.preparing }}</a>
+                <a href="/dashboard/?status=ready" class="{% if status == 'ready' %}selected{% endif %}">Ready {{ counts.ready }}</a>
+            </nav>
+        </div>
+
+        <table class="data-table prescription-table dashboard-table">
+            <thead>
+                <tr>
+                    <th>Patient</th>
+                    <th>Medicines</th>
+                    <th>Received</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                {% include "prescriptions/prescription_row.html" with prescription=row.prescription items=row.items %}
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="prescription-empty">No prescriptions waiting.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <a href="/prescriptions/" class="dashboard-more dashboard-view-all">View all {{ counts.all }} prescriptions <img src="{% static 'core/images/dash-arrow.svg' %}" alt=""></a>
+    </section>
+
+    <section class="card dashboard-alerts">
+        <div class="dashboard-card-header">
+            <span class="dashboard-header-bubble"><img src="{% static 'core/images/dash-header-package.svg' %}" alt=""></span>
+            <div>
+                <h2>Stock Alerts</h2>
+                <p>Running low or expiring soon.</p>
+            </div>
+            <a href="/inventory/" class="dashboard-more">Open inventory <img src="{% static 'core/images/dash-arrow.svg' %}" alt=""></a>
+        </div>
+
+        {% for alert in alerts %}
+        <div class="stock-alert">
+            {% if alert.kind == "low" %}
+            <span class="stock-alert-bubble low"><img src="{% static 'core/images/dash-alert-package.svg' %}" alt=""></span>
+            {% else %}
+            <span class="stock-alert-bubble expiring"><img src="{% static 'core/images/dash-alert-clock.svg' %}" alt=""></span>
+            {% endif %}
+            <div>
+                <strong>{{ alert.medicine }}</strong>
+                {% if alert.kind == "low" %}
+                <small>{{ alert.available }} left, minimum is {{ alert.medicine.minimum_quantity }}</small>
+                {% elif alert.days_left == 0 %}
+                <small>Batch {{ alert.batch.batch_number }}, expires today</small>
+                {% else %}
+                <small>Batch {{ alert.batch.batch_number }}, expires in {{ alert.days_left }} day{{ alert.days_left|pluralize }}</small>
+                {% endif %}
+            </div>
+            <span class="stock-alert-tag {{ alert.kind }}">{% if alert.kind == "low" %}Low{% else %}Expiring{% endif %}</span>
+        </div>
+        {% empty %}
+        <p class="dashboard-empty">No stock alerts.</p>
+        {% endfor %}
+    </section>
+</div>
+{% endblock %}
