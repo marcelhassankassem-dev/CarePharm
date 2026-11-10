@@ -113,7 +113,7 @@
 
             {% for warning in warnings %}
             <div class="safety-alert {{ warning.level|lower }}">
-                <span class="safety-alert-bubble"><img src="{% static 'core/images/safety-alert-high.svg' %}" alt=""></span>
+                <span class="safety-alert-bubble"><img src="{% static 'core/images/safety-alert-' %}{{ warning.level|lower }}.svg" alt=""></span>
                 <div>
                     <strong>{{ warning.title }}</strong>
                     <p>{{ warning.text }}</p>

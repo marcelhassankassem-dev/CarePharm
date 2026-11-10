@@ -18,6 +18,16 @@
     {% endif %}
 </div>
 
+<div class="prescription-tools">
+    <nav class="prescription-tabs">
+        <a href="/prescriptions/" class="selected">Prescriptions {{ uncollected_count }}</a>
+    </nav>
+    <form method="get" action="/prescriptions/" class="stock-search prescription-search">
+        <img src="{% static 'core/images/icon-search.svg' %}" alt="">
+        <input type="search" name="search" value="{{ search }}" placeholder="Search by patient name or phone" aria-label="Search by patient name or phone">
+    </form>
+</div>
+
 <section class="card prescription-list">
     <table class="data-table prescription-table">
         <thead>
@@ -60,13 +70,15 @@
             {% endwith %}
             {% empty %}
             <tr>
-                <td colspan="5" class="prescription-empty">No prescriptions yet.</td>
+                <td colspan="5" class="prescription-empty">
+                    {% if search %}No prescriptions match "{{ search }}".{% else %}No uncollected prescriptions.{% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 
-    <p class="stock-count">Showing {{ rows|length }} prescription{{ rows|length|pluralize }}</p>
+    <p class="stock-count">Showing {{ rows|length }} of {{ uncollected_count }} prescription{{ uncollected_count|pluralize }}</p>
 </section>
 
 {% block popup %}{% endblock %}

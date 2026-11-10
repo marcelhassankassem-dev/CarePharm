@@ -59,7 +59,7 @@ class AllergyWarningTests(SafetyTestData):
         self.assertEqual(safety_warnings(self.samira, self.ampicillin), [])
 
 
-class AllergyCheckPageTests(SafetyTestData):
+class SafetyPageTestData(SafetyTestData):
     def setUp(self):
         self.client.force_login(self.rana)
         self.prescription = create_prescription(self.ahmad)
@@ -69,6 +69,8 @@ class AllergyCheckPageTests(SafetyTestData):
         entry = {"medicine": medicine.pk, "quantity": 20, "days_of_supply": 5}
         return self.client.post(f"{self.address}items/", entry, follow=follow)
 
+
+class AllergyCheckPageTests(SafetyPageTestData):
     def test_2_1a_an_allergic_medicine_is_not_added(self):
         self.add(self.ampicillin)
         self.assertFalse(PrescriptionItem.objects.exists())
@@ -133,3 +135,50 @@ class AllergyCheckPageTests(SafetyTestData):
     def test_2_1a_a_safe_medicine_says_no_alerts_were_found(self):
         response = self.add(self.cetirizine, follow=True)
         self.assertContains(response, "No safety alerts. Cetirizine 10 mg added.")
+
+
+class DuplicateWarningTests(SafetyTestData):
+    def test_2_1b_a_medicine_the_patient_already_takes_gets_a_warning(self):
+        warnings = safety_warnings(self.ahmad, self.atorvastatin)
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0]["title"], "Duplicate medication check")
+        self.assertEqual(warnings[0]["level"], "Medium")
+
+    def test_2_1b_the_warning_names_the_medicine(self):
+        warning = safety_warnings(self.ahmad, self.atorvastatin)[0]
+        self.assertEqual(warning["text"], "Patient already takes Atorvastatin 20 mg. Review before dispensing.")
+
+    def test_2_1b_another_strength_is_not_a_duplicate(self):
+        stronger = make_medicine("Atorvastatin", "40 mg", "1000000000099", self.atorvastatin.drug_class)
+        self.assertEqual(safety_warnings(self.ahmad, stronger), [])
+
+    def test_2_1b_a_patient_taking_nothing_gets_no_warning(self):
+        self.assertEqual(safety_warnings(self.samira, self.atorvastatin), [])
+
+    def test_2_1b_an_allergy_and_a_duplicate_give_two_warnings_allergy_first(self):
+        CurrentMedicine.objects.create(patient=self.ahmad, medicine=self.ampicillin)
+        warnings = safety_warnings(self.ahmad, self.ampicillin)
+        self.assertEqual([warning["level"] for warning in warnings], ["High", "Medium"])
+
+
+class DuplicateCheckPageTests(SafetyPageTestData):
+    def test_2_1b_a_medicine_already_taken_is_not_added(self):
+        self.add(self.atorvastatin)
+        self.assertFalse(PrescriptionItem.objects.exists())
+
+    def test_2_1b_the_page_shows_the_duplicate_alert(self):
+        response = self.add(self.atorvastatin)
+        self.assertContains(response, "Duplicate medication check")
+        self.assertContains(response, "Medium")
+        self.assertContains(response, "Patient already takes Atorvastatin 20 mg. Review before dispensing.")
+        self.assertContains(response, 'class="safety-alert medium"')
+
+    def test_2_1b_the_duplicate_alert_has_its_own_icon(self):
+        self.assertContains(self.add(self.atorvastatin), "safety-alert-medium.svg")
+
+    def test_2_1b_both_alerts_are_counted(self):
+        CurrentMedicine.objects.create(patient=self.ahmad, medicine=self.ampicillin)
+        response = self.add(self.ampicillin)
+        self.assertContains(response, "2 alerts found")
+        self.assertContains(response, "Possible allergy conflict")
+        self.assertContains(response, "Duplicate medication check")
