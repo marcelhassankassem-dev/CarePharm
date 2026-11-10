@@ -15,33 +15,26 @@ from prescriptions.services import (
     mark_collected,
     mark_ready,
     mark_returned,
+    ready_count,
+    ready_rows,
     remove_item,
     start_preparing,
     uncollected_count,
     uncollected_rows,
-    ready_count,
-    ready_rows,
 )
 from safety.services import safety_warnings
 from safety.views import safety_check_page
 from sales.forms import PaymentForm
 
 
-
-# SCRUM-28: Display all uncollected or ready-only prescriptions.
 def list_page_data(request):
     search = request.GET.get("search", "")
     show = request.GET.get("show", "all")
-
-    # Show only orders that are ready for pickup.
     if show == "ready":
         rows = ready_rows(search)
-
-    # Otherwise, preserve the existing uncollected list.
     else:
         show = "all"
         rows = uncollected_rows(search)
-
     return {
         "rows": rows,
         "search": search,
@@ -50,7 +43,6 @@ def list_page_data(request):
         "ready_count": ready_count(),
         "can_change": can_act_as_pharmacist(request.user),
     }
-
 
 
 def run_action(request, action, *args):
