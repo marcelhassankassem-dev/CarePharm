@@ -12,6 +12,7 @@ from accounts.services import (
     staff_members,
     update_staff_member,
 )
+from core.services import activity_log
 
 
 def site_root(request):
@@ -52,6 +53,7 @@ def sign_out(request):
 @login_required
 def staff_list(request):
     require_owner(request.user)
+    show_all = request.GET.get("show") == "all"
     return render(
         request,
         "accounts/staff_list.html",
@@ -59,6 +61,8 @@ def staff_list(request):
             "members": staff_members(),
             "active_count": active_staff_count(),
             "role_permissions": ROLE_PERMISSIONS,
+            "show_all": show_all,
+            "activity": activity_log(today_only=not show_all),
         },
     )
 

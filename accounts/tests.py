@@ -1,9 +1,15 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.template.defaultfilters import date
 from django.test import TestCase
+from django.utils import timezone
 
 from accounts.permissions import can_act_as_pharmacist, is_owner, is_pharmacy_staff
 from accounts.services import create_patient_login
+from core.models import ActivityLog
+from core.services import log_action
 
 NEW_STAFF = {
     "first_name": "Hala",
@@ -428,3 +434,62 @@ class StaffMenuBarTests(StaffPagesTestData):
     def test_8_2_opening_the_sign_out_address_does_not_sign_out(self):
         self.client.get("/logout/")
         self.assertIn("_auth_user_id", self.client.session)
+
+
+class ActivityLogCardTests(StaffPagesTestData):
+    def setUp(self):
+        self.client.force_login(self.nadim)
+
+    def log_yesterday(self, user, action, details=""):
+        entry = log_action(user, action, details)
+        ActivityLog.objects.filter(pk=entry.pk).update(time=timezone.now() - timedelta(days=1))
+        entry.refresh_from_db()
+        return entry
+
+    def test_8_3_the_staff_page_has_the_activity_log_card(self):
+        response = self.client.get("/staff/")
+        self.assertContains(response, "Activity Log")
+        self.assertContains(response, "Every sale, stock change and safety decision, with who made it")
+
+    def test_8_3_the_page_intro_mentions_who_did_what(self):
+        self.assertContains(
+            self.client.get("/staff/"),
+            "Who can use CarePharm, what each role is allowed to do, and who did what.",
+        )
+
+    def test_8_3_an_entry_shows_the_action_and_its_details(self):
+        log_action(self.karim, "Recorded delivery", "Amlodipine 5 mg · batch AML-002 · +60")
+        response = self.client.get("/staff/")
+        self.assertContains(response, "Recorded delivery")
+        self.assertContains(response, "Amlodipine 5 mg · batch AML-002 · +60")
+
+    def test_8_3_an_entry_shows_who_did_it_and_their_role(self):
+        log_action(self.karim, "Recorded delivery")
+        response = self.client.get("/staff/")
+        self.assertContains(response, "<td><strong>Karim Saad</strong><small>Assistant</small></td>", html=True)
+
+    def test_8_3_an_entry_made_by_the_system_says_so(self):
+        log_action(None, "Reservation expired")
+        self.assertContains(self.client.get("/staff/"), "<td><strong>System</strong></td>", html=True)
+
+    def test_8_3_today_shows_the_time_of_each_entry(self):
+        entry = log_action(self.karim, "Recorded delivery")
+        self.assertContains(self.client.get("/staff/"), date(timezone.localtime(entry.time), "g:i A"))
+
+    def test_8_3_today_leaves_out_earlier_days(self):
+        self.log_yesterday(self.rana, "Returned stock")
+        response = self.client.get("/staff/")
+        self.assertNotContains(response, "Returned stock")
+        self.assertContains(response, "No activity today.")
+
+    def test_8_3_all_shows_earlier_days_with_their_date(self):
+        entry = self.log_yesterday(self.rana, "Returned stock")
+        response = self.client.get("/staff/?show=all")
+        self.assertContains(response, "Returned stock")
+        self.assertContains(response, date(timezone.localtime(entry.time), "j M Y, g:i A"))
+
+    def test_8_3_all_with_an_empty_log_says_so(self):
+        self.assertContains(self.client.get("/staff/?show=all"), "No activity yet.")
+
+    def test_8_3_the_card_links_to_the_whole_log(self):
+        self.assertContains(self.client.get("/staff/"), 'href="/staff/?show=all"')
