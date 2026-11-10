@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -16,6 +16,7 @@ from sales.models import Sale, SaleItem
 from sales.services import (
     add_one,
     complete_sale,
+    dispensing_history,
     medicine_cards,
     record_sale,
     remove_one,
@@ -124,6 +125,81 @@ class RecordSaleTests(SaleTestData):
                 record_sale(self.karim, "cash", [(self.amoxicillin, 2)], "counter")
         self.assertFalse(Sale.objects.exists())
         self.assertFalse(SaleItem.objects.exists())
+
+
+class DispensingHistoryTests(SaleTestData):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.ahmad = Patient.objects.create(name="Ahmad", date_of_birth=date(1980, 6, 2))
+
+    def sale_days_ago(self, items, days):
+        sale = record_sale(self.karim, "cash", items, "prescription", self.samira)
+        Sale.objects.filter(pk=sale.pk).update(time=timezone.now() - timedelta(days=days))
+
+    def test_3_2_the_history_lists_each_medicine_dispensed_to_the_patient(self):
+        record_sale(self.karim, "cash", [(self.amoxicillin, 2), (self.metformin, 60)], "prescription", self.samira)
+        lines = dispensing_history(self.samira)
+        self.assertEqual(
+            [(line.medicine, line.quantity) for line in lines],
+            [(self.amoxicillin, 2), (self.metformin, 60)],
+        )
+
+    def test_3_2_counter_sales_linked_to_the_patient_count_too(self):
+        record_sale(self.karim, "card", [(self.amoxicillin, 1)], "counter", self.samira)
+        self.assertEqual([line.medicine for line in dispensing_history(self.samira)], [self.amoxicillin])
+
+    def test_3_2_the_newest_sale_comes_first(self):
+        self.sale_days_ago([(self.metformin, 60)], 30)
+        self.sale_days_ago([(self.amoxicillin, 2)], 1)
+        self.assertEqual(
+            [line.medicine for line in dispensing_history(self.samira)],
+            [self.amoxicillin, self.metformin],
+        )
+
+    def test_3_2_other_patients_and_unlinked_sales_are_left_out(self):
+        record_sale(self.karim, "cash", [(self.amoxicillin, 2)], "counter", self.ahmad)
+        record_sale(self.karim, "cash", [(self.metformin, 1)], "counter")
+        self.assertEqual(list(dispensing_history(self.samira)), [])
+
+
+class DispensingHistoryPageTests(SaleTestData):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.rana = get_user_model().objects.create(
+            username="rana",
+            role="pharmacist",
+            first_name="Rana",
+            last_name="Haddad",
+        )
+        cls.maya = Patient.objects.create(name="Maya", date_of_birth=date(1990, 9, 21))
+
+    def setUp(self):
+        self.client.force_login(self.karim)
+        self.address = f"/patients/{self.samira.pk}/"
+
+    def test_3_2_the_passport_has_a_dispensing_history(self):
+        record_sale(self.rana, "cash", [(self.metformin, 60)], "prescription", self.samira)
+        response = self.client.get(self.address)
+        self.assertContains(response, "Dispensing History")
+        self.assertContains(response, "Dispensed by")
+
+    def test_3_2_a_row_shows_the_date_medicine_quantity_and_who_dispensed_it(self):
+        sale = record_sale(self.rana, "cash", [(self.metformin, 60)], "prescription", self.samira)
+        Sale.objects.filter(pk=sale.pk).update(time=timezone.make_aware(datetime(2026, 10, 14, 10, 0)))
+        response = self.client.get(self.address)
+        self.assertContains(response, "<td>14 Oct 2026</td>", html=True)
+        self.assertContains(response, "<td><strong>Metformin 500 mg</strong></td>", html=True)
+        self.assertContains(response, "<td>60</td>", html=True)
+        self.assertContains(response, "<td>Rana Haddad</td>", html=True)
+
+    def test_3_2_only_the_chosen_patients_history_is_shown(self):
+        record_sale(self.rana, "cash", [(self.metformin, 60)], "prescription", self.maya)
+        self.assertNotContains(self.client.get(self.address), "Metformin 500 mg")
+
+    def test_3_2_an_empty_history_says_so(self):
+        self.assertContains(self.client.get(self.address), "No medicines dispensed yet")
 
 
 class CurrentSaleTests(SaleTestData):
@@ -236,6 +312,12 @@ class CompleteSaleTests(SaleTestData):
         with self.assertRaisesMessage(ValidationError, "Add at least one medicine first."):
             complete_sale(self.karim, "cash", {})
         self.assertFalse(Sale.objects.exists())
+
+    def test_5_2_a_sale_can_be_linked_to_a_patient(self):
+        make_batch(self.amoxicillin, "AMX-001")
+        sale = complete_sale(self.karim, "cash", {str(self.amoxicillin.pk): 2}, patient=self.samira)
+        self.assertEqual(sale.patient, self.samira)
+        self.assertEqual(sale.source, "counter")
 
     def test_5_1a_a_line_no_single_batch_can_fill_changes_nothing(self):
         amoxicillin_batch = make_batch(self.amoxicillin, "AMX-001", quantity=30)
@@ -440,3 +522,163 @@ class SalePageTests(SalePagesTestData):
         self.assertContains(response, "Stock after sale: 10 → 2")
         self.assertFalse(Sale.objects.exists())
         self.assertEqual(self.quantity_of(self.batch), 30)
+
+
+class ScanBarcodeTests(SalePagesTestData):
+    def setUp(self):
+        self.client.force_login(self.karim)
+        self.batch = make_batch(self.amoxicillin, "AMX-001", quantity=30)
+
+    def scan(self, code, follow=False):
+        return self.client.post("/sales/scan/", {"search": code}, follow=follow)
+
+    def quantity_of(self, batch):
+        batch.refresh_from_db()
+        return batch.quantity
+
+    def test_5_1b_the_search_box_sends_to_the_scan_address(self):
+        response = self.client.get("/sales/")
+        self.assertContains(response, 'action="/sales/scan/"')
+        self.assertContains(response, "autofocus")
+        self.assertContains(response, "sale-barcode.svg")
+
+    def test_5_1b_scanning_a_barcode_adds_the_medicine(self):
+        self.assertRedirects(self.scan("1000000000001"), "/sales/")
+        self.assertContains(self.client.get("/sales/"), "Stock after sale: 30 → 29")
+
+    def test_5_1b_a_scan_is_confirmed(self):
+        response = self.scan("1000000000001", follow=True)
+        self.assertContains(response, "Amoxicillin 500 mg added to the sale.")
+
+    def test_5_1b_scanning_again_adds_one_more(self):
+        self.scan("1000000000001")
+        self.scan("1000000000001")
+        self.assertContains(self.client.get("/sales/"), "Stock after sale: 30 → 28")
+
+    def test_5_1b_spaces_around_the_code_are_ignored(self):
+        self.scan(" 1000000000001 ")
+        self.assertContains(self.client.get("/sales/"), "Stock after sale: 30 → 29")
+
+    def test_5_1b_scanning_does_not_take_stock_yet(self):
+        self.scan("1000000000001")
+        self.assertEqual(self.quantity_of(self.batch), 30)
+        self.assertFalse(Sale.objects.exists())
+
+    def test_5_1b_a_scanned_medicine_with_no_stock_is_refused(self):
+        response = self.scan("1000000000004", follow=True)
+        self.assertContains(response, "Not enough Metformin 500 mg in stock: 0 available.")
+        self.assertContains(response, "No medicines in this sale yet.")
+
+    def test_5_1b_a_name_is_searched_instead(self):
+        self.assertRedirects(self.scan("metf"), "/sales/?search=metf")
+        self.assertContains(self.client.get("/sales/"), "No medicines in this sale yet.")
+
+    def test_5_1b_part_of_a_barcode_is_searched_not_added(self):
+        self.assertRedirects(self.scan("100000000000"), "/sales/?search=100000000000")
+        self.assertContains(self.client.get("/sales/"), "No medicines in this sale yet.")
+
+    def test_5_1b_an_empty_box_shows_every_medicine(self):
+        self.assertRedirects(self.scan(""), "/sales/")
+
+    def test_5_1b_opening_the_scan_address_changes_nothing(self):
+        self.assertRedirects(self.client.get("/sales/scan/", {"search": "1000000000001"}), "/sales/")
+        self.assertContains(self.client.get("/sales/"), "No medicines in this sale yet.")
+
+    def test_5_1b_patient_side_users_cannot_scan(self):
+        self.client.force_login(self.maya)
+        self.assertEqual(self.scan("1000000000001").status_code, 403)
+
+
+class LinkPatientTests(SalePagesTestData):
+    def setUp(self):
+        self.client.force_login(self.karim)
+        self.batch = make_batch(self.amoxicillin, "AMX-001", quantity=30)
+
+    def link(self, patient_id, follow=False):
+        return self.client.post("/sales/patient/", {"patient": patient_id}, follow=follow)
+
+    def add(self, medicine):
+        return self.client.post(f"/sales/add/{medicine.pk}/")
+
+    def complete(self, payment_method="cash"):
+        return self.client.post("/sales/complete/", {"payment_method": payment_method}, follow=True)
+
+    def test_5_2_the_customer_box_starts_as_a_walk_in(self):
+        response = self.client.get("/sales/")
+        self.assertContains(response, "Customer: Walk-in")
+        self.assertContains(response, "Link a patient")
+        self.assertContains(response, 'href="/sales/patient/"')
+
+    def test_5_2_link_a_patient_opens_a_popup_over_the_sale(self):
+        response = self.client.get("/sales/patient/")
+        self.assertContains(response, "<dialog open")
+        self.assertContains(response, "Link a Patient")
+        self.assertContains(response, 'name="patient"')
+        self.assertContains(response, "Samira")
+        self.assertContains(response, "Link Patient")
+        self.assertContains(response, "Current Sale")
+        self.assertContains(response, 'href="/sales/"')
+
+    def test_5_2_linking_a_patient_shows_them_in_the_box(self):
+        self.assertRedirects(self.link(self.samira.pk), "/sales/")
+        response = self.client.get("/sales/")
+        self.assertContains(response, "Customer: Samira")
+        self.assertContains(response, 'action="/sales/patient/remove/"')
+        self.assertNotContains(response, "Customer: Walk-in")
+
+    def test_5_2_linking_is_confirmed(self):
+        self.assertContains(self.link(self.samira.pk, follow=True), "Samira linked to this sale.")
+
+    def test_5_2_a_patient_must_be_chosen(self):
+        response = self.link("")
+        self.assertContains(response, "<dialog open")
+        self.assertContains(self.client.get("/sales/"), "Customer: Walk-in")
+
+    def test_5_2_linking_keeps_the_medicines_in_the_sale(self):
+        self.add(self.amoxicillin)
+        self.link(self.samira.pk)
+        self.assertContains(self.client.get("/sales/"), "Stock after sale: 30 → 29")
+
+    def test_5_2_removing_the_patient_goes_back_to_a_walk_in(self):
+        self.link(self.samira.pk)
+        self.assertRedirects(self.client.post("/sales/patient/remove/"), "/sales/")
+        self.assertContains(self.client.get("/sales/"), "Customer: Walk-in")
+
+    def test_5_2_opening_the_remove_address_changes_nothing(self):
+        self.link(self.samira.pk)
+        self.client.get("/sales/patient/remove/")
+        self.assertContains(self.client.get("/sales/"), "Customer: Samira")
+
+    def test_5_2_completing_saves_the_patient_on_the_sale(self):
+        self.add(self.amoxicillin)
+        self.link(self.samira.pk)
+        response = self.complete("cash")
+        sale = Sale.objects.get()
+        self.assertEqual(sale.patient, self.samira)
+        self.assertContains(response, f"Sale {sale.pk} completed: $8.50, paid by cash, linked to Samira.")
+
+    def test_5_2_the_next_customer_starts_as_a_walk_in(self):
+        self.add(self.amoxicillin)
+        self.link(self.samira.pk)
+        self.assertContains(self.complete("cash"), "Customer: Walk-in")
+
+    def test_5_2_a_sale_with_no_patient_stays_a_walk_in_sale(self):
+        self.add(self.amoxicillin)
+        self.complete("cash")
+        self.assertIsNone(Sale.objects.get().patient)
+
+    def test_5_2_a_refused_sale_keeps_its_patient(self):
+        self.link(self.samira.pk)
+        response = self.complete("cash")
+        self.assertContains(response, "Add at least one medicine first.")
+        self.assertContains(response, "Customer: Samira")
+
+    def test_5_2_signed_out_visitors_go_to_the_staff_login(self):
+        self.client.logout()
+        self.assertRedirects(self.client.get("/sales/patient/"), "/login/staff/?next=/sales/patient/")
+
+    def test_5_2_patient_side_users_cannot_link(self):
+        self.client.force_login(self.maya)
+        self.assertEqual(self.client.get("/sales/patient/").status_code, 403)
+        self.assertEqual(self.link(self.samira.pk).status_code, 403)
+        self.assertEqual(self.client.post("/sales/patient/remove/").status_code, 403)

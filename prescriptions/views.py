@@ -3,8 +3,8 @@ from django.core.exceptions import ValidationError
 from django.shortcuts import redirect, render
 
 from accounts.permissions import can_act_as_pharmacist, pharmacist_required, staff_required
-from passport.services import allergies_of, current_medicines_of
-from prescriptions.forms import ItemForm, NewPrescriptionForm
+from passport.forms import PatientChoiceForm
+from prescriptions.forms import ItemForm
 from prescriptions.services import (
     add_item,
     create_prescription,
@@ -23,6 +23,7 @@ from prescriptions.services import (
     ready_rows,
 )
 from safety.services import safety_warnings
+from safety.views import safety_check_page
 from sales.forms import PaymentForm
 
 
@@ -70,7 +71,7 @@ def prescription_list(request):
 
 @pharmacist_required
 def prescription_new(request):
-    form = NewPrescriptionForm(request.POST) if request.method == "POST" else NewPrescriptionForm()
+    form = PatientChoiceForm(request.POST) if request.method == "POST" else PatientChoiceForm()
     if form.is_valid():
         prescription = create_prescription(form.cleaned_data["patient"])
         return redirect("prescription_detail", prescription.pk)
@@ -102,17 +103,7 @@ def prescription_add_item(request, prescription_id):
             data = form.cleaned_data
             warnings = safety_warnings(prescription.patient, data["medicine"])
             if warnings:
-                return render(
-                    request,
-                    "safety/safety_check.html",
-                    {
-                        "prescription": prescription,
-                        "form": form,
-                        "warnings": warnings,
-                        "allergies": allergies_of(prescription.patient),
-                        "current_medicines": current_medicines_of(prescription.patient),
-                    },
-                )
+                return safety_check_page(request, prescription, form, warnings)
             added = run_action(
                 request,
                 add_item,

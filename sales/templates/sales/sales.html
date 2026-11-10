@@ -14,9 +14,11 @@
 
 <div class="sales-layout">
     <section class="card sales-catalog">
-        <form method="get" action="/sales/" class="sales-search">
+        <form method="post" action="/sales/scan/" class="sales-search">
+            {% csrf_token %}
             <img src="{% static 'core/images/icon-search.svg' %}" alt="">
-            <input type="search" name="search" value="{{ search }}" placeholder="Search a medicine or scan its barcode" aria-label="Search a medicine or scan its barcode">
+            <input type="search" name="search" value="{{ search }}" placeholder="Search a medicine or scan its barcode" aria-label="Search a medicine or scan its barcode" autofocus>
+            <img src="{% static 'core/images/sale-barcode.svg' %}" alt="" class="sales-barcode">
         </form>
 
         <div class="sales-products">
@@ -62,6 +64,20 @@
 
     <section class="card current-sale">
         <h2>Current Sale</h2>
+
+        <div class="sale-customer">
+            <img src="{% static 'core/images/sale-customer.svg' %}" alt="">
+            {% if patient %}
+            <span>Customer: {{ patient }}{% if patient.phone %} <small>{{ patient.phone }}</small>{% endif %}</span>
+            <form method="post" action="/sales/patient/remove/">
+                {% csrf_token %}
+                <button type="submit">Remove</button>
+            </form>
+            {% else %}
+            <span>Customer: Walk-in</span>
+            <a href="/sales/patient/">Link a patient</a>
+            {% endif %}
+        </div>
 
         <div class="sale-lines">
             {% for line in lines %}
@@ -112,4 +128,6 @@
         {% endif %}
     </section>
 </div>
+
+{% block popup %}{% endblock %}
 {% endblock %}
