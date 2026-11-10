@@ -1,0 +1,147 @@
+
+{% extends "core/console.html" %}
+
+{% block title %}Sales Reports - CarePharm{% endblock %}
+
+{% block console_content %}
+
+<div class="page-heading">
+    <div>
+        <p class="page-eyebrow">Owner console</p>
+        <h1>Sales Reports</h1>
+        <p class="page-intro">
+            Monitor pharmacy revenue, transactions,
+            and best-selling medicines.
+        </p>
+    </div>
+</div>
+
+<!-- Date-range filter -->
+<form method="get" class="card report-filters">
+    <label>
+        Start Date
+        {{ filter_form.start_date }}
+    </label>
+
+    <label>
+        End Date
+        {{ filter_form.end_date }}
+    </label>
+
+    <button type="submit" class="primary-button">
+        Apply Filter
+    </button>
+
+    <a href="{% url 'sales_report_page' %}">
+        Clear Filters
+    </a>
+
+    {% if filter_form.errors %}
+        <div class="report-error">
+            {{ filter_form.non_field_errors }}
+            {{ filter_form.start_date.errors }}
+            {{ filter_form.end_date.errors }}
+        </div>
+    {% endif %}
+</form>
+
+{% if summary %}
+
+<!-- Main statistics -->
+<div class="report-summary-grid">
+
+    <section class="card report-stat">
+        <p>Total Revenue</p>
+        <strong>
+            ${{ summary.total_revenue|floatformat:2 }}
+        </strong>
+    </section>
+
+    <section class="card report-stat">
+        <p>Total Transactions</p>
+        <strong>{{ summary.sales_count }}</strong>
+    </section>
+
+    <section class="card report-stat">
+        <p>Items Sold</p>
+        <strong>{{ summary.items_sold }}</strong>
+    </section>
+
+</div>
+
+<!-- Payment breakdown -->
+<section class="card report-section">
+    <h2>Revenue by Payment Method</h2>
+
+    <table class="data-table report-table">
+        <thead>
+            <tr>
+                <th>Payment Method</th>
+                <th>Revenue</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            <tr>
+                <td>Cash</td>
+                <td>
+                    ${{ payments.cash_revenue|floatformat:2 }}
+                </td>
+            </tr>
+
+            <tr>
+                <td>Card</td>
+                <td>
+                    ${{ payments.card_revenue|floatformat:2 }}
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- Best-selling medicines -->
+<section class="card report-section">
+    <h2>Top 5 Best-Selling Medicines</h2>
+
+    <table class="data-table report-table">
+        <thead>
+            <tr>
+                <th>Medicine</th>
+                <th>Quantity Sold</th>
+                <th>Revenue</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for medicine in top_medicines %}
+            <tr>
+                <td>
+                    {{ medicine.medicine__name }}
+                    {{ medicine.medicine__strength }}
+                </td>
+
+                <td>{{ medicine.quantity_sold }}</td>
+
+                <td>
+                    ${{ medicine.revenue|floatformat:2 }}
+                </td>
+            </tr>
+
+            {% empty %}
+            <tr>
+                <td colspan="3">
+                    No medicine sales found for this period.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+{% else %}
+    <section class="card report-section">
+        <p>Please correct the date filters above.</p>
+    </section>
+{% endif %}
+
+{% endblock %}

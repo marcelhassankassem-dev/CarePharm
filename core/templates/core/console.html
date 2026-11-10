@@ -13,7 +13,15 @@
             <a href="{% url 'sale_page' %}" class="{% if '/sales/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-sales.svg' %}" alt="">Sales</a>
             <a href="{% url 'patient_list' %}" class="{% if '/patients/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-patients.svg' %}" alt="">Patients</a>
             <span><img src="{% static 'core/images/nav-messages.svg' %}" alt="">Messages</span>
-            <span><img src="{% static 'core/images/nav-reports.svg' %}" alt="">Reports</span>
+
+            {% if request.user.role == "owner" %}
+            <a href="{% url 'sales_report_page' %}"
+            class="{% if '/reports/' in request.path %}active{% endif %}">
+                <img src="{% static 'core/images/nav-reports.svg' %}" alt="">
+                Reports
+            </a>
+            {% endif %}
+
         </nav>
 
         <div class="console-profile">
