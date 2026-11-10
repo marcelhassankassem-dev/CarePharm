@@ -1608,3 +1608,369 @@ body {
     align-items: center;
     gap: 8px;
 }
+
+.icon-stack {
+    position: relative;
+    display: inline-flex;
+}
+
+.icon-stack img + img {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -45%);
+}
+
+.avatar.large {
+    width: 80px;
+    height: 80px;
+    font-size: 27px;
+    background: #d9f0ea;
+}
+
+.safety-layout {
+    position: relative;
+    display: grid;
+    grid-template-columns: 755px 617px;
+    gap: 15px;
+    align-items: start;
+}
+
+.safety-entry {
+    padding: 14px 16px 16px;
+}
+
+.safety-entry-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 21px;
+}
+
+.safety-entry-bubble {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: #e3f4f0;
+}
+
+.safety-entry-header h2 {
+    margin: 0;
+    font-size: 22px;
+    color: #0f2233;
+}
+
+.safety-entry-header p {
+    margin: 6px 0 0;
+    font-size: 14px;
+    color: #4f6070;
+}
+
+.safety-entry-body {
+    display: grid;
+    grid-template-columns: 423px 293px;
+    gap: 10px;
+}
+
+.safety-form {
+    display: flex;
+    flex-direction: column;
+    min-height: 480px;
+    padding: 17px 16px 24px;
+    border: 1px solid #e1e9e8;
+    border-radius: 12px;
+}
+
+.safety-field {
+    margin-bottom: 24px;
+}
+
+.safety-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #1f3345;
+}
+
+.safety-box,
+.safety-form input[type="number"],
+.safety-form select {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    height: 43px;
+    margin: 0;
+    padding: 0 16px;
+    border: 1px solid #e1e9e8;
+    border-radius: 10px;
+    font: inherit;
+    font-size: 13px;
+    color: #1f3345;
+    background: white;
+}
+
+.safety-select {
+    position: relative;
+}
+
+.safety-select img {
+    position: absolute;
+    top: 14px;
+    left: 15px;
+}
+
+.safety-select select {
+    padding-left: 40px;
+}
+
+.safety-field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.safety-long-term {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #1f3345;
+}
+
+.safety-long-term input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
+
+.safety-run-button {
+    gap: 12px;
+    height: 52px;
+    margin-top: auto;
+    font-size: 16px;
+    background: linear-gradient(#145566, #0b3b49);
+}
+
+.safety-patient {
+    padding: 18px 13px;
+    border-radius: 12px;
+    background: #eef8f5;
+}
+
+.safety-patient-info {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 0 0 23px 2px;
+    border-bottom: 1px solid #d6e3e0;
+}
+
+.safety-patient-info strong {
+    display: block;
+    font-size: 17px;
+    color: #0f2233;
+}
+
+.safety-patient-info small {
+    display: block;
+    margin-top: 5px;
+    font-size: 13.5px;
+    color: #4f6070;
+}
+
+.safety-list-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 22px 0 14px 4px;
+    font-size: 12.5px;
+    color: #0f2233;
+}
+
+.safety-list-title.allergies {
+    padding-top: 22px;
+    border-top: 1px solid #d6e3e0;
+}
+
+.safety-medicines,
+.safety-allergies {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.safety-medicines li,
+.safety-allergies li {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 57px;
+    margin-bottom: 14px;
+    padding-left: 66px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    color: #0f2233;
+    background: white;
+}
+
+.safety-medicines li::before {
+    content: "";
+    position: absolute;
+    top: 21px;
+    left: 13px;
+    width: 35px;
+    height: 15px;
+    background: url("images/safety-capsule.svg");
+}
+
+.safety-allergies li {
+    height: 62px;
+    color: #c8102e;
+    background: #fde8ea;
+}
+
+.safety-allergies li::before {
+    content: "";
+    position: absolute;
+    top: 14px;
+    left: 13px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #f9cdd3 url("images/safety-siren.svg") no-repeat center;
+}
+
+.safety-none {
+    margin: 0 0 14px 4px;
+    font-size: 13px;
+    color: #7c8a96;
+}
+
+.safety-side {
+    display: grid;
+    gap: 16px;
+}
+
+.safety-alerts,
+.safety-decision {
+    padding: 13px 14px 16px;
+}
+
+.safety-alerts .card-header,
+.safety-decision .card-header {
+    min-height: 49px;
+    margin-bottom: 17px;
+}
+
+.safety-alerts .card-header h2,
+.safety-decision .card-header h2 {
+    font-size: 20px;
+}
+
+.safety-alerts .card-header p,
+.safety-decision .card-header p {
+    font-size: 13px;
+}
+
+.safety-tag {
+    align-self: flex-start;
+    margin: 4px 0 0 auto;
+    padding: 5px 12px;
+    border-radius: 14px;
+    font-size: 12.5px;
+    white-space: nowrap;
+    color: #0e4a5a;
+    background: #e3f4f0;
+}
+
+.safety-alert {
+    position: relative;
+    display: flex;
+    gap: 16px;
+    margin-bottom: 14px;
+    padding: 12px 14px 16px 17px;
+    border: 1px solid #f8d3d8;
+    border-radius: 12px;
+    background: #fdecee;
+}
+
+.safety-alert:last-child {
+    margin-bottom: 0;
+}
+
+.safety-alert-bubble {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    margin-top: 3px;
+    border-radius: 50%;
+    background: #fbd9dd;
+}
+
+.safety-alert strong {
+    display: block;
+    margin-top: 2px;
+    margin-left: 12px;
+    font-size: 15.5px;
+    color: #c8102e;
+}
+
+.safety-alert p {
+    margin: 6px 0 0 12px;
+    font-size: 13px;
+    color: #4f6070;
+}
+
+.safety-level {
+    position: absolute;
+    top: 10px;
+    right: 13px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #a8001f;
+    background: #f8c6cd;
+}
+
+.safety-options {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 20px;
+}
+
+.safety-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 115px;
+    height: 51px;
+    padding: 0 20px;
+    border: 1px solid #d5dedd;
+    border-radius: 12px;
+    font-size: 13px;
+    color: #1f3345;
+    background: white;
+    text-decoration: none;
+}
+
+.safety-disclaimer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 30px;
+    margin: 0;
+    padding: 0 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    color: #4f6070;
+    background: #edf3fb;
+}

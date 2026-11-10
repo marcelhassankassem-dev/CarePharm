@@ -1,0 +1,147 @@
+{% extends "core/console.html" %}
+{% load static %}
+
+{% block title %}Medication Safety Assistant - CarePharm{% endblock %}
+
+{% block console_content %}
+<img class="inventory-leaves" src="{% static 'core/images/inventory-leaves.svg' %}" alt="">
+<p class="inventory-quote">Safer<br>medicines<br>healthier<br>tomorrows</p>
+
+<div class="page-heading">
+    <div>
+        <p class="page-eyebrow">Pharmacist console</p>
+        <h1>Medication Safety Assistant</h1>
+        <p class="page-intro">Review safety alerts before confirming a medicine for the patient.</p>
+    </div>
+</div>
+
+<div class="safety-layout">
+    <section class="card safety-entry">
+        <div class="safety-entry-header">
+            <span class="safety-entry-bubble"><img src="{% static 'core/images/safety-pill.svg' %}" alt=""></span>
+            <div>
+                <h2>New Medication Entry</h2>
+                <p>Enter the medicine details and run a safety check.</p>
+            </div>
+        </div>
+
+        <div class="safety-entry-body">
+            <form method="post" action="/prescriptions/{{ prescription.pk }}/items/" class="safety-form">
+                {% csrf_token %}
+                <div class="safety-field">
+                    <span class="safety-label">Patient</span>
+                    <p class="safety-box"><img src="{% static 'core/images/safety-patient.svg' %}" alt="">{{ prescription.patient.name }}</p>
+                </div>
+                <div class="safety-field">
+                    <label for="{{ form.medicine.id_for_label }}" class="safety-label">Medicine name</label>
+                    <div class="safety-select">
+                        <img src="{% static 'core/images/safety-medicine.svg' %}" alt="">
+                        {{ form.medicine }}
+                    </div>
+                </div>
+                <div class="safety-field-row">
+                    <div class="safety-field">
+                        <label for="{{ form.quantity.id_for_label }}" class="safety-label">Quantity</label>
+                        {{ form.quantity }}
+                    </div>
+                    <div class="safety-field">
+                        <label for="{{ form.days_of_supply.id_for_label }}" class="safety-label">Days of supply</label>
+                        {{ form.days_of_supply }}
+                    </div>
+                </div>
+                <label for="{{ form.long_term.id_for_label }}" class="safety-long-term">{{ form.long_term }} Long-term medicine</label>
+                <button type="submit" class="primary-button safety-run-button">
+                    <span class="icon-stack">
+                        <img src="{% static 'core/images/safety-button-shield.svg' %}" alt="">
+                        <img src="{% static 'core/images/safety-button-check.svg' %}" alt="">
+                    </span>
+                    Run Safety Check
+                    <img src="{% static 'core/images/safety-button-arrow.svg' %}" alt="">
+                </button>
+            </form>
+
+            <div class="safety-patient">
+                <div class="safety-patient-info">
+                    <span class="avatar large">{{ prescription.patient.name|slice:":2"|upper }}</span>
+                    <div>
+                        <strong>{{ prescription.patient.name }}</strong>
+                        <small>Born {{ prescription.patient.date_of_birth|date:"j M Y" }}</small>
+                        <small>{{ prescription.patient.phone|default:"No phone recorded" }}</small>
+                    </div>
+                </div>
+
+                <h3 class="safety-list-title"><img src="{% static 'core/images/safety-file.svg' %}" alt="">Current Medications ({{ current_medicines|length }})</h3>
+                {% if current_medicines %}
+                <ul class="safety-medicines">
+                    {% for current in current_medicines %}
+                    <li><strong>{{ current.medicine }}</strong></li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="safety-none">None recorded</p>
+                {% endif %}
+
+                <h3 class="safety-list-title allergies"><img src="{% static 'core/images/safety-siren.svg' %}" alt="">Known Allergies ({{ allergies|length }})</h3>
+                {% if allergies %}
+                <ul class="safety-allergies">
+                    {% for allergy in allergies %}
+                    <li><strong>{{ allergy.drug_class }}</strong></li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="safety-none">None recorded</p>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <div class="safety-side">
+        <section class="card safety-alerts">
+            <div class="card-header">
+                <span class="card-icon-bubble">
+                    <span class="icon-stack">
+                        <img src="{% static 'core/images/safety-shield.svg' %}" alt="">
+                        <img src="{% static 'core/images/safety-shield-check.svg' %}" alt="">
+                    </span>
+                </span>
+                <div>
+                    <h2>Safety Alerts</h2>
+                    <p>The assistant has identified the following safety alerts for this patient.</p>
+                </div>
+                <span class="safety-tag">{{ warnings|length }} alert{{ warnings|length|pluralize }} found</span>
+            </div>
+
+            {% for warning in warnings %}
+            <div class="safety-alert {{ warning.level|lower }}">
+                <span class="safety-alert-bubble"><img src="{% static 'core/images/safety-alert-high.svg' %}" alt=""></span>
+                <div>
+                    <strong>{{ warning.title }}</strong>
+                    <p>{{ warning.text }}</p>
+                </div>
+                <span class="safety-level">{{ warning.level }}</span>
+            </div>
+            {% endfor %}
+        </section>
+
+        <section class="card safety-decision">
+            <div class="card-header">
+                <span class="card-icon-bubble"><img src="{% static 'core/images/safety-user.svg' %}" alt=""></span>
+                <div>
+                    <h2>Pharmacist Decision</h2>
+                    <p>Choose how you would like to proceed.</p>
+                </div>
+                <span class="safety-tag">You’re in control</span>
+            </div>
+
+            <div class="safety-options">
+                <a href="/prescriptions/{{ prescription.pk }}/" class="safety-option">
+                    <img src="{% static 'core/images/safety-cancel.svg' %}" alt="">
+                    Cancel
+                </a>
+            </div>
+
+            <p class="safety-disclaimer"><img src="{% static 'core/images/safety-info.svg' %}" alt="">Final decision is made by the pharmacist. The assistant provides guidance only.</p>
+        </section>
+    </div>
+</div>
+{% endblock %}
