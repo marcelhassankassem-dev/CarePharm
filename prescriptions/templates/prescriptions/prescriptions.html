@@ -19,20 +19,10 @@
 </div>
 
 <div class="prescription-tools">
-
-    <!-- SCRUM-28: Filter prescriptions by pickup status -->
     <nav class="prescription-tabs">
-        <a href="/prescriptions/?search={{ search|urlencode }}"
-        class="{% if show == 'all' %}selected{% endif %}">
-            Prescriptions {{ uncollected_count }}
-        </a>
-
-        <a href="/prescriptions/?show=ready&amp;search={{ search|urlencode }}"
-        class="{% if show == 'ready' %}selected{% endif %}">
-            Ready for Pickup {{ ready_count }}
-        </a>
+        <a href="/prescriptions/?search={{ search|urlencode }}" class="{% if show == 'all' %}selected{% endif %}">Prescriptions {{ uncollected_count }}</a>
+        <a href="/prescriptions/?show=ready&amp;search={{ search|urlencode }}" class="{% if show == 'ready' %}selected{% endif %}">Not collected {{ ready_count }}</a>
     </nav>
-
     <form method="get" action="/prescriptions/" class="stock-search prescription-search">
         <img src="{% static 'core/images/icon-search.svg' %}" alt="">
         <input type="search" name="search" value="{{ search }}" placeholder="Search by patient name or phone" aria-label="Search by patient name or phone">
@@ -46,11 +36,7 @@
             <tr>
                 <th>Patient</th>
                 <th>Medicines</th>
-                {% if show == "ready" %}
-                    <th>Ready since</th>
-                {% else %}
-                    <th>Received</th>
-                {% endif %}
+                <th>{% if show == "ready" %}Ready since{% else %}Received{% endif %}</th>
                 <th>Status</th>
                 <th>Action</th>
             </tr>
@@ -74,16 +60,21 @@
                     {% else %}
                     <span class="prescription-none">No medicines yet</span>
                     {% endif %}
-                </td>
-
-                <td>
                     {% if show == "ready" %}
-                        {{ prescription.ready_at|date:"d M Y, H:i"|default:"—" }}
+                    {% if row.days_waiting %}
+                    <small class="prescription-waiting">Not collected for {{ row.days_waiting }} day{{ row.days_waiting|pluralize }}</small>
                     {% else %}
-                        {{ prescription.created_at|date:"d M Y, H:i" }}
+                    <small class="prescription-waiting today">Ready today</small>
+                    {% endif %}
                     {% endif %}
                 </td>
-
+                <td>
+                    {% if show == "ready" %}
+                    {{ prescription.ready_at|date:"d M Y, H:i" }}
+                    {% else %}
+                    {{ prescription.created_at|date:"d M Y, H:i" }}
+                    {% endif %}
+                </td>
                 <td><span class="pill prescription-status {{ prescription.status }}">{{ prescription.get_status_display }}</span></td>
                 <td class="prescription-action">
                     <a href="/prescriptions/{{ prescription.pk }}/" class="row-button {% if prescription.status == 'received' %}filled{% endif %}">
@@ -92,30 +83,21 @@
                 </td>
             </tr>
             {% endwith %}
-
             {% empty %}
             <tr>
                 <td colspan="5" class="prescription-empty">
-                    {% if show == "ready" %}
-                        No prescriptions are ready for pickup.
-                    {% elif search %}
-                        No prescriptions match "{{ search }}".
-                    {% else %}
-                        No uncollected prescriptions.
-                    {% endif %}
+                    {% if search %}No prescriptions match "{{ search }}".{% elif show == "ready" %}No prescriptions are ready for pickup.{% else %}No uncollected prescriptions.{% endif %}
                 </td>
             </tr>
             {% endfor %}
-
         </tbody>
     </table>
 
-
-
-    <!-- SCRUM-28: Display the correct number of prescriptions -->
-    <p class="stock-count">Showing {{ rows|length }} of {% if show == "ready" %}{{ ready_count }}{% else %}{{ uncollected_count }}{% endif %} prescriptions</p>
-
-
+    {% if show == "ready" %}
+    <p class="stock-count">Showing {{ rows|length }} of {{ ready_count }} prescription{{ ready_count|pluralize }}</p>
+    {% else %}
+    <p class="stock-count">Showing {{ rows|length }} of {{ uncollected_count }} prescription{{ uncollected_count|pluralize }}</p>
+    {% endif %}
 </section>
 
 {% block popup %}{% endblock %}
