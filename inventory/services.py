@@ -89,6 +89,10 @@ def get_medicine(medicine_id):
     return get_object_or_404(Medicine, pk=medicine_id)
 
 
+def medicine_with_barcode(barcode):
+    return Medicine.objects.filter(barcode=barcode).first()
+
+
 def find_medicines(search=""):
     medicines = Medicine.objects.select_related("drug_class").order_by("name", "strength")
     if search:
