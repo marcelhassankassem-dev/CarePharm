@@ -14,16 +14,17 @@ from prescriptions.models import Prescription, PrescriptionItem
 from prescriptions.services import (
     add_item,
     create_prescription,
+    days_waiting,
     delete_prescription,
     mark_collected,
     mark_ready,
     mark_returned,
+    ready_count,
+    ready_rows,
     remove_item,
     start_preparing,
     uncollected_count,
     uncollected_rows,
-    ready_count,
-    ready_rows,
 )
 from sales.models import Sale
 
@@ -740,125 +741,102 @@ class PrescriptionPageTests(PrescriptionPagesTestData):
         self.assertNotContains(response, "Return to Stock")
 
 
-# SCRUM-28: Tests for ready orders not collected.
-class ReadyForPickupTests(PrescriptionPagesTestData):
-
+class ReadyOrdersTestData(PrescriptionPagesTestData):
     def setUp(self):
         self.client.force_login(self.rana)
-        self.ahmad = Patient.objects.create(
-            name="Ahmad",
-            date_of_birth=date(1980, 6, 2),
-            phone="03 100 004",
-        )
+        self.ahmad = Patient.objects.create(name="Ahmad", date_of_birth=date(1980, 6, 2), phone="03 100 004")
 
     def make_ready(self, patient, hours_ago=1):
-        return Prescription.objects.create(
-            patient=patient,
-            status="ready",
-            ready_at=timezone.now() - timedelta(hours=hours_ago),
-        )
+        ready_at = timezone.now() - timedelta(hours=hours_ago)
+        return Prescription.objects.create(patient=patient, status="ready", ready_at=ready_at)
 
-    def test_only_ready_orders_are_listed(self):
+
+class ReadyOrdersTests(ReadyOrdersTestData):
+    def test_1_3_only_ready_orders_are_listed(self):
         ready = self.make_ready(self.samira)
-
         for status in ["received", "preparing", "collected", "returned"]:
-            Prescription.objects.create(
-                patient=self.ahmad,
-                status=status,
-            )
-
-        rows = ready_rows()
-
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["prescription"], ready)
+            Prescription.objects.create(patient=self.ahmad, status=status)
+        self.assertEqual([row["prescription"] for row in ready_rows()], [ready])
         self.assertEqual(ready_count(), 1)
 
-    def test_oldest_ready_orders_appear_first(self):
+    def test_1_3_the_oldest_ready_order_comes_first(self):
         older = self.make_ready(self.samira, hours_ago=48)
         newer = self.make_ready(self.ahmad, hours_ago=2)
+        self.assertEqual([row["prescription"] for row in ready_rows()], [older, newer])
 
-        prescriptions = [
-            row["prescription"] for row in ready_rows()
-        ]
-
-        self.assertEqual(prescriptions, [older, newer])
-
-    def test_search_by_patient_name_and_phone(self):
+    def test_1_3_orders_can_be_searched_by_patient_name_or_phone(self):
         samira_order = self.make_ready(self.samira)
         ahmad_order = self.make_ready(self.ahmad)
+        self.assertEqual([row["prescription"] for row in ready_rows("sam")], [samira_order])
+        self.assertEqual([row["prescription"] for row in ready_rows("100 004")], [ahmad_order])
 
-        by_name = ready_rows("sam")
-        by_phone = ready_rows("100 004")
+    def test_1_3_days_waiting_counts_from_the_day_it_became_ready(self):
+        self.assertEqual(days_waiting(self.make_ready(self.samira, hours_ago=72)), 3)
+        self.assertEqual(days_waiting(self.make_ready(self.ahmad, hours_ago=0)), 0)
 
-        self.assertEqual(
-            [row["prescription"] for row in by_name],
-            [samira_order],
-        )
-        self.assertEqual(
-            [row["prescription"] for row in by_phone],
-            [ahmad_order],
-        )
+    def test_1_3_each_row_carries_its_days_waiting(self):
+        self.make_ready(self.samira, hours_ago=48)
+        self.assertEqual(ready_rows()[0]["days_waiting"], 2)
 
-    def test_ready_page_displays_patient_medicine_and_time(self):
+
+class ReadyOrdersPageTests(ReadyOrdersTestData):
+    def test_1_3_the_not_collected_tab_counts_ready_orders(self):
+        self.make_ready(self.samira)
+        self.make_ready(self.ahmad)
+        response = self.client.get("/prescriptions/")
+        self.assertContains(response, "Not collected 2")
+        self.assertContains(response, 'href="/prescriptions/?show=ready')
+
+    def test_1_3_the_list_shows_the_patient_medicine_and_ready_time(self):
         ready = self.make_ready(self.samira)
-
-        PrescriptionItem.objects.create(
-            prescription=ready,
-            medicine=self.amoxicillin,
-            quantity=2,
-            days_of_supply=5,
-        )
-
-        response = self.client.get(
-            "/prescriptions/", {"show": "ready"}
-        )
-
-        self.assertEqual(response.status_code, 200)
+        PrescriptionItem.objects.create(prescription=ready, medicine=self.amoxicillin, quantity=2, days_of_supply=5)
+        response = self.client.get("/prescriptions/", {"show": "ready"})
         self.assertContains(response, "Ready since")
         self.assertContains(response, "Samira")
         self.assertContains(response, "Amoxicillin 500 mg")
-        self.assertContains(
-            response,
-            f'href="/prescriptions/{ready.pk}/"',
-        )
+        self.assertContains(response, f'href="/prescriptions/{ready.pk}/"')
+        self.assertContains(response, timezone.localtime(ready.ready_at).strftime("%d %b %Y, %H:%M"))
 
-        expected_time = timezone.localtime(
-            ready.ready_at
-        ).strftime("%d %b %Y, %H:%M")
-        self.assertContains(response, expected_time)
+    def test_1_3_each_order_says_how_long_it_has_waited(self):
+        self.make_ready(self.samira, hours_ago=72)
+        self.assertContains(self.client.get("/prescriptions/", {"show": "ready"}), "Not collected for 3 days")
 
-    def test_search_keeps_ready_filter(self):
+    def test_1_3_one_day_is_written_in_the_singular(self):
+        self.make_ready(self.samira, hours_ago=24)
+        response = self.client.get("/prescriptions/", {"show": "ready"})
+        self.assertContains(response, "Not collected for 1 day")
+        self.assertNotContains(response, "1 days")
+
+    def test_1_3_an_order_ready_today_says_so(self):
+        self.make_ready(self.samira, hours_ago=0)
+        self.assertContains(self.client.get("/prescriptions/", {"show": "ready"}), "Ready today")
+
+    def test_1_3_the_days_waited_are_only_in_the_not_collected_list(self):
+        self.make_ready(self.samira, hours_ago=72)
+        self.assertNotContains(self.client.get("/prescriptions/"), "Not collected for")
+
+    def test_1_3_searching_keeps_the_not_collected_list(self):
         self.make_ready(self.samira)
         self.make_ready(self.ahmad)
-
-        response = self.client.get(
-            "/prescriptions/",
-            {"show": "ready", "search": "Samira"},
-        )
-
+        response = self.client.get("/prescriptions/", {"show": "ready", "search": "Samira"})
         self.assertEqual(response.context["show"], "ready")
         self.assertEqual(len(response.context["rows"]), 1)
         self.assertEqual(response.context["ready_count"], 2)
-        self.assertContains(
-            response, 'name="show" value="ready"'
-        )
+        self.assertContains(response, 'name="show" value="ready"')
 
-    def test_empty_ready_list_displays_message(self):
-        response = self.client.get(
-            "/prescriptions/", {"show": "ready"}
-        )
+    def test_1_3_one_prescription_is_written_in_the_singular(self):
+        self.make_ready(self.samira)
+        response = self.client.get("/prescriptions/", {"show": "ready"})
+        self.assertContains(response, '<p class="stock-count">Showing 1 of 1 prescription</p>', html=True)
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(
-            response,
-            "No prescriptions are ready for pickup.",
-        )
+    def test_1_3_an_empty_list_says_so(self):
+        self.assertContains(self.client.get("/prescriptions/", {"show": "ready"}), "No prescriptions are ready for pickup.")
 
-    def test_patient_cannot_access_ready_list(self):
+    def test_1_3_a_search_with_no_match_says_so(self):
+        self.make_ready(self.samira)
+        response = self.client.get("/prescriptions/", {"show": "ready", "search": "Nour"})
+        self.assertContains(response, 'No prescriptions match "Nour".')
+
+    def test_1_3_patient_side_users_are_refused(self):
         self.client.force_login(self.maya)
-
-        response = self.client.get(
-            "/prescriptions/", {"show": "ready"}
-        )
-
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.client.get("/prescriptions/", {"show": "ready"}).status_code, 403)
