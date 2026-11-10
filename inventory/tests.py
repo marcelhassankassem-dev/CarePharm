@@ -972,4 +972,4 @@ class LowStockPageTests(InventoryPagesTestData):
         self.assertContains(response, "Low stock 2")
         self.assertContains(response, "show=low_stock")
         self.assertLess(self.position_of(response, "All 2"), self.position_of(response, "Low stock 2"))
-        self.assertLess(self.position_of(response, "Low stock 2"), self.position_of(response, "Near expiry"))
+        self.assertLess(self.position_of(response, "Low stock 2"), self.position_of(response, "Near expiry 0"))

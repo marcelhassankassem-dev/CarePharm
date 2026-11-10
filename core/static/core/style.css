@@ -1100,6 +1100,10 @@ body {
     background: url("images/stat-bubble-orange.svg");
 }
 
+.stat-bubble.red {
+    background: url("images/stat-bubble-red.svg");
+}
+
 .stock-list-actions {
     display: flex;
     gap: 16px;
