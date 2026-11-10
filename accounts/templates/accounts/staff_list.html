@@ -151,7 +151,7 @@
                 {% else %}
                 <td><strong>System</strong></td>
                 {% endif %}
-                <td class="log-action">{{ entry.action }}</td>
+                <td class="log-action{% if entry.action == 'Safety decision' %} safety-decision{% endif %}">{{ entry.action }}</td>
                 <td class="log-details">{{ entry.details }}</td>
             </tr>
             {% empty %}
