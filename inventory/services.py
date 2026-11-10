@@ -92,6 +92,25 @@ def stock_row(medicine, days):
 def stock_rows(search="", days=NEAR_EXPIRY_DAYS):
     return [stock_row(medicine, days) for medicine in find_medicines(search)]
 
+# SCRUM-32: Find medicines whose available stock
+# is below their minimum required quantity.
+def low_stock_rows(search=""):
+
+    # Reuse the existing stock lookup function.
+    rows = stock_rows(search)
+
+    # Include medicines with zero stock as well.
+    return [
+        row for row in rows
+        if row["available"] < row["medicine"].minimum_quantity
+    ]
+
+
+# Count all medicines that are below minimum stock.
+def low_stock_count():
+    return len(low_stock_rows())
+
+
 
 def soonest_expiry(row):
     return row["days_left"]

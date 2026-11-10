@@ -23,6 +23,8 @@ from inventory.services import (
     return_stock,
     stock_rows,
     take_stock,
+    low_stock_count,
+    low_stock_rows,
 )
 
 
@@ -898,3 +900,86 @@ class DeliveryPageTests(InventoryPagesTestData):
         response = self.client.post("/inventory/delivery/", self.delivery)
         self.assertEqual(response.status_code, 403)
         self.assertFalse(Batch.objects.exists())
+
+
+# SCRUM-32: Tests for low-stock detection and filtering.
+class LowStockTests(TestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.medicine = create_medicine()  # Minimum: 20
+        cls.aspirin = create_aspirin()     # Minimum: 30
+
+        cls.staff = get_user_model().objects.create_user(
+            username="low_stock_staff",
+            password="pass",
+            role="assistant",
+        )
+
+    def test_zero_stock_is_low_stock(self):
+        # Amoxicillin has enough stock; Aspirin has none.
+        create_batch(self.medicine, quantity=20)
+
+        rows = low_stock_rows()
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["medicine"], self.aspirin)
+        self.assertEqual(low_stock_count(), 1)
+
+    def test_below_minimum_is_detected(self):
+        # Amoxicillin has 19 units, below its minimum of 20.
+        create_batch(self.medicine, quantity=19)
+        create_batch(
+            self.aspirin,
+            batch_number="ASP-001",
+            quantity=30,
+        )
+
+        rows = low_stock_rows()
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["medicine"], self.medicine)
+
+    def test_expired_stock_is_not_counted(self):
+        # Expired stock should not count as available.
+        create_batch(
+            self.medicine,
+            quantity=100,
+            expiry_date=timezone.localdate() - timedelta(days=1),
+        )
+        create_batch(
+            self.aspirin,
+            batch_number="ASP-001",
+            quantity=30,
+        )
+
+        rows = low_stock_rows()
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["medicine"], self.medicine)
+
+    def test_low_stock_filter_displays_correct_medicine(self):
+        # Only Aspirin should appear when filtering.
+        create_batch(self.medicine, quantity=20)
+        self.client.force_login(self.staff)
+
+        response = self.client.get("/inventory/?show=low_stock")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["low_stock_count"], 1)
+        self.assertEqual(len(response.context["rows"]), 1)
+        self.assertContains(response, "Aspirin 81 mg")
+        self.assertNotContains(response, "Amoxicillin 500 mg")
+
+    def test_search_works_with_low_stock_filter(self):
+        # Both medicines are low, but search selects Aspirin.
+        create_batch(self.medicine, quantity=19)
+        self.client.force_login(self.staff)
+
+        response = self.client.get(
+            "/inventory/?show=low_stock&search=asp"
+        )
+
+        self.assertEqual(len(response.context["rows"]), 1)
+        self.assertContains(response, "Aspirin 81 mg")
+        self.assertNotContains(response, "Amoxicillin 500 mg")

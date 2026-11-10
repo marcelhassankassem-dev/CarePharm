@@ -30,6 +30,20 @@
             <small>Expiring within {{ days }} day{{ days|pluralize }}</small>
         </div>
     </div>
+
+
+<!-- SCRUM-32: Low-stock summary card -->
+<div class="stat-card">
+    <span class="stat-bubble orange">
+        <img src="{% static 'core/images/icon-shield.svg' %}" alt="">
+    </span>
+    <div>
+        <strong>{{ low_stock_count }}</strong>
+        <small>Below minimum</small>
+    </div>
+</div>
+
+
     <div class="stat-card">
         <span class="stat-bubble"><img src="{% static 'core/images/icon-truck.svg' %}" alt=""></span>
         <div>
@@ -73,6 +87,13 @@
         <nav class="stock-filters">
             <a href="/inventory/?days={{ days }}&amp;search={{ search|urlencode }}" class="{% if show == 'all' %}selected{% endif %}">All {{ medicine_count }}</a>
             <a href="/inventory/?show=expiring&amp;days={{ days }}&amp;search={{ search|urlencode }}" class="{% if show == 'expiring' %}selected{% endif %}">Near expiry {{ near_expiry_count }}</a>
+            <!-- SCRUM-32: Show only medicines below minimum stock -->
+            <a
+                href="/inventory/?show=low_stock&amp;days={{ days }}&amp;search={{ search|urlencode }}"
+                class="{% if show == 'low_stock' %}selected{% endif %}">
+                Low stock {{ low_stock_count }}
+            </a>
+
         </nav>
     </div>
 
