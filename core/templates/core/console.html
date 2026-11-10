@@ -10,7 +10,7 @@
             <span><img src="{% static 'core/images/nav-dashboard.svg' %}" alt="">Dashboard</span>
             <a href="{% url 'prescription_list' %}" class="{% if '/prescriptions/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-prescriptions.svg' %}" alt="">Prescriptions</a>
             <a href="{% url 'inventory_page' %}" class="{% if '/inventory/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-inventory.svg' %}" alt="">Inventory</a>
-            <span><img src="{% static 'core/images/nav-sales.svg' %}" alt="">Sales</span>
+            <a href="{% url 'sale_page' %}" class="{% if '/sales/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-sales.svg' %}" alt="">Sales</a>
             <a href="{% url 'patient_list' %}" class="{% if '/patients/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-patients.svg' %}" alt="">Patients</a>
             <span><img src="{% static 'core/images/nav-messages.svg' %}" alt="">Messages</span>
             <span><img src="{% static 'core/images/nav-reports.svg' %}" alt="">Reports</span>

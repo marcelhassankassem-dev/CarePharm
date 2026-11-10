@@ -1,0 +1,115 @@
+{% extends "core/console.html" %}
+{% load static %}
+
+{% block title %}Sales - CarePharm{% endblock %}
+
+{% block console_content %}
+<div class="page-heading">
+    <div>
+        <p class="page-eyebrow">Pharmacist console</p>
+        <h1>Sales</h1>
+        <p class="page-intro">Scan or search a medicine. Stock goes down on its own when the sale is completed.</p>
+    </div>
+</div>
+
+<div class="sales-layout">
+    <section class="card sales-catalog">
+        <form method="get" action="/sales/" class="sales-search">
+            <img src="{% static 'core/images/icon-search.svg' %}" alt="">
+            <input type="search" name="search" value="{{ search }}" placeholder="Search a medicine or scan its barcode" aria-label="Search a medicine or scan its barcode">
+        </form>
+
+        <div class="sales-products">
+            {% for card in cards %}
+            <div class="sales-product {% if card.medicine.pk in in_sale %}in-sale{% elif not card.available %}sold-out{% endif %}">
+                <div class="sales-product-top">
+                    {% if card.available %}
+                    <span class="row-bubble"><img src="{% static 'core/images/row-pill.svg' %}" alt=""></span>
+                    {% else %}
+                    <span class="row-bubble grey"><img src="{% static 'core/images/sale-pill-grey.svg' %}" alt=""></span>
+                    {% endif %}
+                    {% if not card.available %}
+                    <span class="sales-badge out">Out of stock</span>
+                    {% elif card.low %}
+                    <span class="sales-badge low">{{ card.available }} left</span>
+                    {% else %}
+                    <span class="sales-badge">{{ card.available }} in stock</span>
+                    {% endif %}
+                </div>
+                <strong>{{ card.medicine }}</strong>
+                <small>{{ card.medicine.drug_class }}</small>
+                <div class="sales-product-bottom">
+                    <span class="sales-price">${{ card.medicine.price }}</span>
+                    {% if card.available %}
+                    <form method="post" action="/sales/add/{{ card.medicine.pk }}/">
+                        {% csrf_token %}
+                        <button type="submit" class="sales-add" aria-label="Add {{ card.medicine }}">
+                            {% if card.medicine.pk in in_sale %}
+                            <img src="{% static 'core/images/sale-add.svg' %}" alt="">
+                            {% else %}
+                            <img src="{% static 'core/images/sale-add-outline.svg' %}" alt="">
+                            {% endif %}
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <p class="sales-empty">No medicines found.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="card current-sale">
+        <h2>Current Sale</h2>
+
+        <div class="sale-lines">
+            {% for line in lines %}
+            <div class="sale-line">
+                <div>
+                    <strong>{{ line.medicine }}</strong>
+                    <small>Stock after sale: {{ line.available }} → {{ line.available_after }}</small>
+                </div>
+                <div class="sale-stepper">
+                    <form method="post" action="/sales/remove/{{ line.medicine.pk }}/">
+                        {% csrf_token %}
+                        <button type="submit" aria-label="One less {{ line.medicine }}"><img src="{% static 'core/images/sale-minus.svg' %}" alt=""></button>
+                    </form>
+                    <span>{{ line.quantity }}</span>
+                    <form method="post" action="/sales/add/{{ line.medicine.pk }}/">
+                        {% csrf_token %}
+                        <button type="submit" aria-label="One more {{ line.medicine }}"><img src="{% static 'core/images/sale-plus.svg' %}" alt=""></button>
+                    </form>
+                </div>
+                <span class="sale-line-total">${{ line.line_total|floatformat:2 }}</span>
+            </div>
+            {% empty %}
+            <p class="sale-empty">No medicines in this sale yet.</p>
+            {% endfor %}
+        </div>
+
+        <div class="sale-total">
+            <span>Total</span>
+            <strong>${{ total|floatformat:2 }}</strong>
+        </div>
+
+        <form method="post" action="/sales/complete/">
+            {% csrf_token %}
+            <p class="sale-payment-label">Payment</p>
+            <div class="sale-payment">
+                {% for choice in payment_form.payment_method %}
+                <label class="sale-payment-choice">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>
+                {% endfor %}
+            </div>
+            <button type="submit" class="primary-button sale-complete">Complete Sale · ${{ total|floatformat:2 }}</button>
+        </form>
+
+        {% if lines %}
+        <p class="sale-note">
+            <img src="{% static 'core/images/sale-check.svg' %}" alt="">
+            {% if lines|length == 1 %}Stock updates automatically for this item.{% else %}Stock updates automatically for all {{ lines|length }} items.{% endif %}
+        </p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
