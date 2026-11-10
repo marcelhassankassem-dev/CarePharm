@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 
 from accounts.forms import EditStaffForm, NewStaffForm
-from accounts.permissions import ROLE_PERMISSIONS, is_owner, require_owner
+from accounts.permissions import ROLE_PERMISSIONS, is_owner, is_pharmacy_staff, require_owner
 from accounts.services import (
     active_staff_count,
     create_staff_member,
@@ -40,6 +40,8 @@ def login_page(request, side):
             login(request, user)
             if is_owner(user):
                 return redirect("staff_list")
+            if is_pharmacy_staff(user):
+                return redirect("dashboard")
             return redirect(request.path)
     return render(request, "accounts/login.html", {"side": side, "problem": problem})
 

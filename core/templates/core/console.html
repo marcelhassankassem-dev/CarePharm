@@ -7,7 +7,7 @@
         <img src="{% static 'core/images/logo.png' %}" alt="CarePharm" width="164" height="58">
 
         <nav class="console-menu">
-            <span><img src="{% static 'core/images/nav-dashboard.svg' %}" alt="">Dashboard</span>
+            <a href="{% url 'dashboard' %}" class="{% if '/dashboard/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-dashboard.svg' %}" alt="">Dashboard</a>
             <a href="{% url 'prescription_list' %}" class="{% if '/prescriptions/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-prescriptions.svg' %}" alt="">Prescriptions</a>
             <a href="{% url 'inventory_page' %}" class="{% if '/inventory/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-inventory.svg' %}" alt="">Inventory</a>
             <a href="{% url 'sale_page' %}" class="{% if '/sales/' in request.path %}active{% endif %}"><img src="{% static 'core/images/nav-sales.svg' %}" alt="">Sales</a>
