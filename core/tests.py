@@ -244,6 +244,16 @@ class SeedDemoPrescriptionTests(TestCase):
         self.assertEqual(sale.patient, collected.patient)
         self.assertEqual(sale.time, collected.collected_at)
 
+    def test_8_3_the_seeded_sale_is_logged_when_it_was_collected(self):
+        collected = Prescription.objects.get(status="collected")
+        self.assertEqual(ActivityLog.objects.get(action="Recorded sale").time, collected.collected_at)
+
+    def test_8_3_stock_is_logged_on_the_day_each_prescription_became_ready(self):
+        taken = Prescription.objects.filter(status__in=["ready", "collected"])
+        ready_days = {timezone.localdate(prescription.ready_at) for prescription in taken}
+        log_days = {timezone.localdate(entry.time) for entry in ActivityLog.objects.filter(action="Took stock")}
+        self.assertEqual(log_days, ready_days)
+
 
 class SeedDemoTwiceTests(TestCase):
     def test_t4_running_twice_creates_nothing_new(self):
