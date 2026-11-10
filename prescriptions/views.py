@@ -3,7 +3,8 @@ from django.core.exceptions import ValidationError
 from django.shortcuts import redirect, render
 
 from accounts.permissions import can_act_as_pharmacist, pharmacist_required, staff_required
-from prescriptions.forms import ItemForm, NewPrescriptionForm
+from passport.forms import PatientChoiceForm
+from prescriptions.forms import ItemForm
 from prescriptions.services import (
     add_item,
     create_prescription,
@@ -52,7 +53,7 @@ def prescription_list(request):
 
 @pharmacist_required
 def prescription_new(request):
-    form = NewPrescriptionForm(request.POST) if request.method == "POST" else NewPrescriptionForm()
+    form = PatientChoiceForm(request.POST) if request.method == "POST" else PatientChoiceForm()
     if form.is_valid():
         prescription = create_prescription(form.cleaned_data["patient"])
         return redirect("prescription_detail", prescription.pk)

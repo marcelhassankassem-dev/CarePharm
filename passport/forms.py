@@ -1,6 +1,7 @@
 from django import forms
 
 from inventory.models import DrugClass, Medicine
+from passport.models import Patient
 
 
 class PatientForm(forms.Form):
@@ -35,3 +36,10 @@ class PatientForm(forms.Form):
 class PatientLoginForm(forms.Form):
     username = forms.CharField(max_length=150)
     password = forms.CharField(min_length=8, widget=forms.PasswordInput)
+
+
+class PatientChoiceForm(forms.Form):
+    patient = forms.ModelChoiceField(
+        queryset=Patient.objects.order_by("name"),
+        empty_label="Select a patient",
+    )
