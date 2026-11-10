@@ -4,6 +4,7 @@ from django import forms
 from django.utils import timezone
 
 from inventory.models import Batch, Medicine
+from inventory.services import adjustable_batches
 
 
 class DeliveryForm(forms.ModelForm):
@@ -24,6 +25,20 @@ class DeliveryForm(forms.ModelForm):
         if expiry_date <= timezone.localdate():
             raise forms.ValidationError("The expiry date must be in the future.")
         return expiry_date
+
+
+class BatchChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, batch):
+        return f"{batch.batch_number} · expires {batch.expiry_date:%d %b %Y} · {batch.quantity} in stock"
+
+
+class AdjustStockForm(forms.Form):
+    batch = BatchChoiceField(queryset=Batch.objects.none(), empty_label=None)
+    counted_quantity = forms.IntegerField(label="Quantity counted on the shelf", min_value=0)
+
+    def __init__(self, medicine, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["batch"].queryset = adjustable_batches(medicine)
 
 
 class StockListForm(forms.Form):

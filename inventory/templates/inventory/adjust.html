@@ -1,0 +1,46 @@
+{% extends "inventory/inventory.html" %}
+{% load static %}
+
+{% block title %}Adjust Stock - CarePharm{% endblock %}
+
+{% block popup %}
+<div class="popup-overlay">
+    <dialog open class="popup">
+        <div class="popup-header">
+            <span class="stat-bubble"><img src="{% static 'core/images/stat-package.svg' %}" alt=""></span>
+            <div>
+                <h2>Adjust Stock</h2>
+                <p>Enter what you counted on the shelf.</p>
+            </div>
+            <a href="/inventory/" class="popup-close" aria-label="Close"><img src="{% static 'core/images/icon-close.svg' %}" alt=""></a>
+        </div>
+
+        <p class="popup-medicine"><strong>{{ medicine }}</strong> · {{ medicine.drug_class }}</p>
+
+        {% if form.fields.batch.queryset %}
+        <form method="post">
+            {% csrf_token %}
+            <div class="popup-fields">
+                {% for field in form %}
+                <div class="form-field full-width">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {{ field.errors }}
+                </div>
+                {% endfor %}
+            </div>
+            <div class="popup-actions">
+                <a href="/inventory/" class="secondary-button">Cancel</a>
+                <button type="submit" class="primary-button">Save Count</button>
+            </div>
+        </form>
+        {% else %}
+        <p class="popup-empty">No batch of {{ medicine }} can be adjusted. Record a delivery instead.</p>
+        <div class="popup-actions">
+            <a href="/inventory/" class="secondary-button">Cancel</a>
+            <a href="/inventory/delivery/" class="primary-button">Record Delivery</a>
+        </div>
+        {% endif %}
+    </dialog>
+</div>
+{% endblock %}

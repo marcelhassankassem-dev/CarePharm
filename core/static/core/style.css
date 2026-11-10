@@ -1327,6 +1327,33 @@ body {
     color: #c8102e;
 }
 
+.stock-table .stock-action {
+    width: 110px;
+    text-align: right;
+}
+
+.stock-table .row-button {
+    height: 32px;
+    padding: 0 18px;
+    border-color: #cfe3de;
+}
+
+.popup-medicine {
+    margin: 0 0 14px;
+    font-size: 15px;
+    color: #4f6070;
+}
+
+.popup-medicine strong {
+    color: #0f2233;
+}
+
+.popup-empty {
+    margin: 0 0 16px;
+    font-size: 14px;
+    color: #4f6070;
+}
+
 .popup-overlay {
     position: fixed;
     inset: 0;
