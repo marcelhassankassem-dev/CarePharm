@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from core.models import ActivityLog
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, Patient
 from prescriptions.models import Prescription
@@ -179,6 +180,15 @@ def days_ago(days):
     return timezone.now() - timedelta(days=days)
 
 
+def latest_log_id():
+    latest = ActivityLog.objects.order_by("-id").first()
+    return latest.pk if latest else 0
+
+
+def move_log_entries_after(log_id, time):
+    ActivityLog.objects.filter(pk__gt=log_id).update(time=time)
+
+
 def demo_prescription(patient_name, medicine_name, strength, quantity, days_of_supply, long_term):
     prescription = create_prescription(Patient.objects.get(name=patient_name))
     medicine = Medicine.objects.get(name=medicine_name, strength=strength)
@@ -193,20 +203,28 @@ def create_prescriptions():
 
     collected = demo_prescription("Samira", "Metformin", "500 mg", 60, 30, True)
     start_preparing(collected)
-    mark_ready(rana, collected)
-    mark_collected(rana, collected, "cash")
+    ready_at = days_ago(28)
     collected_at = days_ago(27)
+    log_id = latest_log_id()
+    mark_ready(rana, collected)
+    move_log_entries_after(log_id, ready_at)
+    log_id = latest_log_id()
+    mark_collected(rana, collected, "cash")
+    move_log_entries_after(log_id, collected_at)
     Prescription.objects.filter(pk=collected.pk).update(
         created_at=days_ago(28),
-        ready_at=days_ago(28),
+        ready_at=ready_at,
         collected_at=collected_at,
     )
     Sale.objects.filter(patient=collected.patient, source="prescription").update(time=collected_at)
 
     waiting = demo_prescription("Omar's Father", "Atorvastatin", "20 mg", 30, 30, True)
     start_preparing(waiting)
+    ready_at = days_ago(3)
+    log_id = latest_log_id()
     mark_ready(rana, waiting)
-    Prescription.objects.filter(pk=waiting.pk).update(created_at=days_ago(4), ready_at=days_ago(3))
+    move_log_entries_after(log_id, ready_at)
+    Prescription.objects.filter(pk=waiting.pk).update(created_at=days_ago(4), ready_at=ready_at)
 
     ready = demo_prescription("Maya", "Salbutamol inhaler", "100 mcg", 1, 30, False)
     start_preparing(ready)
