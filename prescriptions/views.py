@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 from django.shortcuts import redirect, render
 
 from accounts.permissions import can_act_as_pharmacist, pharmacist_required, staff_required
+from passport.services import allergies_of, current_medicines_of
 from prescriptions.forms import CollectForm, ItemForm, NewPrescriptionForm
 from prescriptions.services import (
     add_item,
@@ -18,6 +19,7 @@ from prescriptions.services import (
     remove_item,
     start_preparing,
 )
+from safety.services import safety_warnings
 
 
 def list_page_data(request):
@@ -72,7 +74,20 @@ def prescription_add_item(request, prescription_id):
         form = ItemForm(request.POST)
         if form.is_valid():
             data = form.cleaned_data
-            run_action(
+            warnings = safety_warnings(prescription.patient, data["medicine"])
+            if warnings:
+                return render(
+                    request,
+                    "safety/safety_check.html",
+                    {
+                        "prescription": prescription,
+                        "form": form,
+                        "warnings": warnings,
+                        "allergies": allergies_of(prescription.patient),
+                        "current_medicines": current_medicines_of(prescription.patient),
+                    },
+                )
+            added = run_action(
                 request,
                 add_item,
                 prescription,
@@ -81,6 +96,8 @@ def prescription_add_item(request, prescription_id):
                 data["days_of_supply"],
                 data["long_term"],
             )
+            if added:
+                messages.success(request, f"No safety alerts. {data['medicine']} added.")
         else:
             messages.error(request, "Check the medicine, quantity and days of supply.")
     return redirect("prescription_detail", prescription.pk)
