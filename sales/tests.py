@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -16,6 +16,7 @@ from sales.models import Sale, SaleItem
 from sales.services import (
     add_one,
     complete_sale,
+    dispensing_history,
     medicine_cards,
     record_sale,
     remove_one,
@@ -124,6 +125,80 @@ class RecordSaleTests(SaleTestData):
                 record_sale(self.karim, "cash", [(self.amoxicillin, 2)], "counter")
         self.assertFalse(Sale.objects.exists())
         self.assertFalse(SaleItem.objects.exists())
+
+
+class DispensingHistoryTests(SaleTestData):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.ahmad = Patient.objects.create(name="Ahmad", date_of_birth=date(1980, 6, 2))
+
+    def sale_days_ago(self, items, days):
+        sale = record_sale(self.karim, "cash", items, "prescription", self.samira)
+        Sale.objects.filter(pk=sale.pk).update(time=timezone.now() - timedelta(days=days))
+
+    def test_3_2_the_history_lists_each_medicine_dispensed_to_the_patient(self):
+        record_sale(self.karim, "cash", [(self.amoxicillin, 2), (self.metformin, 60)], "prescription", self.samira)
+        lines = dispensing_history(self.samira)
+        self.assertEqual(
+            [(line.medicine, line.quantity) for line in lines],
+            [(self.amoxicillin, 2), (self.metformin, 60)],
+        )
+
+    def test_3_2_counter_sales_linked_to_the_patient_count_too(self):
+        record_sale(self.karim, "card", [(self.amoxicillin, 1)], "counter", self.samira)
+        self.assertEqual([line.medicine for line in dispensing_history(self.samira)], [self.amoxicillin])
+
+    def test_3_2_the_newest_sale_comes_first(self):
+        self.sale_days_ago([(self.metformin, 60)], 30)
+        self.sale_days_ago([(self.amoxicillin, 2)], 1)
+        self.assertEqual(
+            [line.medicine for line in dispensing_history(self.samira)],
+            [self.amoxicillin, self.metformin],
+        )
+
+    def test_3_2_other_patients_and_unlinked_sales_are_left_out(self):
+        record_sale(self.karim, "cash", [(self.amoxicillin, 2)], "counter", self.ahmad)
+        record_sale(self.karim, "cash", [(self.metformin, 1)], "counter")
+        self.assertEqual(list(dispensing_history(self.samira)), [])
+
+
+class DispensingHistoryPageTests(SaleTestData):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.rana = get_user_model().objects.create(
+            username="rana",
+            role="pharmacist",
+            first_name="Rana",
+            last_name="Haddad",
+        )
+        cls.maya = Patient.objects.create(name="Maya", date_of_birth=date(1990, 9, 21))
+
+    def setUp(self):
+        self.client.force_login(self.karim)
+        self.address = f"/patients/{self.samira.pk}/"
+
+    def test_3_2_the_passport_has_a_dispensing_history(self):
+        response = self.client.get(self.address)
+        self.assertContains(response, "Dispensing History")
+        self.assertContains(response, "Dispensed by")
+
+    def test_3_2_a_row_shows_the_date_medicine_quantity_and_who_dispensed_it(self):
+        sale = record_sale(self.rana, "cash", [(self.metformin, 60)], "prescription", self.samira)
+        Sale.objects.filter(pk=sale.pk).update(time=timezone.make_aware(datetime(2026, 10, 14, 10, 0)))
+        response = self.client.get(self.address)
+        self.assertContains(response, "<td>14 Oct 2026</td>", html=True)
+        self.assertContains(response, "<td><strong>Metformin 500 mg</strong></td>", html=True)
+        self.assertContains(response, "<td>60</td>", html=True)
+        self.assertContains(response, "<td>Rana Haddad</td>", html=True)
+
+    def test_3_2_only_the_chosen_patients_history_is_shown(self):
+        record_sale(self.rana, "cash", [(self.metformin, 60)], "prescription", self.maya)
+        self.assertNotContains(self.client.get(self.address), "Metformin 500 mg")
+
+    def test_3_2_an_empty_history_says_so(self):
+        self.assertContains(self.client.get(self.address), "No medicines dispensed yet")
 
 
 class CurrentSaleTests(SaleTestData):
