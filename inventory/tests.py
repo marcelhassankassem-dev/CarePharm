@@ -13,6 +13,8 @@ from core.models import ActivityLog
 from inventory.models import Batch, DrugClass, Medicine
 from inventory.services import (
     NEAR_EXPIRY_DAYS,
+    adjust_stock,
+    adjustable_batches,
     available_stock,
     deliveries_today_count,
     medicine_count,
@@ -576,6 +578,91 @@ class ReturnStockTests(StockServicesTestData):
         self.assertEqual(self.quantities(), [100])
 
 
+class AdjustStockTests(StockServicesTestData):
+    def test_4_3_the_batch_takes_the_counted_quantity(self):
+        batch = create_batch(self.medicine, quantity=120)
+        adjust_stock(self.karim, batch, 118)
+        self.assertEqual(self.quantities(), [118])
+
+    def test_4_3_a_count_can_raise_the_quantity(self):
+        batch = create_batch(self.medicine, quantity=10)
+        adjust_stock(self.karim, batch, 14)
+        self.assertEqual(self.quantities(), [14])
+
+    def test_4_3_a_count_of_zero_empties_the_batch(self):
+        batch = create_batch(self.medicine, quantity=10)
+        adjust_stock(self.karim, batch, 0)
+        self.assertEqual(self.quantities(), [0])
+
+    def test_4_3_only_the_chosen_batch_changes(self):
+        create_batch(self.medicine, batch_number="OTHER", quantity=50, expiry_date=in_days(10))
+        chosen = create_batch(self.medicine, batch_number="CHOSEN", quantity=70, expiry_date=in_days(300))
+        adjust_stock(self.karim, chosen, 60)
+        self.assertEqual(self.quantities(), [50, 60])
+
+    def test_4_3_the_available_stock_follows_the_count(self):
+        create_batch(self.medicine, batch_number="A", quantity=50, expiry_date=in_days(10))
+        counted = create_batch(self.medicine, batch_number="B", quantity=70, expiry_date=in_days(300))
+        adjust_stock(self.karim, counted, 65)
+        self.assertEqual(available_stock(self.medicine), 115)
+
+    def test_4_3_an_expired_batch_is_never_adjusted(self):
+        batch = create_batch(self.medicine, quantity=25, expiry_date=in_days(-1))
+        with self.assertRaisesMessage(ValidationError, "Expired batches cannot be adjusted."):
+            adjust_stock(self.karim, batch, 0)
+        self.assertEqual(self.quantities(), [25])
+        self.assertFalse(ActivityLog.objects.exists())
+
+    def test_4_3_a_batch_expiring_today_can_be_adjusted(self):
+        batch = create_batch(self.medicine, quantity=25, expiry_date=in_days(0))
+        adjust_stock(self.karim, batch, 20)
+        self.assertEqual(self.quantities(), [20])
+
+    def test_4_3_a_count_below_zero_is_refused(self):
+        batch = create_batch(self.medicine, quantity=25)
+        with self.assertRaisesMessage(ValidationError, "The counted quantity cannot be below 0."):
+            adjust_stock(self.karim, batch, -1)
+        self.assertEqual(self.quantities(), [25])
+        self.assertFalse(ActivityLog.objects.exists())
+
+    def test_4_3_the_adjustment_is_logged_with_who_did_it(self):
+        batch = create_batch(self.medicine, batch_number="AMX-001", quantity=120)
+        adjust_stock(self.karim, batch, 118)
+        entry = ActivityLog.objects.get()
+        self.assertEqual(entry.user, self.karim)
+        self.assertEqual(entry.action, "Adjusted stock")
+        self.assertEqual(entry.details, "Amoxicillin 500 mg · batch AMX-001 · 120 → 118")
+
+    def test_4_3_a_count_that_matches_is_still_logged(self):
+        batch = create_batch(self.medicine, batch_number="AMX-001", quantity=100)
+        adjust_stock(self.karim, batch, 100)
+        self.assertEqual(self.quantities(), [100])
+        self.assertEqual(ActivityLog.objects.get().details, "Amoxicillin 500 mg · batch AMX-001 · 100 → 100")
+
+    def test_4_3_an_adjustment_that_cannot_be_logged_changes_nothing(self):
+        batch = create_batch(self.medicine, quantity=100)
+        with patch("inventory.services.log_action", side_effect=ValueError):
+            with self.assertRaises(ValueError):
+                adjust_stock(self.karim, batch, 90)
+        self.assertEqual(self.quantities(), [100])
+
+
+class AdjustableBatchesTests(StockServicesTestData):
+    def test_4_3_only_batches_that_have_not_expired_are_offered_earliest_first(self):
+        later = create_batch(self.medicine, batch_number="LATER", expiry_date=in_days(300))
+        create_batch(self.medicine, batch_number="OLD", expiry_date=in_days(-1))
+        sooner = create_batch(self.medicine, batch_number="SOONER", expiry_date=in_days(30))
+        self.assertEqual(list(adjustable_batches(self.medicine)), [sooner, later])
+
+    def test_4_3_an_empty_batch_is_offered(self):
+        empty = create_batch(self.medicine, quantity=0)
+        self.assertEqual(list(adjustable_batches(self.medicine)), [empty])
+
+    def test_4_3_another_medicine_s_batches_are_not_offered(self):
+        create_batch(create_aspirin(), batch_number="ASP-001")
+        self.assertEqual(list(adjustable_batches(self.medicine)), [])
+
+
 class StockCalculationTests(StockServicesTestData):
     def deliver(self, batch_number, quantity, days_until_expiry):
         return record_delivery(
@@ -650,6 +737,112 @@ class InventoryPageAccessTests(InventoryPagesTestData):
         self.client.force_login(self.samira)
         self.assertEqual(self.client.get("/inventory/").status_code, 403)
         self.assertEqual(self.client.get("/inventory/delivery/").status_code, 403)
+
+
+class AdjustStockPageTests(InventoryPagesTestData):
+    def setUp(self):
+        self.client.force_login(self.karim)
+        self.batch = create_batch(self.medicine, batch_number="AMX-001", quantity=120, expiry_date=in_days(300))
+        self.address = f"/inventory/{self.medicine.pk}/adjust/"
+
+    def assert_nothing_changed(self, response):
+        self.assertEqual(response.status_code, 200)
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.quantity, 120)
+        self.assertFalse(ActivityLog.objects.exists())
+
+    def test_4_3_every_row_has_an_adjust_button(self):
+        response = self.client.get("/inventory/")
+        self.assertContains(response, f'href="{self.address}"')
+        self.assertContains(response, "Adjust")
+
+    def test_4_3_signed_out_visitors_go_to_the_staff_login(self):
+        self.client.logout()
+        self.assertRedirects(self.client.get(self.address), f"/login/staff/?next={self.address}")
+
+    def test_4_3_every_staff_role_can_open_the_popup(self):
+        for user in [self.nadim, self.rana, self.karim]:
+            self.client.force_login(user)
+            self.assertEqual(self.client.get(self.address).status_code, 200)
+
+    def test_4_3_patient_side_users_are_refused(self):
+        self.client.force_login(self.samira)
+        self.assertEqual(self.client.get(self.address).status_code, 403)
+        response = self.client.post(self.address, {"batch": self.batch.pk, "counted_quantity": 0})
+        self.assertEqual(response.status_code, 403)
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.quantity, 120)
+
+    def test_4_3_the_popup_shows_the_medicine_and_its_batches(self):
+        create_batch(self.medicine, batch_number="AMX-002", expiry_date=in_days(400))
+        response = self.client.get(self.address)
+        self.assertContains(response, "<dialog open")
+        self.assertContains(response, "Adjust Stock")
+        self.assertContains(response, "Amoxicillin 500 mg")
+        self.assertContains(response, "AMX-002")
+        self.assertContains(response, "Quantity counted on the shelf")
+        self.assertContains(response, "Save Count")
+
+    def test_4_3_an_expired_batch_is_not_offered(self):
+        create_batch(self.medicine, batch_number="OLD-001", expiry_date=in_days(-1))
+        self.assertNotContains(self.client.get(self.address), "OLD-001")
+
+    def test_4_3_the_popup_stays_on_top_of_the_stock_list(self):
+        self.assertContains(self.client.get(self.address), "Stock List")
+
+    def test_4_3_cancelling_goes_back_to_the_inventory_page(self):
+        self.assertContains(self.client.get(self.address), 'href="/inventory/"')
+
+    def test_4_3_a_count_is_saved(self):
+        response = self.client.post(self.address, {"batch": self.batch.pk, "counted_quantity": 118})
+        self.assertRedirects(response, "/inventory/")
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.quantity, 118)
+        self.assertEqual(ActivityLog.objects.get().user, self.karim)
+
+    def test_4_3_a_saved_count_shows_a_confirmation(self):
+        response = self.client.post(
+            self.address,
+            {"batch": self.batch.pk, "counted_quantity": 118},
+            follow=True,
+        )
+        self.assertContains(response, "Stock adjusted: Amoxicillin 500 mg, batch AMX-001, now 118.")
+
+    def test_4_3_a_count_below_zero_is_refused(self):
+        response = self.client.post(self.address, {"batch": self.batch.pk, "counted_quantity": -1})
+        self.assert_nothing_changed(response)
+        self.assertContains(response, "<dialog open")
+
+    def test_4_3_a_count_is_required(self):
+        response = self.client.post(self.address, {"batch": self.batch.pk, "counted_quantity": ""})
+        self.assert_nothing_changed(response)
+
+    def test_4_3_a_batch_is_required(self):
+        response = self.client.post(self.address, {"batch": "", "counted_quantity": 100})
+        self.assert_nothing_changed(response)
+
+    def test_4_3_an_expired_batch_cannot_be_sent_by_hand(self):
+        old = create_batch(self.medicine, batch_number="OLD-001", quantity=25, expiry_date=in_days(-1))
+        response = self.client.post(self.address, {"batch": old.pk, "counted_quantity": 0})
+        self.assert_nothing_changed(response)
+        old.refresh_from_db()
+        self.assertEqual(old.quantity, 25)
+
+    def test_4_3_another_medicine_s_batch_cannot_be_sent(self):
+        aspirin_batch = create_batch(create_aspirin(), batch_number="ASP-001", quantity=40)
+        response = self.client.post(self.address, {"batch": aspirin_batch.pk, "counted_quantity": 0})
+        self.assert_nothing_changed(response)
+        aspirin_batch.refresh_from_db()
+        self.assertEqual(aspirin_batch.quantity, 40)
+
+    def test_4_3_a_medicine_with_no_batch_says_so(self):
+        aspirin = create_aspirin()
+        response = self.client.get(f"/inventory/{aspirin.pk}/adjust/")
+        self.assertContains(response, "No batch of Aspirin 81 mg can be adjusted. Record a delivery instead.")
+        self.assertNotContains(response, "Save Count")
+
+    def test_4_3_an_unknown_medicine_is_not_found(self):
+        self.assertEqual(self.client.get("/inventory/9999/adjust/").status_code, 404)
 
 
 class InventoryPageTests(InventoryPagesTestData):
