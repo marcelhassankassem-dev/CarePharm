@@ -17,13 +17,20 @@ from prescriptions.services import (
     mark_returned,
     remove_item,
     start_preparing,
+    uncollected_count,
     uncollected_rows,
 )
 from safety.services import safety_warnings
 
 
 def list_page_data(request):
-    return {"rows": uncollected_rows(), "can_change": can_act_as_pharmacist(request.user)}
+    search = request.GET.get("search", "")
+    return {
+        "rows": uncollected_rows(search),
+        "search": search,
+        "uncollected_count": uncollected_count(),
+        "can_change": can_act_as_pharmacist(request.user),
+    }
 
 
 def run_action(request, action, *args):
