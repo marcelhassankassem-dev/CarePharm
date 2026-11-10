@@ -1863,6 +1863,7 @@ body {
 
 .safety-alerts .card-header,
 .safety-decision .card-header {
+    position: relative;
     min-height: 49px;
     margin-bottom: 17px;
 }
@@ -1878,8 +1879,9 @@ body {
 }
 
 .safety-tag {
-    align-self: flex-start;
-    margin: 4px 0 0 auto;
+    position: absolute;
+    top: 4px;
+    right: 1px;
     padding: 5px 12px;
     border-radius: 14px;
     font-size: 12.5px;
@@ -1939,6 +1941,24 @@ body {
     font-weight: 700;
     color: #a8001f;
     background: #f8c6cd;
+}
+
+.safety-alert.medium {
+    border-color: #faddc0;
+    background: #fef2e6;
+}
+
+.safety-alert.medium .safety-alert-bubble {
+    background: #fde3cb;
+}
+
+.safety-alert.medium strong {
+    color: #d9480f;
+}
+
+.safety-alert.medium .safety-level {
+    color: #8f4400;
+    background: #fad3a5;
 }
 
 .safety-options {
