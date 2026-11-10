@@ -1,14 +1,6 @@
 from django import forms
 
 from inventory.models import Medicine
-from passport.models import Patient
-
-
-class NewPrescriptionForm(forms.Form):
-    patient = forms.ModelChoiceField(
-        queryset=Patient.objects.order_by("name"),
-        empty_label="Select a patient",
-    )
 
 
 class ItemForm(forms.Form):
