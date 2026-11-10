@@ -27,12 +27,10 @@ class DeliveryForm(forms.ModelForm):
 
 
 class StockListForm(forms.Form):
-
-    # Filters available on the inventory page.
     SHOW_CHOICES = [
         ("all", "All"),
+        ("low_stock", "Low stock"),
         ("expiring", "Near expiry"),
-        ("low_stock", "Low stock"),  # SCRUM-32
     ]
 
     search = forms.CharField(required=False)

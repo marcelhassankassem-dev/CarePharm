@@ -6,34 +6,24 @@ from inventory.forms import DeliveryForm, StockListForm
 from inventory.services import (
     NEAR_EXPIRY_DAYS,
     deliveries_today_count,
+    low_stock_count,
+    low_stock_rows,
     medicine_count,
     medicines_in_stock_count,
     near_expiry_count,
     near_expiry_rows,
     record_delivery,
     stock_rows,
-    low_stock_count,
-    low_stock_rows,
 )
 
 
-
-# Prepare the data displayed on the inventory page.
 def stock_page_data(search="", days=NEAR_EXPIRY_DAYS, show="all"):
-
-    # Display only medicines approaching expiry.
     if show == "expiring":
         rows = near_expiry_rows(days, search)
-
-    # SCRUM-32: Display medicines below their minimum stock.
     elif show == "low_stock":
-        rows = low_stock_rows(search)
-
-    # Otherwise, display all matching medicines.
+        rows = low_stock_rows(days, search)
     else:
         rows = stock_rows(search, days)
-
-    # Return information used by the existing template.
     return {
         "rows": rows,
         "search": search,
@@ -41,11 +31,10 @@ def stock_page_data(search="", days=NEAR_EXPIRY_DAYS, show="all"):
         "show": show,
         "medicine_count": medicine_count(),
         "medicines_in_stock": medicines_in_stock_count(),
-        "near_expiry_count": near_expiry_count(days),
         "low_stock_count": low_stock_count(),
+        "near_expiry_count": near_expiry_count(days),
         "deliveries_today": deliveries_today_count(),
     }
-
 
 
 @staff_required
