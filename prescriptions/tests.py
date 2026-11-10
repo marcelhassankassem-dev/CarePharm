@@ -22,6 +22,8 @@ from prescriptions.services import (
     start_preparing,
     uncollected_count,
     uncollected_rows,
+    ready_count,
+    ready_rows,
 )
 from sales.models import Sale
 
@@ -736,3 +738,127 @@ class PrescriptionPageTests(PrescriptionPagesTestData):
         response = self.client.get(self.address)
         self.assertNotContains(response, "Mark Collected")
         self.assertNotContains(response, "Return to Stock")
+
+
+# SCRUM-28: Tests for ready orders not collected.
+class ReadyForPickupTests(PrescriptionPagesTestData):
+
+    def setUp(self):
+        self.client.force_login(self.rana)
+        self.ahmad = Patient.objects.create(
+            name="Ahmad",
+            date_of_birth=date(1980, 6, 2),
+            phone="03 100 004",
+        )
+
+    def make_ready(self, patient, hours_ago=1):
+        return Prescription.objects.create(
+            patient=patient,
+            status="ready",
+            ready_at=timezone.now() - timedelta(hours=hours_ago),
+        )
+
+    def test_only_ready_orders_are_listed(self):
+        ready = self.make_ready(self.samira)
+
+        for status in ["received", "preparing", "collected", "returned"]:
+            Prescription.objects.create(
+                patient=self.ahmad,
+                status=status,
+            )
+
+        rows = ready_rows()
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["prescription"], ready)
+        self.assertEqual(ready_count(), 1)
+
+    def test_oldest_ready_orders_appear_first(self):
+        older = self.make_ready(self.samira, hours_ago=48)
+        newer = self.make_ready(self.ahmad, hours_ago=2)
+
+        prescriptions = [
+            row["prescription"] for row in ready_rows()
+        ]
+
+        self.assertEqual(prescriptions, [older, newer])
+
+    def test_search_by_patient_name_and_phone(self):
+        samira_order = self.make_ready(self.samira)
+        ahmad_order = self.make_ready(self.ahmad)
+
+        by_name = ready_rows("sam")
+        by_phone = ready_rows("100 004")
+
+        self.assertEqual(
+            [row["prescription"] for row in by_name],
+            [samira_order],
+        )
+        self.assertEqual(
+            [row["prescription"] for row in by_phone],
+            [ahmad_order],
+        )
+
+    def test_ready_page_displays_patient_medicine_and_time(self):
+        ready = self.make_ready(self.samira)
+
+        PrescriptionItem.objects.create(
+            prescription=ready,
+            medicine=self.amoxicillin,
+            quantity=2,
+            days_of_supply=5,
+        )
+
+        response = self.client.get(
+            "/prescriptions/", {"show": "ready"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ready since")
+        self.assertContains(response, "Samira")
+        self.assertContains(response, "Amoxicillin 500 mg")
+        self.assertContains(
+            response,
+            f'href="/prescriptions/{ready.pk}/"',
+        )
+
+        expected_time = timezone.localtime(
+            ready.ready_at
+        ).strftime("%d %b %Y, %H:%M")
+        self.assertContains(response, expected_time)
+
+    def test_search_keeps_ready_filter(self):
+        self.make_ready(self.samira)
+        self.make_ready(self.ahmad)
+
+        response = self.client.get(
+            "/prescriptions/",
+            {"show": "ready", "search": "Samira"},
+        )
+
+        self.assertEqual(response.context["show"], "ready")
+        self.assertEqual(len(response.context["rows"]), 1)
+        self.assertEqual(response.context["ready_count"], 2)
+        self.assertContains(
+            response, 'name="show" value="ready"'
+        )
+
+    def test_empty_ready_list_displays_message(self):
+        response = self.client.get(
+            "/prescriptions/", {"show": "ready"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "No prescriptions are ready for pickup.",
+        )
+
+    def test_patient_cannot_access_ready_list(self):
+        self.client.force_login(self.maya)
+
+        response = self.client.get(
+            "/prescriptions/", {"show": "ready"}
+        )
+
+        self.assertEqual(response.status_code, 403)

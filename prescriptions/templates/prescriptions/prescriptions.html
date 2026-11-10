@@ -19,12 +19,24 @@
 </div>
 
 <div class="prescription-tools">
+
+    <!-- SCRUM-28: Filter prescriptions by pickup status -->
     <nav class="prescription-tabs">
-        <a href="/prescriptions/" class="selected">Prescriptions {{ uncollected_count }}</a>
+        <a href="/prescriptions/?search={{ search|urlencode }}"
+        class="{% if show == 'all' %}selected{% endif %}">
+            Prescriptions {{ uncollected_count }}
+        </a>
+
+        <a href="/prescriptions/?show=ready&amp;search={{ search|urlencode }}"
+        class="{% if show == 'ready' %}selected{% endif %}">
+            Ready for Pickup {{ ready_count }}
+        </a>
     </nav>
+
     <form method="get" action="/prescriptions/" class="stock-search prescription-search">
         <img src="{% static 'core/images/icon-search.svg' %}" alt="">
         <input type="search" name="search" value="{{ search }}" placeholder="Search by patient name or phone" aria-label="Search by patient name or phone">
+        <input type="hidden" name="show" value="{{ show }}">
     </form>
 </div>
 
@@ -34,7 +46,11 @@
             <tr>
                 <th>Patient</th>
                 <th>Medicines</th>
-                <th>Received</th>
+                {% if show == "ready" %}
+                    <th>Ready since</th>
+                {% else %}
+                    <th>Received</th>
+                {% endif %}
                 <th>Status</th>
                 <th>Action</th>
             </tr>
@@ -59,7 +75,15 @@
                     <span class="prescription-none">No medicines yet</span>
                     {% endif %}
                 </td>
-                <td>{{ prescription.created_at|date:"d M Y, H:i" }}</td>
+
+                <td>
+                    {% if show == "ready" %}
+                        {{ prescription.ready_at|date:"d M Y, H:i"|default:"—" }}
+                    {% else %}
+                        {{ prescription.created_at|date:"d M Y, H:i" }}
+                    {% endif %}
+                </td>
+
                 <td><span class="pill prescription-status {{ prescription.status }}">{{ prescription.get_status_display }}</span></td>
                 <td class="prescription-action">
                     <a href="/prescriptions/{{ prescription.pk }}/" class="row-button {% if prescription.status == 'received' %}filled{% endif %}">
@@ -68,17 +92,30 @@
                 </td>
             </tr>
             {% endwith %}
+
             {% empty %}
             <tr>
                 <td colspan="5" class="prescription-empty">
-                    {% if search %}No prescriptions match "{{ search }}".{% else %}No uncollected prescriptions.{% endif %}
+                    {% if show == "ready" %}
+                        No prescriptions are ready for pickup.
+                    {% elif search %}
+                        No prescriptions match "{{ search }}".
+                    {% else %}
+                        No uncollected prescriptions.
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
+
         </tbody>
     </table>
 
-    <p class="stock-count">Showing {{ rows|length }} of {{ uncollected_count }} prescription{{ uncollected_count|pluralize }}</p>
+
+
+    <!-- SCRUM-28: Display the correct number of prescriptions -->
+    <p class="stock-count">Showing {{ rows|length }} of {% if show == "ready" %}{{ ready_count }}{% else %}{{ uncollected_count }}{% endif %} prescriptions</p>
+
+
 </section>
 
 {% block popup %}{% endblock %}

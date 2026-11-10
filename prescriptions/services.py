@@ -49,6 +49,43 @@ def uncollected_rows(search=""):
     return [{"prescription": prescription, "items": list(items_of(prescription))} for prescription in prescriptions]
 
 
+# SCRUM-28: Get prescriptions ready for pickup.
+def ready_prescriptions():
+    return Prescription.objects.filter(
+        status="ready"
+    )
+
+
+# Count prescriptions that are ready but not collected.
+def ready_count():
+    return ready_prescriptions().count()
+
+
+# Build the ready-orders list, with optional patient search.
+def ready_rows(search=""):
+    prescriptions = (
+        ready_prescriptions()
+        .select_related("patient")
+        .order_by("ready_at", "id")
+    )
+
+    # Allow searching by patient name or phone.
+    if search:
+        prescriptions = prescriptions.filter(
+            Q(patient__name__icontains=search)
+            | Q(patient__phone__icontains=search)
+        )
+
+    # Reuse the existing prescription row structure.
+    return [
+        {
+            "prescription": prescription,
+            "items": list(items_of(prescription)),
+        }
+        for prescription in prescriptions
+    ]
+
+
 def add_item(prescription, medicine, quantity, days_of_supply, long_term=False):
     check_status(prescription, "received", ITEMS_ARE_LOCKED)
     return PrescriptionItem.objects.create(
