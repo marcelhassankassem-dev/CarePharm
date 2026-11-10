@@ -84,6 +84,7 @@
                 <th>Expiry</th>
                 <th>In stock</th>
                 <th>Received</th>
+                <th class="stock-action">Action</th>
             </tr>
         </thead>
         <tbody>
@@ -113,10 +114,11 @@
                 <td><strong class="stock-quantity no-stock">0</strong></td>
                 {% endif %}
                 <td class="stock-received">{{ row.last_received|date:"d M Y"|default:"&mdash;" }}</td>
+                <td class="stock-action"><a href="/inventory/{{ row.medicine.pk }}/adjust/" class="row-button">Adjust</a></td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="5" class="stock-empty">No medicines found.</td>
+                <td colspan="6" class="stock-empty">No medicines found.</td>
             </tr>
             {% endfor %}
         </tbody>
