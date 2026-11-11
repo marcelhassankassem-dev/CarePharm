@@ -7,6 +7,8 @@ from reports.services import (
     best_day,
     best_sellers,
     daily_sales,
+    monthly_expiry_losses,
+    period_expiry_loss,
     prescription_status_counts,
     prescriptions_to_prepare,
     report_period,
@@ -52,5 +54,7 @@ def sales_report(request):
             "days": days,
             "best": best_day(days),
             "best_sellers": best_sellers(lines),
+            "loss": period_expiry_loss(period, today),
+            "losses": monthly_expiry_losses(today),
         },
     )

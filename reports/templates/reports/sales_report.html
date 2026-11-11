@@ -34,6 +34,14 @@
             <small>{{ today_summary.sale_count }} sale{{ today_summary.sale_count|pluralize }} so far</small>
         </div>
     </div>
+    <div class="report-card red">
+        <span class="report-bubble"><img src="{% static 'core/images/report-trash.svg' %}" alt=""></span>
+        <div>
+            <strong>${{ loss.value|floatformat:2 }}</strong>
+            <span>Lost to expired stock</span>
+            <small>{{ loss.items }} item{{ loss.items|pluralize }} {% if period.key == 'last_month' %}last month{% else %}this month{% endif %}</small>
+        </div>
+    </div>
 </div>
 
 <div class="report-layout">
@@ -83,4 +91,33 @@
         {% endfor %}
     </section>
 </div>
+
+<section class="card report-losses">
+    <div class="report-card-header">
+        <span class="report-header-bubble red"><img src="{% static 'core/images/report-trash.svg' %}" alt=""></span>
+        <div>
+            <h2>Expired Stock Losses</h2>
+            <p>Value of medicines that expired before being sold</p>
+        </div>
+    </div>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Month</th>
+                <th>Items</th>
+                <th>Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for loss in losses %}
+            <tr>
+                <td><strong>{{ loss.month|date:"F" }}{% if forloop.first %} (so far){% endif %}</strong></td>
+                <td>{{ loss.items }}</td>
+                <td><strong class="{% if forloop.first %}report-loss-current{% endif %}">${{ loss.value|floatformat:2 }}</strong></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
 {% endblock %}

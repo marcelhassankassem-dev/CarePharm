@@ -158,3 +158,8 @@ def medicines_in_stock_count():
 
 def deliveries_today_count():
     return Batch.objects.filter(received_at__date=timezone.localdate()).count()
+
+
+def batches_expiring_between(start, end):
+    batches = Batch.objects.filter(expiry_date__gte=start, expiry_date__lte=end)
+    return batches.order_by("expiry_date", "id")

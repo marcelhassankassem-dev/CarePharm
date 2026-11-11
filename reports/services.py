@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.utils import timezone
 
-from inventory.services import low_stock_rows, near_expiry_rows
+from inventory.services import batches_expiring_between, low_stock_rows, near_expiry_rows
 from prescriptions.services import UNCOLLECTED_STATUSES, uncollected_rows
 
 PERIOD_LABELS = {"today": "Today", "month": "This month", "last_month": "Last month"}
@@ -107,3 +107,31 @@ def best_sellers(lines, limit=5):
         {"medicine": medicine, "units": units, "width": round(units * 100 / top_units)}
         for medicine, units in ranked
     ]
+
+
+def batch_value(batch):
+    return batch.quantity * batch.unit_cost
+
+
+def expired_stock_loss(start, end, today):
+    yesterday = today - timedelta(days=1)
+    batches = list(batches_expiring_between(start, min(end, yesterday)))
+    return {
+        "month": start,
+        "items": sum(batch.quantity for batch in batches),
+        "value": sum((batch_value(batch) for batch in batches), Decimal("0")),
+    }
+
+
+def period_expiry_loss(period, today):
+    return expired_stock_loss(period["end"].replace(day=1), period["end"], today)
+
+
+def monthly_expiry_losses(today, months=3):
+    losses = []
+    end = today
+    for _ in range(months):
+        start = end.replace(day=1)
+        losses.append(expired_stock_loss(start, end, today))
+        end = start - timedelta(days=1)
+    return losses

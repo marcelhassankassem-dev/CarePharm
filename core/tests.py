@@ -133,6 +133,11 @@ class SeedDemoStockTests(TestCase):
     def test_t4_a_batch_has_expired(self):
         self.assertTrue(Batch.objects.filter(expiry_date__lt=self.today).exists())
 
+    def test_7_2_a_batch_expired_in_the_last_week(self):
+        last_week = self.today - timedelta(days=7)
+        batches = Batch.objects.filter(expiry_date__gte=last_week, expiry_date__lt=self.today)
+        self.assertTrue(batches.exists())
+
     def test_t4_a_medicine_has_plenty_of_stock(self):
         amoxicillin = Medicine.objects.get(name="Amoxicillin")
         batch = amoxicillin.batch_set.get()
