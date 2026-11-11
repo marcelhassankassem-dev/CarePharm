@@ -2945,6 +2945,10 @@ body {
     margin-bottom: 16px;
 }
 
+.report-seller:last-child {
+    margin-bottom: 0;
+}
+
 .report-seller div {
     display: flex;
     justify-content: space-between;
@@ -2978,4 +2982,50 @@ body {
 
 .report-seller .report-seller-bar.first {
     background: #14756f;
+}
+
+.report-card.red .report-bubble,
+.report-header-bubble.red {
+    background: #fbd9dd;
+}
+
+.report-card.red small {
+    color: #c8102e;
+}
+
+.report-losses {
+    width: 700px;
+    margin-top: 16px;
+}
+
+.report-losses .report-card-header {
+    margin-bottom: 20px;
+}
+
+.report-losses th:first-child {
+    width: 224px;
+}
+
+.report-losses th:nth-child(2) {
+    width: 160px;
+}
+
+.report-losses td {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    font-size: 13.5px;
+    line-height: 17px;
+}
+
+.report-losses tbody tr:first-child td {
+    padding-top: 16px;
+}
+
+.report-losses td strong {
+    font-size: 14px;
+    color: #0f2233;
+}
+
+.report-losses td .report-loss-current {
+    color: #c8102e;
 }
