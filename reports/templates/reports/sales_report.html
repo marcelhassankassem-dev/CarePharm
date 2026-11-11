@@ -1,0 +1,86 @@
+{% extends "core/console.html" %}
+{% load static %}
+
+{% block title %}Reports - CarePharm{% endblock %}
+
+{% block console_content %}
+<div class="page-heading">
+    <div>
+        <p class="page-eyebrow">Pharmacist console</p>
+        <h1>Reports</h1>
+        <p class="page-intro">How the pharmacy is doing {{ period.label|lower }}, in simple numbers.</p>
+    </div>
+    <nav class="report-periods">
+        <a href="/reports/?period=today" class="{% if period.key == 'today' %}selected{% endif %}">Today</a>
+        <a href="/reports/?period=month" class="{% if period.key == 'month' %}selected{% endif %}">This month</a>
+        <a href="/reports/?period=last_month" class="{% if period.key == 'last_month' %}selected{% endif %}">Last month</a>
+    </nav>
+</div>
+
+<div class="report-cards">
+    <div class="report-card">
+        <span class="report-bubble"><img src="{% static 'core/images/report-dollar.svg' %}" alt=""></span>
+        <div>
+            <strong>${{ summary.total|floatformat:2 }}</strong>
+            <span>Sales {{ period.label|lower }}</span>
+            <small>{{ summary.sale_count }} sale{{ summary.sale_count|pluralize }}</small>
+        </div>
+    </div>
+    <div class="report-card blue">
+        <span class="report-bubble"><img src="{% static 'core/images/report-receipt.svg' %}" alt=""></span>
+        <div>
+            <strong>${{ today_summary.total|floatformat:2 }}</strong>
+            <span>Sales today</span>
+            <small>{{ today_summary.sale_count }} sale{{ today_summary.sale_count|pluralize }} so far</small>
+        </div>
+    </div>
+</div>
+
+<div class="report-layout">
+    <section class="card report-daily">
+        <div class="report-card-header">
+            <span class="report-header-bubble"><img src="{% static 'core/images/report-chart.svg' %}" alt=""></span>
+            <div>
+                <h2>Daily Sales</h2>
+                <p>{% if period.start == period.end %}{{ period.start|date:"F j" }}{% else %}{{ period.start|date:"F j" }} to {{ period.end|date:"j" }}{% endif %}</p>
+            </div>
+            {% if best %}
+            <strong class="report-best-day">Best day: {{ best.day|date:"M j" }} · ${{ best.total|floatformat:2 }}</strong>
+            {% endif %}
+        </div>
+
+        <div class="report-chart">
+            {% for day in days %}
+            <div class="report-chart-day">
+                <span class="report-bar-area">
+                    <span class="report-bar {% if day.day == best.day %}best{% elif day.day == today %}today{% endif %}" style="height: {{ day.height }}%" title="{{ day.day|date:'M j' }}: ${{ day.total|floatformat:2 }}"></span>
+                </span>
+                <small>{% if forloop.counter|divisibleby:2 %}&nbsp;{% else %}{{ day.day.day }}{% endif %}</small>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="card report-best-sellers">
+        <div class="report-card-header">
+            <span class="report-header-bubble orange"><img src="{% static 'core/images/report-trophy.svg' %}" alt=""></span>
+            <div>
+                <h2>Most Sold</h2>
+                <p>Units sold {{ period.label|lower }}</p>
+            </div>
+        </div>
+
+        {% for row in best_sellers %}
+        <div class="report-seller">
+            <div>
+                <strong>{{ forloop.counter }}. {{ row.medicine }}</strong>
+                <span>{{ row.units }} sold</span>
+            </div>
+            <span class="report-seller-track"><span class="report-seller-bar {% if forloop.first %}first{% endif %}" style="width: {{ row.width }}%"></span></span>
+        </div>
+        {% empty %}
+        <p class="dashboard-empty">No sales in this period.</p>
+        {% endfor %}
+    </section>
+</div>
+{% endblock %}

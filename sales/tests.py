@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -22,6 +22,7 @@ from sales.services import (
     remove_one,
     sale_lines,
     sale_total,
+    sold_lines_between,
 )
 
 
@@ -682,3 +683,21 @@ class LinkPatientTests(SalePagesTestData):
         self.assertEqual(self.client.get("/sales/patient/").status_code, 403)
         self.assertEqual(self.link(self.samira.pk).status_code, 403)
         self.assertEqual(self.client.post("/sales/patient/remove/").status_code, 403)
+
+
+class SoldLinesTests(SaleTestData):
+    def sell(self, medicine, quantity, moment):
+        sale = record_sale(self.karim, "cash", [(medicine, quantity)], "counter")
+        Sale.objects.filter(pk=sale.pk).update(time=timezone.make_aware(moment))
+
+    def test_7_1_lines_of_the_sales_between_two_dates_are_found(self):
+        self.sell(self.amoxicillin, 2, datetime(2026, 11, 11, 12, 0))
+        self.sell(self.metformin, 3, datetime(2026, 11, 10, 12, 0))
+        self.sell(self.metformin, 9, datetime(2026, 11, 5, 12, 0))
+        lines = sold_lines_between(date(2026, 11, 10), date(2026, 11, 11))
+        self.assertEqual(sorted(line.quantity for line in lines), [2, 3])
+
+    def test_7_1_a_sale_just_after_midnight_counts_for_that_day_in_beirut(self):
+        self.sell(self.amoxicillin, 2, datetime.combine(date(2026, 3, 10), time(1, 30)))
+        self.assertEqual(len(sold_lines_between(date(2026, 3, 10), date(2026, 3, 10))), 1)
+        self.assertEqual(len(sold_lines_between(date(2026, 3, 9), date(2026, 3, 9))), 0)

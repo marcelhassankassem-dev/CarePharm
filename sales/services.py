@@ -34,6 +34,11 @@ def dispensing_history(patient):
     return lines.order_by("-sale__time", "id")
 
 
+def sold_lines_between(start, end):
+    lines = SaleItem.objects.filter(sale__time__date__gte=start, sale__time__date__lte=end)
+    return lines.select_related("sale", "medicine").order_by("sale__time", "id")
+
+
 def medicine_cards(search=""):
     return [
         {"medicine": row["medicine"], "available": row["available"], "low": is_low(row)}

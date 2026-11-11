@@ -246,13 +246,44 @@ class SeedDemoPrescriptionTests(TestCase):
 
     def test_8_3_the_seeded_sale_is_logged_when_it_was_collected(self):
         collected = Prescription.objects.get(status="collected")
-        self.assertEqual(ActivityLog.objects.get(action="Recorded sale").time, collected.collected_at)
+        sale = Sale.objects.get(source="prescription")
+        entry = ActivityLog.objects.get(action="Recorded sale", details__startswith=f"Sale {sale.pk} ·")
+        self.assertEqual(entry.time, collected.collected_at)
 
     def test_8_3_stock_is_logged_on_the_day_each_prescription_became_ready(self):
-        taken = Prescription.objects.filter(status__in=["ready", "collected"])
-        ready_days = {timezone.localdate(prescription.ready_at) for prescription in taken}
-        log_days = {timezone.localdate(entry.time) for entry in ActivityLog.objects.filter(action="Took stock")}
-        self.assertEqual(log_days, ready_days)
+        items = PrescriptionItem.objects.filter(prescription__status__in=["ready", "collected"])
+        for item in items.select_related("prescription", "batch"):
+            entry = ActivityLog.objects.get(action="Took stock", details__contains=f"batch {item.batch.batch_number} ")
+            self.assertEqual(timezone.localdate(entry.time), timezone.localdate(item.prescription.ready_at))
+
+
+class SeedDemoSalesTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo")
+
+    def counter_sales(self):
+        return Sale.objects.filter(source="counter")
+
+    def test_7_1_the_demo_has_a_counter_sale_today(self):
+        self.assertTrue(self.counter_sales().filter(time__date=timezone.localdate()).exists())
+
+    def test_7_1_the_demo_has_counter_sales_on_several_days(self):
+        days = {timezone.localdate(sale.time) for sale in self.counter_sales()}
+        self.assertGreaterEqual(len(days), 3)
+
+    def test_7_1_demo_counter_sales_were_made_by_karim(self):
+        self.assertEqual({sale.staff.username for sale in self.counter_sales()}, {"karim"})
+
+    def test_7_1_each_demo_sale_is_logged_on_its_own_day(self):
+        for sale in self.counter_sales():
+            entry = ActivityLog.objects.get(action="Recorded sale", details__startswith=f"Sale {sale.pk} ·")
+            self.assertEqual(timezone.localdate(entry.time), timezone.localdate(sale.time))
+
+    def test_7_1_demo_counter_sales_took_their_stock(self):
+        taken = ActivityLog.objects.filter(action="Took stock", user__username="karim")
+        lines = sum(sale.saleitem_set.count() for sale in self.counter_sales())
+        self.assertEqual(taken.count(), lines)
 
 
 class SeedDemoTwiceTests(TestCase):
