@@ -17,6 +17,7 @@ from prescriptions.services import (
     start_preparing,
 )
 from sales.models import Sale
+from sales.services import complete_sale
 
 DEMO_PASSWORD = "carepharm123"
 SUPPLIER = "Cedar Medical Supplies"
@@ -236,6 +237,30 @@ def create_prescriptions():
     demo_prescription("Ahmad", "Amoxicillin", "500 mg", 21, 7, False)
 
 
+def demo_counter_sale(karim, days, payment_method, lines):
+    current_sale = {}
+    for medicine_name, strength, quantity in lines:
+        medicine = Medicine.objects.get(name=medicine_name, strength=strength)
+        current_sale[str(medicine.pk)] = quantity
+    sold_at = days_ago(days)
+    log_id = latest_log_id()
+    sale = complete_sale(karim, payment_method, current_sale)
+    move_log_entries_after(log_id, sold_at)
+    Sale.objects.filter(pk=sale.pk).update(time=sold_at)
+
+
+def create_counter_sales():
+    if Sale.objects.filter(source="counter").exists():
+        return
+    karim = get_user_model().objects.get(username="karim")
+    demo_counter_sale(karim, 8, "cash", [("Aspirin", "81 mg", 1), ("Omeprazole", "20 mg", 2)])
+    demo_counter_sale(karim, 5, "cash", [("Paracetamol", "500 mg", 4), ("Lisinopril", "10 mg", 1)])
+    demo_counter_sale(karim, 3, "card", [("Cetirizine", "10 mg", 2), ("Paracetamol", "500 mg", 1)])
+    demo_counter_sale(karim, 2, "cash", [("Omeprazole", "20 mg", 1)])
+    demo_counter_sale(karim, 1, "cash", [("Paracetamol", "500 mg", 3), ("Aspirin", "81 mg", 2)])
+    demo_counter_sale(karim, 0, "card", [("Paracetamol", "500 mg", 2), ("Cetirizine", "10 mg", 1)])
+
+
 class Command(BaseCommand):
     def handle(self, *args, **options):
         create_staff()
@@ -243,3 +268,4 @@ class Command(BaseCommand):
         create_stock()
         create_passports()
         create_prescriptions()
+        create_counter_sales()
