@@ -135,6 +135,7 @@ def create_stock():
     create_batch(losartan, "LOS-001", 500, 60, "5.00")
 
     cetirizine = create_medicine("Cetirizine", "10 mg", "1000000000011", "Antihistamines", "5.00", 25)
+    create_batch(cetirizine, "CET-000", -3, 15, "2.50")
     create_batch(cetirizine, "CET-001", 360, 100, "2.50")
 
     salbutamol = create_medicine("Salbutamol inhaler", "100 mcg", "1000000000012", "Bronchodilators", "11.00", 10)
