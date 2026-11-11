@@ -16,6 +16,7 @@ from inventory.services import (
     adjust_stock,
     adjustable_batches,
     available_stock,
+    batches_expiring_between,
     deliveries_today_count,
     low_stock_count,
     low_stock_rows,
@@ -1182,3 +1183,21 @@ class LowStockPageTests(InventoryPagesTestData):
         self.assertContains(response, "show=low_stock")
         self.assertLess(self.position_of(response, "All 2"), self.position_of(response, "Low stock 2"))
         self.assertLess(self.position_of(response, "Low stock 2"), self.position_of(response, "Near expiry 0"))
+
+
+class BatchesExpiringBetweenTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        medicine = create_medicine()
+        cls.before = create_batch(medicine, "AMX-001", expiry_date=date(2026, 9, 30))
+        cls.first_day = create_batch(medicine, "AMX-002", expiry_date=date(2026, 10, 1))
+        cls.middle = create_batch(medicine, "AMX-003", expiry_date=date(2026, 10, 15))
+        cls.last_day = create_batch(medicine, "AMX-004", expiry_date=date(2026, 10, 31))
+        cls.after = create_batch(medicine, "AMX-005", expiry_date=date(2026, 11, 1))
+
+    def test_7_2_batches_expiring_between_two_dates_include_both_days(self):
+        batches = batches_expiring_between(date(2026, 10, 1), date(2026, 10, 31))
+        self.assertEqual(list(batches), [self.first_day, self.middle, self.last_day])
+
+    def test_7_2_no_batch_expiring_between_two_dates_gives_nothing(self):
+        self.assertFalse(batches_expiring_between(date(2026, 12, 1), date(2026, 12, 31)).exists())

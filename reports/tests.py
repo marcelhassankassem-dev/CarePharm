@@ -12,6 +12,9 @@ from reports.services import (
     best_day,
     best_sellers,
     daily_sales,
+    expired_stock_loss,
+    monthly_expiry_losses,
+    period_expiry_loss,
     prescription_status_counts,
     prescriptions_to_prepare,
     report_period,
@@ -381,3 +384,111 @@ class EmptySalesReportTests(TestCase):
         self.assertContains(response, "No sales in this period.")
         self.assertContains(response, "$0.00")
         self.assertNotContains(response, "Best day")
+
+    def test_7_2_no_expired_stock_shows_zero(self):
+        response = self.client.get("/reports/")
+        self.assertContains(response, "Lost to expired stock")
+        self.assertContains(response, "0 items this month")
+
+
+def batch_expiring_on(medicine, batch_number, quantity, unit_cost, expiry_date):
+    return Batch.objects.create(
+        medicine=medicine,
+        batch_number=batch_number,
+        expiry_date=expiry_date,
+        quantity=quantity,
+        unit_cost=Decimal(unit_cost),
+        supplier="Cedar Medical Supplies",
+    )
+
+
+def loss_numbers(loss):
+    return loss["month"], loss["items"], loss["value"]
+
+
+class ExpiredStockServiceTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.today = date(2026, 11, 11)
+        paracetamol = priced_medicine("Paracetamol", "1000000000005", "3.00")
+        cetirizine = priced_medicine("Cetirizine", "1000000000011", "5.00")
+        amoxicillin = priced_medicine("Amoxicillin", "1000000000001", "8.50")
+        batch_expiring_on(paracetamol, "PAR-001", 10, "1.50", date(2026, 11, 3))
+        batch_expiring_on(cetirizine, "CET-001", 4, "2.50", date(2026, 11, 10))
+        batch_expiring_on(cetirizine, "CET-002", 6, "2.50", date(2026, 11, 11))
+        batch_expiring_on(amoxicillin, "AMX-001", 8, "4.25", date(2026, 10, 31))
+        batch_expiring_on(amoxicillin, "AMX-002", 2, "4.25", date(2026, 10, 1))
+        batch_expiring_on(paracetamol, "PAR-002", 20, "1.50", date(2026, 9, 15))
+        batch_expiring_on(paracetamol, "PAR-003", 30, "1.50", date(2026, 8, 20))
+        batch_expiring_on(paracetamol, "PAR-004", 200, "1.50", date(2027, 6, 30))
+
+    def test_7_2_the_loss_is_quantity_times_unit_cost(self):
+        loss = expired_stock_loss(date(2026, 10, 1), date(2026, 10, 31), self.today)
+        self.assertEqual(loss_numbers(loss), (date(2026, 10, 1), 10, Decimal("42.50")))
+
+    def test_7_2_stock_expiring_today_is_not_lost_yet(self):
+        loss = expired_stock_loss(date(2026, 11, 1), date(2026, 11, 11), self.today)
+        self.assertEqual(loss_numbers(loss), (date(2026, 11, 1), 14, Decimal("25.00")))
+
+    def test_7_2_a_month_with_nothing_expired_is_zero(self):
+        loss = expired_stock_loss(date(2026, 7, 1), date(2026, 7, 31), self.today)
+        self.assertEqual(loss_numbers(loss), (date(2026, 7, 1), 0, Decimal("0")))
+
+    def test_7_2_this_month_and_today_show_this_month_so_far(self):
+        for key in ["month", "today"]:
+            loss = period_expiry_loss(report_period(key, self.today), self.today)
+            self.assertEqual(loss_numbers(loss), (date(2026, 11, 1), 14, Decimal("25.00")))
+
+    def test_7_2_last_month_shows_the_whole_of_last_month(self):
+        loss = period_expiry_loss(report_period("last_month", self.today), self.today)
+        self.assertEqual(loss_numbers(loss), (date(2026, 10, 1), 10, Decimal("42.50")))
+
+    def test_7_2_the_table_shows_this_month_and_the_two_before(self):
+        rows = [loss_numbers(loss) for loss in monthly_expiry_losses(self.today)]
+        self.assertEqual(
+            rows,
+            [
+                (date(2026, 11, 1), 14, Decimal("25.00")),
+                (date(2026, 10, 1), 10, Decimal("42.50")),
+                (date(2026, 9, 1), 20, Decimal("30.00")),
+            ],
+        )
+
+    def test_7_2_the_table_goes_back_across_the_new_year(self):
+        months = [loss["month"] for loss in monthly_expiry_losses(date(2027, 1, 5))]
+        self.assertEqual(months, [date(2027, 1, 1), date(2026, 12, 1), date(2026, 11, 1)])
+
+
+class ExpiredStockPageTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.nadim = get_user_model().objects.create(username="nadim", role="owner", is_pharmacist=True)
+        cls.today = timezone.localdate()
+        cls.last_month_end = cls.today.replace(day=1) - timedelta(days=1)
+        amoxicillin = priced_medicine("Amoxicillin", "1000000000001", "8.50")
+        batch_expiring_on(amoxicillin, "AMX-001", 8, "4.25", cls.last_month_end)
+        batch_expiring_on(amoxicillin, "AMX-002", 50, "4.25", cls.today)
+
+    def setUp(self):
+        self.client.force_login(self.nadim)
+
+    def test_7_2_the_card_shows_this_month_by_default(self):
+        response = self.client.get("/reports/")
+        self.assertContains(response, "Lost to expired stock")
+        self.assertContains(response, "0 items this month")
+
+    def test_7_2_the_card_follows_last_month(self):
+        response = self.client.get("/reports/", {"period": "last_month"})
+        self.assertContains(response, "$34.00")
+        self.assertContains(response, "8 items last month")
+
+    def test_7_2_the_table_uses_the_figma_wording(self):
+        response = self.client.get("/reports/")
+        self.assertContains(response, "Expired Stock Losses")
+        self.assertContains(response, "Value of medicines that expired before being sold")
+
+    def test_7_2_the_table_lists_this_month_so_far_and_last_month(self):
+        response = self.client.get("/reports/")
+        self.assertContains(response, f"{self.today:%B} (so far)")
+        self.assertContains(response, f"{self.last_month_end:%B}")
+        self.assertContains(response, "$34.00")
