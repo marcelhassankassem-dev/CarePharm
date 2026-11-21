@@ -8,6 +8,7 @@ ROLE_PERMISSIONS = [
     ("Record prescriptions", [True, True, False]),
     ("Continue past a safety warning", [True, True, False]),
     ("Record deliveries and fix stock", [True, True, True]),
+    ("Add new medicines", [True, True, False]),
     ("Make sales", [True, True, True]),
     ("Reply to AI handovers", [True, True, False]),
     ("See reports", [True, False, False]),
@@ -45,6 +46,10 @@ def is_owner(user):
 
 def can_act_as_pharmacist(user):
     return user.role == "pharmacist" or (is_owner(user) and user.is_pharmacist)
+
+
+def can_add_medicines(user):
+    return is_owner(user) or can_act_as_pharmacist(user)
 
 
 def require_owner(user):

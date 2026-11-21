@@ -3,7 +3,7 @@ from decimal import Decimal
 from django import forms
 from django.utils import timezone
 
-from inventory.models import Batch, Medicine
+from inventory.models import Batch, DrugClass, Medicine
 from inventory.services import adjustable_batches
 
 
@@ -25,6 +25,18 @@ class DeliveryForm(forms.ModelForm):
         if expiry_date <= timezone.localdate():
             raise forms.ValidationError("The expiry date must be in the future.")
         return expiry_date
+
+
+class MedicineForm(forms.ModelForm):
+    drug_class = forms.ModelChoiceField(
+        queryset=DrugClass.objects.order_by("name"),
+        empty_label="Select a drug class",
+    )
+    price = forms.DecimalField(max_digits=8, decimal_places=2, min_value=Decimal("0.01"))
+
+    class Meta:
+        model = Medicine
+        fields = ["name", "strength", "barcode", "drug_class", "price", "minimum_quantity"]
 
 
 class BatchChoiceField(forms.ModelChoiceField):
