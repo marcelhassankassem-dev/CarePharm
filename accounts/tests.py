@@ -6,7 +6,7 @@ from django.template.defaultfilters import date
 from django.test import TestCase
 from django.utils import timezone
 
-from accounts.permissions import can_act_as_pharmacist, is_owner, is_pharmacy_staff
+from accounts.permissions import can_act_as_pharmacist, can_add_medicines, is_owner, is_pharmacy_staff
 from accounts.services import create_patient_login
 from core.models import ActivityLog
 from core.services import log_action
@@ -177,6 +177,14 @@ class RolePermissionTests(TestCase):
         self.assertFalse(can_act_as_pharmacist(get_user_model()(role="assistant")))
         self.assertFalse(can_act_as_pharmacist(get_user_model()(role="patient")))
 
+    def test_f1_owners_and_pharmacists_can_add_medicines(self):
+        self.assertTrue(can_add_medicines(get_user_model()(role="owner")))
+        self.assertTrue(can_add_medicines(get_user_model()(role="pharmacist")))
+
+    def test_f1_assistants_and_patients_cannot_add_medicines(self):
+        self.assertFalse(can_add_medicines(get_user_model()(role="assistant")))
+        self.assertFalse(can_add_medicines(get_user_model()(role="patient")))
+
 
 class StaffPagesTestData(TestCase):
     @classmethod
@@ -283,6 +291,9 @@ class StaffListTests(StaffPagesTestData):
         self.assertContains(response, "Role Permissions")
         self.assertContains(response, "Continue past a safety warning")
         self.assertContains(response, "Manage staff accounts")
+
+    def test_f1_the_role_permissions_include_adding_medicines(self):
+        self.assertContains(self.client.get("/staff/"), "Add new medicines")
 
 
 class AddStaffTests(StaffPagesTestData):

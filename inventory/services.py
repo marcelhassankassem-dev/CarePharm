@@ -16,6 +16,20 @@ def available_stock(medicine):
 
 
 @transaction.atomic
+def add_medicine(user, name, strength, barcode, drug_class, price, minimum_quantity):
+    medicine = Medicine.objects.create(
+        name=name,
+        strength=strength,
+        barcode=barcode,
+        drug_class=drug_class,
+        price=price,
+        minimum_quantity=minimum_quantity,
+    )
+    log_action(user, "Added medicine", f"{medicine} · barcode {barcode} · ${price}")
+    return medicine
+
+
+@transaction.atomic
 def record_delivery(user, medicine, supplier, batch_number, expiry_date, quantity, unit_cost):
     batch = Batch.objects.create(
         medicine=medicine,

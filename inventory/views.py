@@ -1,10 +1,12 @@
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect, render
 
-from accounts.permissions import staff_required
-from inventory.forms import AdjustStockForm, DeliveryForm, StockListForm
+from accounts.permissions import can_add_medicines, staff_required
+from inventory.forms import AdjustStockForm, DeliveryForm, MedicineForm, StockListForm
 from inventory.services import (
     NEAR_EXPIRY_DAYS,
+    add_medicine,
     adjust_stock,
     deliveries_today_count,
     get_medicine,
@@ -19,7 +21,7 @@ from inventory.services import (
 )
 
 
-def stock_page_data(search="", days=NEAR_EXPIRY_DAYS, show="all"):
+def stock_page_data(user, search="", days=NEAR_EXPIRY_DAYS, show="all"):
     if show == "expiring":
         rows = near_expiry_rows(days, search)
     elif show == "low_stock":
@@ -36,6 +38,7 @@ def stock_page_data(search="", days=NEAR_EXPIRY_DAYS, show="all"):
         "low_stock_count": low_stock_count(),
         "near_expiry_count": near_expiry_count(days),
         "deliveries_today": deliveries_today_count(),
+        "can_add_medicines": can_add_medicines(user),
     }
 
 
@@ -46,18 +49,33 @@ def inventory_page(request):
     search = list_form.cleaned_data.get("search", "")
     days = list_form.cleaned_data.get("days") or NEAR_EXPIRY_DAYS
     show = list_form.cleaned_data.get("show") or "all"
-    data = stock_page_data(search, days, show)
+    data = stock_page_data(request.user, search, days, show)
     return render(request, "inventory/inventory.html", {**data, "list_form": list_form})
 
 
 @staff_required
+def new_medicine_page(request):
+    if not can_add_medicines(request.user):
+        raise PermissionDenied
+    form = MedicineForm(request.POST) if request.method == "POST" else MedicineForm()
+    if form.is_valid():
+        medicine = add_medicine(request.user, **form.cleaned_data)
+        messages.success(request, f"{medicine} added. Record its first delivery.")
+        return redirect(f"/inventory/delivery/?medicine={medicine.pk}")
+    return render(request, "inventory/new_medicine.html", {**stock_page_data(request.user), "form": form})
+
+
+@staff_required
 def record_delivery_page(request):
-    form = DeliveryForm(request.POST) if request.method == "POST" else DeliveryForm()
+    if request.method == "POST":
+        form = DeliveryForm(request.POST)
+    else:
+        form = DeliveryForm(initial={"medicine": request.GET.get("medicine")})
     if form.is_valid():
         record_delivery(request.user, **form.cleaned_data)
         messages.success(request, "Delivery recorded.")
         return redirect("inventory_page")
-    return render(request, "inventory/delivery.html", {**stock_page_data(), "form": form})
+    return render(request, "inventory/delivery.html", {**stock_page_data(request.user), "form": form})
 
 
 @staff_required
@@ -68,4 +86,5 @@ def adjust_stock_page(request, medicine_id):
         batch = adjust_stock(request.user, form.cleaned_data["batch"], form.cleaned_data["counted_quantity"])
         messages.success(request, f"Stock adjusted: {medicine}, batch {batch.batch_number}, now {batch.quantity}.")
         return redirect("inventory_page")
-    return render(request, "inventory/adjust.html", {**stock_page_data(), "form": form, "medicine": medicine})
+    context = {**stock_page_data(request.user), "form": form, "medicine": medicine}
+    return render(request, "inventory/adjust.html", context)

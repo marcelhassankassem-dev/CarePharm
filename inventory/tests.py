@@ -13,6 +13,7 @@ from core.models import ActivityLog
 from inventory.models import Batch, DrugClass, Medicine
 from inventory.services import (
     NEAR_EXPIRY_DAYS,
+    add_medicine,
     adjust_stock,
     adjustable_batches,
     available_stock,
@@ -246,6 +247,55 @@ class DeliveryServiceTests(TestCase):
             with self.assertRaises(ValueError):
                 self.deliver()
         self.assertFalse(Batch.objects.exists())
+
+
+class AddMedicineServiceTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.rana = get_user_model().objects.create_user(
+            username="rana",
+            password="pass",
+            role="pharmacist",
+        )
+        cls.nsaids = DrugClass.objects.create(name="NSAIDs")
+
+    def add_ibuprofen(self):
+        return add_medicine(
+            self.rana,
+            "Ibuprofen",
+            "400 mg",
+            "3000000000001",
+            self.nsaids,
+            Decimal("4.00"),
+            30,
+        )
+
+    def test_f1_a_new_medicine_saves_every_field(self):
+        medicine = self.add_ibuprofen()
+        self.assertEqual(medicine.name, "Ibuprofen")
+        self.assertEqual(medicine.strength, "400 mg")
+        self.assertEqual(medicine.barcode, "3000000000001")
+        self.assertEqual(medicine.drug_class, self.nsaids)
+        self.assertEqual(medicine.price, Decimal("4.00"))
+        self.assertEqual(medicine.minimum_quantity, 30)
+
+    def test_f1_a_new_medicine_has_no_stock_yet(self):
+        medicine = self.add_ibuprofen()
+        self.assertFalse(medicine.batch_set.exists())
+        self.assertEqual(available_stock(medicine), 0)
+
+    def test_f1_a_new_medicine_is_logged_with_who_added_it(self):
+        self.add_ibuprofen()
+        entry = ActivityLog.objects.get()
+        self.assertEqual(entry.user, self.rana)
+        self.assertEqual(entry.action, "Added medicine")
+        self.assertEqual(entry.details, "Ibuprofen 400 mg · barcode 3000000000001 · $4.00")
+
+    def test_f1_a_medicine_that_cannot_be_logged_is_not_saved(self):
+        with patch("inventory.services.log_action", side_effect=ValueError):
+            with self.assertRaises(ValueError):
+                self.add_ibuprofen()
+        self.assertFalse(Medicine.objects.exists())
 
 
 class StockListServiceTests(TestCase):
@@ -1110,6 +1160,138 @@ class DeliveryPageTests(InventoryPagesTestData):
         response = self.client.post("/inventory/delivery/", self.delivery)
         self.assertEqual(response.status_code, 403)
         self.assertFalse(Batch.objects.exists())
+
+    def test_f1_a_medicine_in_the_address_is_already_chosen(self):
+        response = self.client.get(f"/inventory/delivery/?medicine={self.medicine.pk}")
+        self.assertContains(response, f'<option value="{self.medicine.pk}" selected>')
+
+    def test_f1_an_unknown_medicine_in_the_address_is_ignored(self):
+        response = self.client.get("/inventory/delivery/?medicine=999")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "selected>")
+
+
+class NewMedicinePageTests(InventoryPagesTestData):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.nsaids = DrugClass.objects.create(name="NSAIDs")
+
+    def setUp(self):
+        self.client.force_login(self.rana)
+        self.new_medicine = {
+            "name": "Ibuprofen",
+            "strength": "400 mg",
+            "barcode": "3000000000001",
+            "drug_class": self.nsaids.pk,
+            "price": "4.00",
+            "minimum_quantity": 30,
+        }
+
+    def assert_nothing_was_saved(self, response):
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Medicine.objects.count(), 1)
+        self.assertFalse(ActivityLog.objects.exists())
+
+    def test_f1_the_popup_has_its_wording(self):
+        response = self.client.get("/inventory/medicine/new/")
+        self.assertContains(response, "<dialog open")
+        self.assertContains(response, "New Medicine")
+        self.assertContains(response, "Minimum quantity")
+        self.assertContains(response, "Save Medicine")
+
+    def test_f1_the_popup_stays_on_top_of_the_stock_list(self):
+        self.assertContains(self.client.get("/inventory/medicine/new/"), "Stock List")
+
+    def test_f1_cancelling_goes_back_to_the_inventory_page(self):
+        self.assertContains(self.client.get("/inventory/medicine/new/"), 'href="/inventory/"')
+
+    def test_f1_a_valid_medicine_is_saved(self):
+        self.client.post("/inventory/medicine/new/", self.new_medicine)
+        medicine = Medicine.objects.get(barcode="3000000000001")
+        self.assertEqual(medicine.name, "Ibuprofen")
+        self.assertEqual(medicine.drug_class, self.nsaids)
+        self.assertEqual(medicine.price, Decimal("4.00"))
+        self.assertEqual(medicine.minimum_quantity, 30)
+
+    def test_f1_saving_opens_record_delivery_for_the_new_medicine(self):
+        response = self.client.post("/inventory/medicine/new/", self.new_medicine)
+        medicine = Medicine.objects.get(barcode="3000000000001")
+        self.assertRedirects(response, f"/inventory/delivery/?medicine={medicine.pk}")
+
+    def test_f1_a_saved_medicine_shows_a_confirmation(self):
+        response = self.client.post("/inventory/medicine/new/", self.new_medicine, follow=True)
+        self.assertContains(response, "Ibuprofen 400 mg added. Record its first delivery.")
+
+    def test_f1_the_new_medicine_is_logged_for_the_signed_in_user(self):
+        self.client.post("/inventory/medicine/new/", self.new_medicine)
+        self.assertEqual(ActivityLog.objects.get().user, self.rana)
+
+    def test_f1_the_owner_can_add_a_medicine(self):
+        self.client.force_login(self.nadim)
+        self.client.post("/inventory/medicine/new/", self.new_medicine)
+        self.assertTrue(Medicine.objects.filter(barcode="3000000000001").exists())
+
+    def test_f1_an_assistant_cannot_open_the_popup(self):
+        self.client.force_login(self.karim)
+        self.assertEqual(self.client.get("/inventory/medicine/new/").status_code, 403)
+
+    def test_f1_an_assistant_cannot_add_a_medicine(self):
+        self.client.force_login(self.karim)
+        response = self.client.post("/inventory/medicine/new/", self.new_medicine)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Medicine.objects.count(), 1)
+
+    def test_f1_a_patient_side_user_cannot_add_a_medicine(self):
+        self.client.force_login(self.samira)
+        response = self.client.post("/inventory/medicine/new/", self.new_medicine)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Medicine.objects.count(), 1)
+
+    def test_f1_signed_out_visitors_go_to_the_staff_login(self):
+        self.client.logout()
+        address = "/inventory/medicine/new/"
+        self.assertRedirects(self.client.get(address), f"/login/staff/?next={address}")
+
+    def test_f1_a_barcode_already_in_use_is_refused(self):
+        taken = {**self.new_medicine, "barcode": self.medicine.barcode}
+        response = self.client.post("/inventory/medicine/new/", taken)
+        self.assert_nothing_was_saved(response)
+        self.assertContains(response, "Medicine with this Barcode already exists.")
+
+    def test_f1_a_price_of_zero_is_refused(self):
+        response = self.client.post("/inventory/medicine/new/", {**self.new_medicine, "price": "0.00"})
+        self.assert_nothing_was_saved(response)
+
+    def test_f1_a_negative_price_is_refused(self):
+        response = self.client.post("/inventory/medicine/new/", {**self.new_medicine, "price": "-4.00"})
+        self.assert_nothing_was_saved(response)
+
+    def test_f1_a_negative_minimum_quantity_is_refused(self):
+        response = self.client.post("/inventory/medicine/new/", {**self.new_medicine, "minimum_quantity": -1})
+        self.assert_nothing_was_saved(response)
+
+    def test_f1_a_minimum_quantity_of_zero_is_allowed(self):
+        self.client.post("/inventory/medicine/new/", {**self.new_medicine, "minimum_quantity": 0})
+        self.assertTrue(Medicine.objects.filter(barcode="3000000000001").exists())
+
+    def test_f1_every_field_is_required(self):
+        for field in self.new_medicine:
+            response = self.client.post("/inventory/medicine/new/", {**self.new_medicine, field: ""})
+            self.assert_nothing_was_saved(response)
+
+    def test_f1_a_refused_medicine_keeps_the_popup_open(self):
+        response = self.client.post("/inventory/medicine/new/", {**self.new_medicine, "price": "0.00"})
+        self.assertContains(response, "<dialog open")
+
+    def test_f1_owners_and_pharmacists_see_the_new_medicine_button(self):
+        for user in [self.nadim, self.rana]:
+            self.client.force_login(user)
+            self.assertContains(self.client.get("/inventory/"), 'href="/inventory/medicine/new/"')
+
+    def test_f1_assistants_do_not_see_the_new_medicine_button(self):
+        self.client.force_login(self.karim)
+        self.assertNotContains(self.client.get("/inventory/"), 'href="/inventory/medicine/new/"')
 
 
 class LowStockTests(TestCase):
