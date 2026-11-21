@@ -1276,7 +1276,8 @@ body {
     color: #4f6070;
 }
 
-.stock-list-header .primary-button {
+.stock-list-header .primary-button,
+.stock-list-header .secondary-button {
     width: 170px;
     height: 42px;
     padding: 0;
