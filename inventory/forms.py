@@ -39,6 +39,10 @@ class MedicineForm(forms.ModelForm):
         fields = ["name", "strength", "barcode", "drug_class", "price", "minimum_quantity"]
 
 
+class PriceForm(forms.Form):
+    price = forms.DecimalField(label="New price", max_digits=8, decimal_places=2, min_value=Decimal("0.01"))
+
+
 class BatchChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, batch):
         return f"{batch.batch_number} · expires {batch.expiry_date:%d %b %Y} · {batch.quantity} in stock"

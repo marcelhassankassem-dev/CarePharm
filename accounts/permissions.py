@@ -9,6 +9,7 @@ ROLE_PERMISSIONS = [
     ("Continue past a safety warning", [True, True, False]),
     ("Record deliveries and fix stock", [True, True, True]),
     ("Add new medicines", [True, True, False]),
+    ("Change prices", [True, False, False]),
     ("Make sales", [True, True, True]),
     ("Reply to AI handovers", [True, True, False]),
     ("See reports", [True, False, False]),
