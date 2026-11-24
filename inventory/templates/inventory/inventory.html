@@ -125,7 +125,12 @@
                 <td><strong class="stock-quantity no-stock">0</strong></td>
                 {% endif %}
                 <td class="stock-received">{{ row.last_received|date:"d M Y"|default:"&mdash;" }}</td>
-                <td class="stock-action"><a href="/inventory/{{ row.medicine.pk }}/adjust/" class="row-button">Adjust</a></td>
+                <td class="stock-action">
+                    {% if can_change_prices %}
+                    <a href="/inventory/{{ row.medicine.pk }}/price/" class="row-button">Price</a>
+                    {% endif %}
+                    <a href="/inventory/{{ row.medicine.pk }}/adjust/" class="row-button">Adjust</a>
+                </td>
             </tr>
             {% empty %}
             <tr>

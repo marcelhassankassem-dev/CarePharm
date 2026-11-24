@@ -18,6 +18,7 @@ from inventory.services import (
     adjustable_batches,
     available_stock,
     batches_expiring_between,
+    change_price,
     deliveries_today_count,
     low_stock_count,
     low_stock_rows,
@@ -31,6 +32,7 @@ from inventory.services import (
     stock_rows,
     take_stock,
 )
+from sales.services import record_sale
 
 
 def create_medicine(barcode="1000000000001"):
@@ -296,6 +298,50 @@ class AddMedicineServiceTests(TestCase):
             with self.assertRaises(ValueError):
                 self.add_ibuprofen()
         self.assertFalse(Medicine.objects.exists())
+
+
+class ChangePriceServiceTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.nadim = get_user_model().objects.create_user(username="nadim", password="pass", role="owner")
+        cls.medicine = create_medicine()
+
+    def test_f2_the_medicine_takes_the_new_price(self):
+        change_price(self.nadim, self.medicine, Decimal("9.25"))
+        self.medicine.refresh_from_db()
+        self.assertEqual(self.medicine.price, Decimal("9.25"))
+
+    def test_f2_the_change_is_logged_with_the_old_and_new_price(self):
+        change_price(self.nadim, self.medicine, Decimal("9.25"))
+        entry = ActivityLog.objects.get()
+        self.assertEqual(entry.user, self.nadim)
+        self.assertEqual(entry.action, "Changed price")
+        self.assertEqual(entry.details, "Amoxicillin 500 mg · $8.50 → $9.25")
+
+    def test_f2_a_price_of_zero_is_refused(self):
+        with self.assertRaises(ValidationError):
+            change_price(self.nadim, self.medicine, Decimal("0.00"))
+        self.medicine.refresh_from_db()
+        self.assertEqual(self.medicine.price, Decimal("8.50"))
+        self.assertFalse(ActivityLog.objects.exists())
+
+    def test_f2_a_negative_price_is_refused(self):
+        with self.assertRaises(ValidationError):
+            change_price(self.nadim, self.medicine, Decimal("-1.00"))
+        self.medicine.refresh_from_db()
+        self.assertEqual(self.medicine.price, Decimal("8.50"))
+
+    def test_f2_a_price_change_that_cannot_be_logged_changes_nothing(self):
+        with patch("inventory.services.log_action", side_effect=ValueError):
+            with self.assertRaises(ValueError):
+                change_price(self.nadim, self.medicine, Decimal("9.25"))
+        self.medicine.refresh_from_db()
+        self.assertEqual(self.medicine.price, Decimal("8.50"))
+
+    def test_f2_sales_made_before_the_change_keep_their_price(self):
+        sale = record_sale(self.nadim, "cash", [(self.medicine, 2)], "counter")
+        change_price(self.nadim, self.medicine, Decimal("9.25"))
+        self.assertEqual(sale.saleitem_set.get().unit_price, Decimal("8.50"))
 
 
 class StockListServiceTests(TestCase):
@@ -1292,6 +1338,89 @@ class NewMedicinePageTests(InventoryPagesTestData):
     def test_f1_assistants_do_not_see_the_new_medicine_button(self):
         self.client.force_login(self.karim)
         self.assertNotContains(self.client.get("/inventory/"), 'href="/inventory/medicine/new/"')
+
+
+class ChangePricePageTests(InventoryPagesTestData):
+    def setUp(self):
+        self.client.force_login(self.nadim)
+        self.address = f"/inventory/{self.medicine.pk}/price/"
+
+    def assert_nothing_changed(self, response):
+        self.assertEqual(response.status_code, 200)
+        self.medicine.refresh_from_db()
+        self.assertEqual(self.medicine.price, Decimal("8.50"))
+        self.assertFalse(ActivityLog.objects.exists())
+
+    def test_f2_the_owner_sees_a_price_button_on_each_row(self):
+        self.assertContains(self.client.get("/inventory/"), f'href="{self.address}"')
+
+    def test_f2_pharmacists_and_assistants_do_not_see_the_price_button(self):
+        for user in [self.rana, self.karim]:
+            self.client.force_login(user)
+            self.assertNotContains(self.client.get("/inventory/"), f'href="{self.address}"')
+
+    def test_f2_the_popup_shows_the_medicine_and_its_current_price(self):
+        response = self.client.get(self.address)
+        self.assertContains(response, "<dialog open")
+        self.assertContains(response, "Change Price")
+        self.assertContains(response, "Amoxicillin 500 mg")
+        self.assertContains(response, "Current price: $8.50")
+        self.assertContains(response, "New price")
+        self.assertContains(response, "Save Price")
+
+    def test_f2_the_popup_stays_on_top_of_the_stock_list(self):
+        self.assertContains(self.client.get(self.address), "Stock List")
+
+    def test_f2_cancelling_goes_back_to_the_inventory_page(self):
+        self.assertContains(self.client.get(self.address), 'href="/inventory/"')
+
+    def test_f2_a_new_price_is_saved(self):
+        response = self.client.post(self.address, {"price": "9.25"})
+        self.assertRedirects(response, "/inventory/")
+        self.medicine.refresh_from_db()
+        self.assertEqual(self.medicine.price, Decimal("9.25"))
+        self.assertEqual(ActivityLog.objects.get().user, self.nadim)
+
+    def test_f2_a_saved_price_shows_a_confirmation(self):
+        response = self.client.post(self.address, {"price": "9.25"}, follow=True)
+        self.assertContains(response, "Amoxicillin 500 mg now costs $9.25.")
+
+    def test_f2_a_price_of_zero_is_refused(self):
+        response = self.client.post(self.address, {"price": "0.00"})
+        self.assert_nothing_changed(response)
+
+    def test_f2_a_negative_price_is_refused(self):
+        response = self.client.post(self.address, {"price": "-9.25"})
+        self.assert_nothing_changed(response)
+
+    def test_f2_a_price_is_required(self):
+        response = self.client.post(self.address, {"price": ""})
+        self.assert_nothing_changed(response)
+
+    def test_f2_a_refused_price_keeps_the_popup_open(self):
+        response = self.client.post(self.address, {"price": "0.00"})
+        self.assertContains(response, "<dialog open")
+
+    def test_f2_pharmacists_and_assistants_cannot_change_a_price(self):
+        for user in [self.rana, self.karim]:
+            self.client.force_login(user)
+            self.assertEqual(self.client.get(self.address).status_code, 403)
+            self.assertEqual(self.client.post(self.address, {"price": "9.25"}).status_code, 403)
+        self.medicine.refresh_from_db()
+        self.assertEqual(self.medicine.price, Decimal("8.50"))
+
+    def test_f2_patient_side_users_cannot_change_a_price(self):
+        self.client.force_login(self.samira)
+        self.assertEqual(self.client.post(self.address, {"price": "9.25"}).status_code, 403)
+        self.medicine.refresh_from_db()
+        self.assertEqual(self.medicine.price, Decimal("8.50"))
+
+    def test_f2_signed_out_visitors_go_to_the_staff_login(self):
+        self.client.logout()
+        self.assertRedirects(self.client.get(self.address), f"/login/staff/?next={self.address}")
+
+    def test_f2_an_unknown_medicine_is_not_found(self):
+        self.assertEqual(self.client.get("/inventory/9999/price/").status_code, 404)
 
 
 class LowStockTests(TestCase):

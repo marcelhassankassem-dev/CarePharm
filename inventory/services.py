@@ -30,6 +30,17 @@ def add_medicine(user, name, strength, barcode, drug_class, price, minimum_quant
 
 
 @transaction.atomic
+def change_price(user, medicine, new_price):
+    if new_price <= 0:
+        raise ValidationError("The price must be above 0.")
+    old_price = medicine.price
+    medicine.price = new_price
+    medicine.save()
+    log_action(user, "Changed price", f"{medicine} · ${old_price} → ${new_price}")
+    return medicine
+
+
+@transaction.atomic
 def record_delivery(user, medicine, supplier, batch_number, expiry_date, quantity, unit_cost):
     batch = Batch.objects.create(
         medicine=medicine,

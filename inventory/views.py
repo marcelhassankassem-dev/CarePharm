@@ -2,12 +2,13 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect, render
 
-from accounts.permissions import can_add_medicines, staff_required
-from inventory.forms import AdjustStockForm, DeliveryForm, MedicineForm, StockListForm
+from accounts.permissions import can_add_medicines, is_owner, require_owner, staff_required
+from inventory.forms import AdjustStockForm, DeliveryForm, MedicineForm, PriceForm, StockListForm
 from inventory.services import (
     NEAR_EXPIRY_DAYS,
     add_medicine,
     adjust_stock,
+    change_price,
     deliveries_today_count,
     get_medicine,
     low_stock_count,
@@ -39,6 +40,7 @@ def stock_page_data(user, search="", days=NEAR_EXPIRY_DAYS, show="all"):
         "near_expiry_count": near_expiry_count(days),
         "deliveries_today": deliveries_today_count(),
         "can_add_medicines": can_add_medicines(user),
+        "can_change_prices": is_owner(user),
     }
 
 
@@ -88,3 +90,16 @@ def adjust_stock_page(request, medicine_id):
         return redirect("inventory_page")
     context = {**stock_page_data(request.user), "form": form, "medicine": medicine}
     return render(request, "inventory/adjust.html", context)
+
+
+@staff_required
+def change_price_page(request, medicine_id):
+    require_owner(request.user)
+    medicine = get_medicine(medicine_id)
+    form = PriceForm(request.POST) if request.method == "POST" else PriceForm()
+    if form.is_valid():
+        change_price(request.user, medicine, form.cleaned_data["price"])
+        messages.success(request, f"{medicine} now costs ${medicine.price}.")
+        return redirect("inventory_page")
+    context = {**stock_page_data(request.user), "form": form, "medicine": medicine}
+    return render(request, "inventory/price.html", context)

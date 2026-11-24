@@ -1,0 +1,38 @@
+{% extends "inventory/inventory.html" %}
+{% load static %}
+
+{% block title %}Change Price - CarePharm{% endblock %}
+
+{% block popup %}
+<div class="popup-overlay">
+    <dialog open class="popup">
+        <div class="popup-header">
+            <span class="stat-bubble"><img src="{% static 'core/images/row-pill.svg' %}" alt=""></span>
+            <div>
+                <h2>Change Price</h2>
+                <p>Sales already made keep the price they were sold at.</p>
+            </div>
+            <a href="/inventory/" class="popup-close" aria-label="Close"><img src="{% static 'core/images/icon-close.svg' %}" alt=""></a>
+        </div>
+
+        <p class="popup-medicine"><strong>{{ medicine }}</strong> · Current price: ${{ medicine.price }}</p>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="popup-fields">
+                {% for field in form %}
+                <div class="form-field full-width">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {{ field.errors }}
+                </div>
+                {% endfor %}
+            </div>
+            <div class="popup-actions">
+                <a href="/inventory/" class="secondary-button">Cancel</a>
+                <button type="submit" class="primary-button">Save Price</button>
+            </div>
+        </form>
+    </dialog>
+</div>
+{% endblock %}

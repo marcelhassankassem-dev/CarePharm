@@ -295,6 +295,9 @@ class StaffListTests(StaffPagesTestData):
     def test_f1_the_role_permissions_include_adding_medicines(self):
         self.assertContains(self.client.get("/staff/"), "Add new medicines")
 
+    def test_f2_the_role_permissions_include_changing_prices(self):
+        self.assertContains(self.client.get("/staff/"), "Change prices")
+
 
 class AddStaffTests(StaffPagesTestData):
     def setUp(self):
