@@ -18,6 +18,7 @@ from sales.services import (
     complete_sale,
     dispensing_history,
     medicine_cards,
+    medicine_match_count,
     record_sale,
     remove_one,
     sale_lines,
@@ -333,16 +334,21 @@ class CompleteSaleTests(SaleTestData):
 
 
 class MedicineCardsTests(SaleTestData):
-    def test_5_1a_every_medicine_has_a_card_with_its_available_stock(self):
+    def test_5_1a_every_medicine_found_has_a_card_with_its_available_stock(self):
         make_batch(self.amoxicillin, "AMX-001", quantity=30)
-        cards = {card["medicine"]: card["available"] for card in medicine_cards()}
+        cards = {card["medicine"]: card["available"] for card in medicine_cards("1000000000")}
         self.assertEqual(cards, {self.amoxicillin: 30, self.metformin: 0})
 
     def test_5_1a_a_medicine_below_its_minimum_is_marked_low(self):
         make_batch(self.amoxicillin, "AMX-001", quantity=30)
         make_batch(self.metformin, "MET-001", quantity=5)
-        cards = {card["medicine"]: card["low"] for card in medicine_cards()}
+        cards = {card["medicine"]: card["low"] for card in medicine_cards("1000000000")}
         self.assertEqual(cards, {self.amoxicillin: False, self.metformin: True})
+
+    def test_f4_expired_stock_is_not_on_the_card(self):
+        make_batch(self.amoxicillin, "AMX-001", quantity=30)
+        make_batch(self.amoxicillin, "AMX-OLD", quantity=50, days_until_expiry=-1)
+        self.assertEqual(medicine_cards("amox")[0]["available"], 30)
 
     def test_5_1a_the_search_finds_medicines_by_name(self):
         self.assertEqual([card["medicine"] for card in medicine_cards("metf")], [self.metformin])
@@ -416,17 +422,17 @@ class SalePageTests(SalePagesTestData):
         self.assertContains(response, "Current Sale")
 
     def test_5_1a_each_medicine_has_a_card_with_its_price_and_stock(self):
-        response = self.client.get("/sales/")
+        response = self.client.get("/sales/", {"search": "amox"})
         self.assertContains(response, "Amoxicillin 500 mg")
         self.assertContains(response, "$8.50")
         self.assertContains(response, "30 in stock")
 
     def test_5_1a_a_low_medicine_says_how_many_are_left(self):
         make_batch(self.metformin, "MET-001", quantity=5)
-        self.assertContains(self.client.get("/sales/"), "5 left")
+        self.assertContains(self.client.get("/sales/", {"search": "metf"}), "5 left")
 
     def test_5_1a_an_out_of_stock_medicine_cannot_be_added(self):
-        response = self.client.get("/sales/")
+        response = self.client.get("/sales/", {"search": "1000000000"})
         self.assertContains(response, "Out of stock")
         self.assertContains(response, f'action="/sales/add/{self.amoxicillin.pk}/"')
         self.assertNotContains(response, f'action="/sales/add/{self.metformin.pk}/"')
@@ -531,7 +537,7 @@ class ScanBarcodeTests(SalePagesTestData):
         self.batch = make_batch(self.amoxicillin, "AMX-001", quantity=30)
 
     def scan(self, code, follow=False):
-        return self.client.post("/sales/scan/", {"search": code}, follow=follow)
+        return self.client.post("/sales/scan/", {"search": code, "add_on_scan": "on"}, follow=follow)
 
     def quantity_of(self, batch):
         batch.refresh_from_db()
@@ -578,7 +584,7 @@ class ScanBarcodeTests(SalePagesTestData):
         self.assertRedirects(self.scan("100000000000"), "/sales/?search=100000000000")
         self.assertContains(self.client.get("/sales/"), "No medicines in this sale yet.")
 
-    def test_5_1b_an_empty_box_shows_every_medicine(self):
+    def test_5_1b_an_empty_box_goes_back_to_the_sale_page(self):
         self.assertRedirects(self.scan(""), "/sales/")
 
     def test_5_1b_opening_the_scan_address_changes_nothing(self):
@@ -588,6 +594,149 @@ class ScanBarcodeTests(SalePagesTestData):
     def test_5_1b_patient_side_users_cannot_scan(self):
         self.client.force_login(self.maya)
         self.assertEqual(self.scan("1000000000001").status_code, 403)
+
+
+def make_vitamins(count):
+    return [make_medicine(f"Vitamin {number:02d}", f"20000000000{number:02d}", "2.00") for number in range(1, count + 1)]
+
+
+class SearchLimitTests(SaleTestData):
+    def test_f4_no_search_gives_no_cards(self):
+        self.assertEqual(medicine_cards(""), [])
+        self.assertEqual(medicine_match_count(""), 0)
+
+    def test_f4_results_stop_at_20_in_name_order(self):
+        vitamins = make_vitamins(25)
+        cards = medicine_cards("vitamin")
+        self.assertEqual([card["medicine"] for card in cards], vitamins[:20])
+
+    def test_f4_the_match_count_counts_every_match(self):
+        make_vitamins(25)
+        self.assertEqual(medicine_match_count("vitamin"), 25)
+
+    def test_f4_a_medicine_matching_on_two_batches_counts_once(self):
+        make_batch(self.amoxicillin, "AMX-001")
+        make_batch(self.amoxicillin, "AMX-002")
+        self.assertEqual(len(medicine_cards("AMX")), 1)
+        self.assertEqual(medicine_match_count("AMX"), 1)
+
+
+class SearchOnlyPageTests(SalePagesTestData):
+    def setUp(self):
+        self.client.force_login(self.karim)
+        self.batch = make_batch(self.amoxicillin, "AMX-001", quantity=30)
+
+    def card_count(self, response):
+        return response.content.decode().count('class="sales-product ')
+
+    def test_f4_no_cards_until_a_search(self):
+        response = self.client.get("/sales/")
+        self.assertEqual(self.card_count(response), 0)
+        self.assertContains(response, '<p class="sales-empty">Search a medicine or scan its barcode</p>', html=True)
+
+    def test_f4_a_search_shows_the_matching_cards(self):
+        response = self.client.get("/sales/", {"search": "amox"})
+        self.assertEqual(self.card_count(response), 1)
+        self.assertContains(response, f'action="/sales/add/{self.amoxicillin.pk}/"')
+
+    def test_f4_spaces_around_a_search_are_ignored(self):
+        self.assertEqual(self.card_count(self.client.get("/sales/", {"search": " amox "})), 1)
+
+    def test_f4_a_search_with_no_match_says_so(self):
+        response = self.client.get("/sales/", {"search": "zzz"})
+        self.assertContains(response, "No medicines found.")
+        self.assertNotContains(response, "Search a medicine or scan its barcode</p>")
+
+    def test_f4_more_than_20_results_show_20_and_ask_to_refine(self):
+        make_vitamins(25)
+        response = self.client.get("/sales/", {"search": "vitamin"})
+        self.assertEqual(self.card_count(response), 20)
+        self.assertContains(response, "Showing 20 of 25, refine your search")
+
+    def test_f4_20_results_or_fewer_need_no_note(self):
+        make_vitamins(20)
+        response = self.client.get("/sales/", {"search": "vitamin"})
+        self.assertEqual(self.card_count(response), 20)
+        self.assertNotContains(response, "refine your search")
+
+    def test_f4_adding_from_a_card_keeps_the_search(self):
+        response = self.client.post(f"/sales/add/{self.amoxicillin.pk}/", {"search": "amox"})
+        self.assertRedirects(response, "/sales/?search=amox")
+        self.assertContains(self.client.get("/sales/"), "Stock after sale: 30 → 29")
+
+    def test_f4_one_less_keeps_the_search(self):
+        self.client.post(f"/sales/add/{self.amoxicillin.pk}/")
+        response = self.client.post(f"/sales/remove/{self.amoxicillin.pk}/", {"search": "amox"})
+        self.assertRedirects(response, "/sales/?search=amox")
+
+    def test_f4_the_buttons_carry_the_search(self):
+        self.client.post(f"/sales/add/{self.amoxicillin.pk}/")
+        response = self.client.get("/sales/", {"search": "amox"})
+        self.assertContains(response, '<input type="hidden" name="search" value="amox">', count=3, html=True)
+
+    def test_f4_the_sale_and_the_customer_stay_while_searching(self):
+        self.client.post(f"/sales/add/{self.amoxicillin.pk}/")
+        self.client.post("/sales/patient/", {"patient": self.samira.pk})
+        response = self.client.get("/sales/", {"search": "metf"})
+        self.assertContains(response, "Stock after sale: 30 → 29")
+        self.assertContains(response, "Customer: Samira")
+
+
+class AddOnScanTests(SalePagesTestData):
+    def setUp(self):
+        self.client.force_login(self.karim)
+        self.batch = make_batch(self.amoxicillin, "AMX-001", quantity=30)
+
+    def scan(self, code, add_on_scan=False):
+        data = {"search": code}
+        if add_on_scan:
+            data["add_on_scan"] = "on"
+        return self.client.post("/sales/scan/", data)
+
+    def test_f4_the_box_is_there_and_off_by_default(self):
+        response = self.client.get("/sales/")
+        self.assertContains(response, "Add to sale on scan")
+        self.assertContains(response, '<input type="checkbox" name="add_on_scan">', html=True)
+
+    def test_f4_the_box_is_part_of_the_search_form(self):
+        page = self.client.get("/sales/").content.decode()
+        search_form = page[page.index('action="/sales/scan/"'):]
+        search_form = search_form[: search_form.index("</form>")]
+        self.assertIn('name="add_on_scan"', search_form)
+
+    def test_f4_with_the_box_off_a_scan_shows_the_card(self):
+        self.assertRedirects(self.scan("1000000000001"), "/sales/?search=1000000000001")
+        response = self.client.get("/sales/", {"search": "1000000000001"})
+        self.assertContains(response, f'action="/sales/add/{self.amoxicillin.pk}/"')
+        self.assertContains(response, "No medicines in this sale yet.")
+
+    def test_f4_with_the_box_on_a_scan_adds_to_the_sale(self):
+        self.assertRedirects(self.scan("1000000000001", add_on_scan=True), "/sales/")
+        self.assertContains(self.client.get("/sales/"), "Stock after sale: 30 → 29")
+
+    def test_f4_with_the_box_on_a_name_is_searched_not_added(self):
+        self.assertRedirects(self.scan("amox", add_on_scan=True), "/sales/?search=amox")
+        self.assertContains(self.client.get("/sales/"), "No medicines in this sale yet.")
+
+    def test_f4_the_choice_is_remembered(self):
+        self.scan("1000000000001", add_on_scan=True)
+        response = self.client.get("/sales/")
+        self.assertContains(response, '<input type="checkbox" name="add_on_scan" checked>', html=True)
+
+    def test_f4_unticking_the_box_is_remembered_too(self):
+        self.scan("1000000000001", add_on_scan=True)
+        self.scan("1000000000001")
+        response = self.client.get("/sales/")
+        self.assertContains(response, '<input type="checkbox" name="add_on_scan">', html=True)
+        self.assertContains(response, "Stock after sale: 30 → 29")
+
+    def test_f4_an_empty_box_still_saves_the_choice(self):
+        self.assertRedirects(self.scan("", add_on_scan=True), "/sales/")
+        self.assertContains(
+            self.client.get("/sales/"),
+            '<input type="checkbox" name="add_on_scan" checked>',
+            html=True,
+        )
 
 
 class LinkPatientTests(SalePagesTestData):

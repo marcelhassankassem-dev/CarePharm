@@ -2,8 +2,10 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from core.services import log_action
-from inventory.services import available_stock, get_medicine, is_low, stock_rows, take_stock
+from inventory.services import available_stock, find_medicines, get_medicine, is_low, take_stock
 from sales.models import Sale, SaleItem
+
+SEARCH_LIMIT = 20
 
 
 @transaction.atomic
@@ -39,11 +41,22 @@ def sold_lines_between(start, end):
     return lines.select_related("sale", "medicine").order_by("sale__time", "id")
 
 
-def medicine_cards(search=""):
-    return [
-        {"medicine": row["medicine"], "available": row["available"], "low": is_low(row)}
-        for row in stock_rows(search)
-    ]
+def medicine_card(medicine):
+    card = {"medicine": medicine, "available": available_stock(medicine)}
+    card["low"] = is_low(card)
+    return card
+
+
+def medicine_cards(search):
+    if not search:
+        return []
+    return [medicine_card(medicine) for medicine in find_medicines(search)[:SEARCH_LIMIT]]
+
+
+def medicine_match_count(search):
+    if not search:
+        return 0
+    return find_medicines(search).count()
 
 
 def add_one(current_sale, medicine):
