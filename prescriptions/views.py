@@ -22,16 +22,20 @@ from prescriptions.services import (
     uncollected_count,
     uncollected_rows,
 )
+from reservations.services import active_reservation_count, expire_reservations, reservation_rows
 from safety.services import safety_warnings
 from safety.views import safety_check_page
 from sales.forms import PaymentForm
 
 
-def list_page_data(request):
+def list_page_data(request, show=""):
+    expire_reservations()
     search = request.GET.get("search", "")
-    show = request.GET.get("show", "all")
+    show = show or request.GET.get("show", "all")
     if show == "ready":
         rows = ready_rows(search)
+    elif show == "reservations":
+        rows = reservation_rows(search)
     else:
         show = "all"
         rows = uncollected_rows(search)
@@ -41,6 +45,8 @@ def list_page_data(request):
         "show": show,
         "uncollected_count": uncollected_count(),
         "ready_count": ready_count(),
+        "reservation_count": active_reservation_count(),
+        "panel_reservations": reservation_rows()[:4],
         "can_change": can_act_as_pharmacist(request.user),
     }
 

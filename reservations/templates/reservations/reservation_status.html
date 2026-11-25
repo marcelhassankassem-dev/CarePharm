@@ -1,0 +1,7 @@
+{% if row.time_left %}
+<span class="pill reservation-time{% if row.soon %} soon{% endif %}">{{ row.time_left }}</span>
+{% elif row.reservation.status == "collected" %}
+<span class="pill reservation-time ended">Collected</span>
+{% else %}
+<span class="pill reservation-time ended">Expired · back in stock</span>
+{% endif %}

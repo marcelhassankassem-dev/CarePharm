@@ -15,11 +15,13 @@ from reports.services import (
     sales_summary,
     stock_alerts,
 )
+from reservations.services import expire_reservations
 from sales.services import sold_lines_between
 
 
 @staff_required
 def dashboard(request):
+    expire_reservations()
     status = request.GET.get("status", "")
     return render(
         request,

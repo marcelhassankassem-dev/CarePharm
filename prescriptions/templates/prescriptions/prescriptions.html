@@ -21,6 +21,7 @@
 <div class="prescription-tools">
     <nav class="prescription-tabs">
         <a href="/prescriptions/?search={{ search|urlencode }}" class="{% if show == 'all' %}selected{% endif %}">Prescriptions {{ uncollected_count }}</a>
+        <a href="/prescriptions/?show=reservations&amp;search={{ search|urlencode }}" class="{% if show == 'reservations' %}selected{% endif %}">Reservations {{ reservation_count }}</a>
         <a href="/prescriptions/?show=ready&amp;search={{ search|urlencode }}" class="{% if show == 'ready' %}selected{% endif %}">Not collected {{ ready_count }}</a>
     </nav>
     <form method="get" action="/prescriptions/" class="stock-search prescription-search">
@@ -30,7 +31,11 @@
     </form>
 </div>
 
+<div class="prescription-page">
 <section class="card prescription-list">
+    {% if show == "reservations" %}
+    {% include "reservations/reservation_table.html" %}
+    {% else %}
     <table class="data-table prescription-table">
         <thead>
             <tr>
@@ -98,7 +103,13 @@
     {% else %}
     <p class="stock-count">Showing {{ rows|length }} of {{ uncollected_count }} prescription{{ uncollected_count|pluralize }}</p>
     {% endif %}
+    {% endif %}
 </section>
+
+<aside class="card prescription-panel">
+    {% include "reservations/reservation_panel.html" %}
+</aside>
+</div>
 
 {% block popup %}{% endblock %}
 {% endblock %}

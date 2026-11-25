@@ -1,0 +1,38 @@
+{% extends "prescriptions/prescriptions.html" %}
+{% load static %}
+
+{% block title %}Collect Reservation - CarePharm{% endblock %}
+
+{% block popup %}
+<div class="popup-overlay">
+    <dialog open class="popup">
+        <div class="popup-header">
+            <span class="card-icon-bubble"><img src="{% static 'core/images/reservation-bookmark.svg' %}" alt=""></span>
+            <div>
+                <h2>Collect Reservation</h2>
+                <p>{{ reservation.patient.name }} · {{ reservation.medicine }} · {{ reservation.quantity }} unit{{ reservation.quantity|pluralize }}</p>
+            </div>
+            <a href="/prescriptions/?show=reservations" class="popup-close" aria-label="Close"><img src="{% static 'core/images/icon-close.svg' %}" alt=""></a>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="popup-fields">
+                <div class="form-field full-width">
+                    <label>Payment</label>
+                    <div class="payment-choices">
+                        {% for choice in form.payment_method %}
+                        <label>{{ choice.tag }} {{ choice.choice_label }}</label>
+                        {% endfor %}
+                    </div>
+                    {{ form.payment_method.errors }}
+                </div>
+            </div>
+            <div class="popup-actions">
+                <a href="/prescriptions/?show=reservations" class="secondary-button">Cancel</a>
+                <button type="submit" class="primary-button">Mark Collected</button>
+            </div>
+        </form>
+    </dialog>
+</div>
+{% endblock %}

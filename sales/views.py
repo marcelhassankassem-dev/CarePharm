@@ -8,6 +8,7 @@ from accounts.permissions import staff_required
 from inventory.services import get_medicine, medicine_with_barcode
 from passport.forms import PatientChoiceForm
 from passport.services import get_patient
+from reservations.services import expire_reservations
 from sales.forms import PaymentForm
 from sales.services import (
     add_one,
@@ -49,6 +50,7 @@ def sale_page_address(search):
 
 
 def sale_page_data(request):
+    expire_reservations()
     search = request.GET.get("search", "").strip()
     lines = sale_lines(current_sale_of(request))
     return {

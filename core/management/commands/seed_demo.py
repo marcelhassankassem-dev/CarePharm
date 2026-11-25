@@ -16,6 +16,8 @@ from prescriptions.services import (
     mark_ready,
     start_preparing,
 )
+from reservations.models import Reservation
+from reservations.services import reserve_medicine
 from sales.models import Sale
 from sales.services import complete_sale
 
@@ -262,6 +264,24 @@ def create_counter_sales():
     demo_counter_sale(karim, 0, "card", [("Paracetamol", "500 mg", 2), ("Cetirizine", "10 mg", 1)])
 
 
+def demo_reservation(patient_name, medicine_name, strength, quantity, minutes):
+    patient = Patient.objects.get(name=patient_name)
+    medicine = Medicine.objects.get(name=medicine_name, strength=strength)
+    reserved_at = timezone.now() - timedelta(minutes=minutes)
+    log_id = latest_log_id()
+    reservation = reserve_medicine(patient.user, patient, medicine, quantity)
+    move_log_entries_after(log_id, reserved_at)
+    Reservation.objects.filter(pk=reservation.pk).update(created_at=reserved_at)
+
+
+def create_reservations():
+    if Reservation.objects.exists():
+        return
+    demo_reservation("Maya", "Paracetamol syrup", "120 mg/5 ml", 1, 40)
+    demo_reservation("Samira", "Cetirizine", "10 mg", 1, 95)
+    demo_reservation("Omar's Father", "Omeprazole", "20 mg", 1, 180)
+
+
 class Command(BaseCommand):
     def handle(self, *args, **options):
         create_staff()
@@ -270,3 +290,4 @@ class Command(BaseCommand):
         create_passports()
         create_prescriptions()
         create_counter_sales()
+        create_reservations()

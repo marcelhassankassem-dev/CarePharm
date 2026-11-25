@@ -1,0 +1,44 @@
+<table class="data-table prescription-table">
+    <thead>
+        <tr>
+            <th>Patient</th>
+            <th>Medicine</th>
+            <th>Reserved</th>
+            <th>Status</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        {% with reservation=row.reservation %}
+        <tr class="reservation-row">
+            <td>
+                <div class="staff-name">
+                    <span class="staff-initials">{{ reservation.patient.name|slice:":2"|upper }}</span>
+                    <div>
+                        <strong>{{ reservation.patient.name }}</strong>
+                        <small>{{ reservation.patient.phone|default:"No phone recorded" }}</small>
+                    </div>
+                </div>
+            </td>
+            <td><strong class="prescription-medicine">{{ reservation.medicine }} · {{ reservation.quantity }} unit{{ reservation.quantity|pluralize }}</strong></td>
+            <td>{{ reservation.created_at|date:"d M Y, H:i" }}</td>
+            <td>{% include "reservations/reservation_status.html" %}</td>
+            <td class="prescription-action">
+                {% if reservation.status == "active" %}
+                <a href="/reservations/{{ reservation.pk }}/collect/" class="row-button">Mark Collected</a>
+                {% endif %}
+            </td>
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr>
+            <td colspan="5" class="prescription-empty">
+                {% if search %}No reservations match "{{ search }}".{% else %}No reservations right now.{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<p class="stock-count">Showing {{ rows|length }} reservation{{ rows|length|pluralize }}</p>
