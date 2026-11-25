@@ -90,6 +90,13 @@ def add_item(prescription, medicine, quantity, days_of_supply, long_term=False):
     )
 
 
+@transaction.atomic
+def create_refill_prescription(item):
+    prescription = Prescription.objects.create(patient=item.prescription.patient, refill_of=item)
+    add_item(prescription, item.medicine, item.quantity, item.days_of_supply, item.long_term)
+    return prescription
+
+
 def remove_item(item):
     check_status(item.prescription, "received", ITEMS_ARE_LOCKED)
     item.delete()

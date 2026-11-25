@@ -9,12 +9,18 @@ from django.utils import timezone
 from core.models import ActivityLog
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Patient
-from reservations.models import Reservation
+from prescriptions.models import Prescription, PrescriptionItem
+from reservations.models import RefillRequest, Reservation
 from reservations.services import (
     active_reservation_count,
+    approve_refill,
     collect_reservation,
     expire_reservations,
     minutes_left,
+    new_refill_count,
+    open_refill_count,
+    refill_rows,
+    request_refill,
     reservation_rows,
     reserve_medicine,
     time_left_text,
@@ -393,3 +399,296 @@ class CollectReservationPageTests(ReservationPagesTestData):
         address = self.collect_address(self.maya_reservation)
         self.assertEqual(self.client.get(address).status_code, 403)
         self.assertEqual(self.client.post(address, {"payment_method": "cash"}).status_code, 403)
+
+
+def collected_item(patient, medicine, quantity=30, days_of_supply=30):
+    prescription = Prescription.objects.create(patient=patient, status="collected", collected_at=timezone.now())
+    return PrescriptionItem.objects.create(
+        prescription=prescription,
+        medicine=medicine,
+        quantity=quantity,
+        days_of_supply=days_of_supply,
+        long_term=True,
+    )
+
+
+def requested_minutes_ago(refill_request, minutes):
+    RefillRequest.objects.filter(pk=refill_request.pk).update(created_at=timezone.now() - timedelta(minutes=minutes))
+    refill_request.refresh_from_db()
+    return refill_request
+
+
+def delay(refill_request):
+    RefillRequest.objects.filter(pk=refill_request.pk).update(status="delayed")
+    refill_request.refresh_from_db()
+    return refill_request
+
+
+class RefillTestData(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.rana = User.objects.create(username="rana", role="pharmacist")
+        cls.karim = User.objects.create(username="karim", role="assistant")
+        cls.father_user = User.objects.create(username="omars_father", role="patient")
+        cls.father = Patient.objects.create(
+            name="Omar's Father",
+            date_of_birth=date(1949, 11, 5),
+            phone="03 100 003",
+            user=cls.father_user,
+        )
+        cls.samira_user = User.objects.create(username="samira", role="patient")
+        cls.samira = Patient.objects.create(
+            name="Samira",
+            date_of_birth=date(1958, 3, 14),
+            phone="03 100 001",
+            user=cls.samira_user,
+        )
+        cls.losartan = make_medicine("Losartan", "1000000000010", "10.00")
+        cls.metformin = make_medicine("Metformin", "1000000000006", "7.50")
+
+    def setUp(self):
+        self.losartan_batch = make_batch(self.losartan, "LOS-001", 100)
+        self.losartan_item = collected_item(self.father, self.losartan)
+        self.metformin_item = collected_item(self.father, self.metformin, quantity=60)
+
+    def quantity_of(self, batch):
+        batch.refresh_from_db()
+        return batch.quantity
+
+
+class RequestRefillTests(RefillTestData):
+    def test_11_2_a_new_refill_request_is_waiting(self):
+        refill_request = request_refill(self.father_user, self.losartan_item)
+        self.assertEqual(refill_request.status, "waiting")
+        self.assertEqual(refill_request.get_status_display(), "New")
+        self.assertEqual((refill_request.prescription_item, refill_request.requested_by), (self.losartan_item, self.father_user))
+        self.assertIsNone(refill_request.new_prescription)
+
+    def test_11_2_an_item_with_an_open_request_cannot_be_requested_again(self):
+        request_refill(self.father_user, self.losartan_item)
+        with self.assertRaises(ValidationError):
+            request_refill(self.father_user, self.losartan_item)
+        self.assertEqual(RefillRequest.objects.count(), 1)
+
+    def test_11_2_a_delayed_request_is_still_open(self):
+        delay(request_refill(self.father_user, self.losartan_item))
+        with self.assertRaises(ValidationError):
+            request_refill(self.father_user, self.losartan_item)
+
+    def test_11_2_after_an_approval_the_item_can_be_requested_again(self):
+        approve_refill(request_refill(self.father_user, self.losartan_item))
+        request_refill(self.father_user, self.losartan_item)
+        self.assertEqual(RefillRequest.objects.filter(status="waiting").count(), 1)
+
+
+class ApproveRefillTests(RefillTestData):
+    def test_11_2_approving_creates_a_received_refill_prescription(self):
+        prescription = approve_refill(request_refill(self.father_user, self.losartan_item))
+        self.assertEqual((prescription.patient, prescription.status), (self.father, "received"))
+        self.assertEqual(prescription.refill_of, self.losartan_item)
+
+    def test_11_2_the_refill_has_the_same_medicine_quantity_and_supply(self):
+        prescription = approve_refill(request_refill(self.father_user, self.metformin_item))
+        item = prescription.prescriptionitem_set.get()
+        self.assertEqual(
+            (item.medicine, item.quantity, item.days_of_supply, item.long_term),
+            (self.metformin, 60, 30, True),
+        )
+        self.assertIsNone(item.batch)
+
+    def test_11_2_approving_marks_the_request_approved_and_links_the_prescription(self):
+        refill_request = request_refill(self.father_user, self.losartan_item)
+        prescription = approve_refill(refill_request)
+        refill_request.refresh_from_db()
+        self.assertEqual(refill_request.status, "approved")
+        self.assertEqual(refill_request.new_prescription, prescription)
+
+    def test_11_2_approving_takes_no_stock(self):
+        approve_refill(request_refill(self.father_user, self.losartan_item))
+        self.assertEqual(self.quantity_of(self.losartan_batch), 100)
+
+    def test_11_2_a_delayed_request_can_be_approved(self):
+        refill_request = delay(request_refill(self.father_user, self.losartan_item))
+        approve_refill(refill_request)
+        refill_request.refresh_from_db()
+        self.assertEqual(refill_request.status, "approved")
+
+    def test_11_2_an_approved_request_cannot_be_approved_again(self):
+        refill_request = request_refill(self.father_user, self.losartan_item)
+        approve_refill(refill_request)
+        with self.assertRaises(ValidationError):
+            approve_refill(refill_request)
+        self.assertEqual(Prescription.objects.filter(refill_of=self.losartan_item).count(), 1)
+
+
+class RefillRowsTests(RefillTestData):
+    def test_11_2_open_requests_are_listed_oldest_first(self):
+        newer = requested_minutes_ago(request_refill(self.father_user, self.losartan_item), 10)
+        older = requested_minutes_ago(request_refill(self.father_user, self.metformin_item), 600)
+        self.assertEqual([row["request"] for row in refill_rows()], [older, newer])
+
+    def test_11_2_delayed_requests_stay_and_approved_ones_leave(self):
+        delayed = delay(request_refill(self.father_user, self.losartan_item))
+        approve_refill(request_refill(self.father_user, self.metformin_item))
+        self.assertEqual([row["request"] for row in refill_rows()], [delayed])
+
+    def test_11_2_rows_can_be_searched_by_patient_name_or_phone(self):
+        father_request = request_refill(self.father_user, self.losartan_item)
+        samira_item = collected_item(self.samira, self.losartan)
+        samira_request = request_refill(self.samira_user, samira_item)
+        self.assertEqual([row["request"] for row in refill_rows("sam")], [samira_request])
+        self.assertEqual([row["request"] for row in refill_rows("100 003")], [father_request])
+
+    def test_11_2_the_tab_counts_open_requests_and_the_panel_counts_new_ones(self):
+        request_refill(self.father_user, self.losartan_item)
+        delay(request_refill(self.father_user, self.metformin_item))
+        self.assertEqual(open_refill_count(), 2)
+        self.assertEqual(new_refill_count(), 1)
+
+    def test_11_3_a_request_for_a_medicine_with_no_stock_is_flagged(self):
+        request_refill(self.father_user, self.metformin_item)
+        self.assertTrue(refill_rows()[0]["out_of_stock"])
+
+    def test_11_3_a_request_for_a_medicine_in_stock_is_not_flagged(self):
+        request_refill(self.father_user, self.losartan_item)
+        self.assertFalse(refill_rows()[0]["out_of_stock"])
+
+    def test_11_3_expired_stock_does_not_count(self):
+        make_batch(self.metformin, "MET-OLD", 50, days_until_expiry=-1)
+        request_refill(self.father_user, self.metformin_item)
+        self.assertTrue(refill_rows()[0]["out_of_stock"])
+
+    def test_11_3_any_available_stock_clears_the_flag(self):
+        make_batch(self.metformin, "MET-001", 5)
+        request_refill(self.father_user, self.metformin_item)
+        self.assertFalse(refill_rows()[0]["out_of_stock"])
+
+
+class RefillPagesTestData(RefillTestData):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.nadim = get_user_model().objects.create(username="nadim", role="owner", is_pharmacist=True)
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.rana)
+        self.metformin_request = requested_minutes_ago(request_refill(self.father_user, self.metformin_item), 600)
+        self.losartan_request = requested_minutes_ago(request_refill(self.father_user, self.losartan_item), 30)
+
+    def approve_address(self, refill_request):
+        return f"/reservations/refills/{refill_request.pk}/approve/"
+
+
+class RefillRequestsTabTests(RefillPagesTestData):
+    def test_11_2_the_tab_counts_open_requests(self):
+        response = self.client.get("/prescriptions/")
+        self.assertContains(response, 'href="/prescriptions/?show=refills&amp;search="')
+        self.assertContains(response, "Refill requests 2")
+
+    def test_11_2_the_tab_sits_between_reservations_and_not_collected(self):
+        page = self.client.get("/prescriptions/").content.decode()
+        self.assertLess(page.index("Reservations 0"), page.index("Refill requests 2"))
+        self.assertLess(page.index("Refill requests 2"), page.index("Not collected 0"))
+
+    def test_11_2_the_tab_lists_requests_oldest_first(self):
+        page = self.client.get("/prescriptions/", {"show": "refills"}).content.decode()
+        self.assertIn('class="selected">Refill requests 2', page)
+        self.assertLess(page.index("Metformin 500 mg · 60 units"), page.index("Losartan 500 mg · 30 units"))
+        self.assertEqual(page.count('class="refill-row"'), 2)
+
+    def test_11_2_new_and_delayed_requests_are_labelled(self):
+        delay(self.losartan_request)
+        response = self.client.get("/prescriptions/", {"show": "refills"})
+        self.assertContains(response, '<span class="pill refill-status waiting">New</span>', html=True)
+        self.assertContains(response, '<span class="pill refill-status delayed">Delayed</span>', html=True)
+
+    def test_11_3_an_out_of_stock_request_is_flagged(self):
+        response = self.client.get("/prescriptions/", {"show": "refills"})
+        self.assertContains(response, '<small class="refill-flag">Out of stock</small>', count=1, html=True)
+
+    def test_11_2_a_pharmacist_can_approve(self):
+        response = self.client.get("/prescriptions/", {"show": "refills"})
+        self.assertContains(response, f'action="{self.approve_address(self.losartan_request)}"')
+
+    def test_11_2_an_assistant_sees_no_approve_button(self):
+        self.client.force_login(self.karim)
+        response = self.client.get("/prescriptions/", {"show": "refills"})
+        self.assertContains(response, "Losartan 500 mg · 30 units")
+        self.assertNotContains(response, "/approve/")
+
+    def test_11_2_the_search_works_on_the_refills_tab(self):
+        samira_item = collected_item(self.samira, self.losartan)
+        request_refill(self.samira_user, samira_item)
+        response = self.client.get("/prescriptions/", {"show": "refills", "search": "sam"})
+        self.assertEqual(response.content.decode().count('class="refill-row"'), 1)
+        self.assertContains(response, '<input type="hidden" name="show" value="refills">', html=True)
+
+    def test_11_2_an_empty_tab_says_so(self):
+        RefillRequest.objects.all().delete()
+        response = self.client.get("/prescriptions/", {"show": "refills"})
+        self.assertContains(response, "No refill requests right now.")
+
+
+class RefillPanelTests(RefillPagesTestData):
+    def test_11_2_the_side_panel_has_a_refill_requests_card(self):
+        response = self.client.get("/prescriptions/")
+        self.assertContains(response, "Refill Requests")
+        self.assertContains(response, "Sent by patients from the chat")
+        self.assertContains(response, "2 new")
+        self.assertContains(response, 'href="/prescriptions/?show=refills"')
+        self.assertContains(response, "View all refill requests")
+
+    def test_11_2_the_card_shows_three_requests_at_most(self):
+        for name, barcode in [("Aspirin", "1000000000014"), ("Omeprazole", "1000000000008")]:
+            request_refill(self.father_user, collected_item(self.father, make_medicine(name, barcode, "3.00")))
+        self.assertContains(self.client.get("/prescriptions/"), 'class="panel-refill"', count=3)
+
+    def test_11_3_the_card_says_when_a_medicine_is_out_of_stock(self):
+        response = self.client.get("/prescriptions/")
+        self.assertContains(response, "Metformin 500 mg · out of stock")
+        self.assertContains(response, "Losartan 500 mg · requested")
+
+
+class ApproveRefillPageTests(RefillPagesTestData):
+    def test_11_2_approving_opens_the_new_refill_prescription(self):
+        response = self.client.post(self.approve_address(self.losartan_request), follow=True)
+        prescription = Prescription.objects.get(refill_of=self.losartan_item)
+        self.assertRedirects(response, f"/prescriptions/{prescription.pk}/")
+        shown = [str(message) for message in response.context["messages"]]
+        self.assertEqual(shown, [f"Refill approved: prescription {prescription.pk} created for Omar's Father."])
+
+    def test_11_2_an_approved_request_leaves_the_tab(self):
+        self.client.post(self.approve_address(self.losartan_request))
+        self.assertContains(self.client.get("/prescriptions/"), "Refill requests 1")
+
+    def test_11_2_an_owner_who_is_a_pharmacist_can_approve(self):
+        self.client.force_login(self.nadim)
+        self.client.post(self.approve_address(self.losartan_request))
+        self.losartan_request.refresh_from_db()
+        self.assertEqual(self.losartan_request.status, "approved")
+
+    def test_11_2_approving_twice_is_refused(self):
+        self.client.post(self.approve_address(self.losartan_request))
+        response = self.client.post(self.approve_address(self.losartan_request), follow=True)
+        self.assertRedirects(response, "/prescriptions/?show=refills")
+        self.assertContains(response, "Only a new or delayed refill request can be approved.")
+        self.assertEqual(Prescription.objects.filter(refill_of=self.losartan_item).count(), 1)
+
+    def test_11_2_opening_the_approve_address_changes_nothing(self):
+        self.assertRedirects(self.client.get(self.approve_address(self.losartan_request)), "/prescriptions/?show=refills")
+        self.losartan_request.refresh_from_db()
+        self.assertEqual(self.losartan_request.status, "waiting")
+
+    def test_11_2_an_assistant_cannot_approve(self):
+        self.client.force_login(self.karim)
+        self.assertEqual(self.client.post(self.approve_address(self.losartan_request)).status_code, 403)
+        self.assertFalse(Prescription.objects.filter(refill_of__isnull=False).exists())
+
+    def test_11_2_patient_side_users_cannot_approve(self):
+        self.client.force_login(self.father_user)
+        self.assertEqual(self.client.post(self.approve_address(self.losartan_request)).status_code, 403)
+
+    def test_11_2_an_unknown_request_is_not_found(self):
+        self.assertEqual(self.client.post("/reservations/refills/9999/approve/").status_code, 404)

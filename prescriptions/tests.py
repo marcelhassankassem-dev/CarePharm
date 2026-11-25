@@ -14,6 +14,7 @@ from prescriptions.models import Prescription, PrescriptionItem
 from prescriptions.services import (
     add_item,
     create_prescription,
+    create_refill_prescription,
     days_waiting,
     delete_prescription,
     mark_collected,
@@ -840,3 +841,37 @@ class ReadyOrdersPageTests(ReadyOrdersTestData):
     def test_1_3_patient_side_users_are_refused(self):
         self.client.force_login(self.maya)
         self.assertEqual(self.client.get("/prescriptions/", {"show": "ready"}).status_code, 403)
+
+
+class RefillPrescriptionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.patient = Patient.objects.create(name="Omar's Father", date_of_birth=date(1949, 11, 5))
+        cls.losartan = make_medicine("Losartan", "1000000000010", "10.00")
+        collected = Prescription.objects.create(patient=cls.patient, status="collected", collected_at=timezone.now())
+        cls.item = PrescriptionItem.objects.create(
+            prescription=collected,
+            medicine=cls.losartan,
+            quantity=30,
+            days_of_supply=30,
+            long_term=True,
+        )
+
+    def test_11_2_a_new_prescription_is_not_a_refill(self):
+        self.assertIsNone(create_prescription(self.patient).refill_of)
+
+    def test_11_2_a_refill_prescription_is_received_and_points_at_the_item(self):
+        refill = create_refill_prescription(self.item)
+        self.assertEqual((refill.patient, refill.status, refill.refill_of), (self.patient, "received", self.item))
+
+    def test_11_2_a_refill_prescription_repeats_the_item(self):
+        item = create_refill_prescription(self.item).prescriptionitem_set.get()
+        self.assertEqual(
+            (item.medicine, item.quantity, item.days_of_supply, item.long_term, item.batch),
+            (self.losartan, 30, 30, True, None),
+        )
+
+    def test_11_2_an_item_that_was_refilled_cannot_be_deleted(self):
+        create_refill_prescription(self.item)
+        with self.assertRaises(ProtectedError):
+            self.item.delete()

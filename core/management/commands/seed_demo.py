@@ -8,7 +8,7 @@ from django.utils import timezone
 from core.models import ActivityLog
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, Patient
-from prescriptions.models import Prescription
+from prescriptions.models import Prescription, PrescriptionItem
 from prescriptions.services import (
     add_item,
     create_prescription,
@@ -16,8 +16,8 @@ from prescriptions.services import (
     mark_ready,
     start_preparing,
 )
-from reservations.models import Reservation
-from reservations.services import reserve_medicine
+from reservations.models import RefillRequest, Reservation
+from reservations.services import request_refill, reserve_medicine
 from sales.models import Sale
 from sales.services import complete_sale
 
@@ -122,7 +122,8 @@ def create_stock():
     create_batch(paracetamol, "PAR-001", -20, 25, "1.50")
     create_batch(paracetamol, "PAR-002", 240, 200, "1.50")
 
-    create_medicine("Metformin", "850 mg", "1000000000006", "Biguanides", "7.50", 25)
+    metformin_850 = create_medicine("Metformin", "850 mg", "1000000000006", "Biguanides", "7.50", 25)
+    create_batch(metformin_850, "MET850-001", 400, 60, "3.75")
 
     amlodipine = create_medicine("Amlodipine", "5 mg", "1000000000007", "Calcium channel blockers", "9.00", 20)
     create_batch(amlodipine, "AML-001", 420, 90, "4.50")
@@ -200,27 +201,38 @@ def demo_prescription(patient_name, medicine_name, strength, quantity, days_of_s
     return prescription
 
 
+def collect_in_the_past(rana, prescription, ready_days, collected_days):
+    start_preparing(prescription)
+    ready_at = days_ago(ready_days)
+    collected_at = days_ago(collected_days)
+    log_id = latest_log_id()
+    mark_ready(rana, prescription)
+    move_log_entries_after(log_id, ready_at)
+    log_id = latest_log_id()
+    mark_collected(rana, prescription, "cash")
+    move_log_entries_after(log_id, collected_at)
+    Prescription.objects.filter(pk=prescription.pk).update(
+        created_at=ready_at,
+        ready_at=ready_at,
+        collected_at=collected_at,
+    )
+    sale = Sale.objects.filter(source="prescription").latest("id")
+    Sale.objects.filter(pk=sale.pk).update(time=collected_at)
+
+
 def create_prescriptions():
     if Prescription.objects.exists():
         return
     rana = get_user_model().objects.get(username="rana")
 
     collected = demo_prescription("Samira", "Metformin", "500 mg", 60, 30, True)
-    start_preparing(collected)
-    ready_at = days_ago(28)
-    collected_at = days_ago(27)
-    log_id = latest_log_id()
-    mark_ready(rana, collected)
-    move_log_entries_after(log_id, ready_at)
-    log_id = latest_log_id()
-    mark_collected(rana, collected, "cash")
-    move_log_entries_after(log_id, collected_at)
-    Prescription.objects.filter(pk=collected.pk).update(
-        created_at=days_ago(28),
-        ready_at=ready_at,
-        collected_at=collected_at,
-    )
-    Sale.objects.filter(patient=collected.patient, source="prescription").update(time=collected_at)
+    collect_in_the_past(rana, collected, 28, 27)
+
+    losartan = demo_prescription("Omar's Father", "Losartan", "50 mg", 30, 30, True)
+    collect_in_the_past(rana, losartan, 27, 26)
+
+    metformin_850 = demo_prescription("Omar's Father", "Metformin", "850 mg", 60, 30, True)
+    collect_in_the_past(rana, metformin_850, 25, 24)
 
     waiting = demo_prescription("Omar's Father", "Atorvastatin", "20 mg", 30, 30, True)
     start_preparing(waiting)
@@ -282,6 +294,25 @@ def create_reservations():
     demo_reservation("Omar's Father", "Omeprazole", "20 mg", 1, 180)
 
 
+def demo_refill_request(patient_name, medicine_name, strength, hours):
+    patient = Patient.objects.get(name=patient_name)
+    item = PrescriptionItem.objects.get(
+        prescription__patient=patient,
+        prescription__status="collected",
+        medicine__name=medicine_name,
+        medicine__strength=strength,
+    )
+    refill_request = request_refill(patient.user, item)
+    RefillRequest.objects.filter(pk=refill_request.pk).update(created_at=timezone.now() - timedelta(hours=hours))
+
+
+def create_refill_requests():
+    if RefillRequest.objects.exists():
+        return
+    demo_refill_request("Omar's Father", "Metformin", "850 mg", 20)
+    demo_refill_request("Omar's Father", "Losartan", "50 mg", 2)
+
+
 class Command(BaseCommand):
     def handle(self, *args, **options):
         create_staff()
@@ -291,3 +322,4 @@ class Command(BaseCommand):
         create_prescriptions()
         create_counter_sales()
         create_reservations()
+        create_refill_requests()

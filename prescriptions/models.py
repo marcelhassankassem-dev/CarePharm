@@ -18,6 +18,13 @@ class Prescription(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     ready_at = models.DateTimeField(null=True, blank=True)
     collected_at = models.DateTimeField(null=True, blank=True)
+    refill_of = models.ForeignKey(
+        "PrescriptionItem",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="refills",
+    )
 
     def __str__(self):
         return f"Prescription {self.pk} for {self.patient}"
