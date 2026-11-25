@@ -11,6 +11,7 @@ from core.services import activity_log, log_action, notifications_for, notify
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, Patient
 from prescriptions.models import Prescription, PrescriptionItem
+from reservations.models import Reservation
 from sales.models import Sale
 
 NEW_MEDICINES = [
@@ -291,6 +292,36 @@ class SeedDemoSalesTests(TestCase):
         self.assertEqual(taken.count(), lines)
 
 
+class SeedDemoReservationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo")
+
+    def setUp(self):
+        self.two_hours_ago = timezone.now() - timedelta(hours=2)
+
+    def test_10_3_the_demo_has_two_reservations_still_held(self):
+        held = Reservation.objects.filter(status="active", created_at__gt=self.two_hours_ago)
+        self.assertEqual(held.count(), 2)
+
+    def test_10_3_one_demo_reservation_ends_within_30_minutes(self):
+        soon = timezone.now() - timedelta(minutes=90)
+        self.assertTrue(Reservation.objects.filter(created_at__gt=self.two_hours_ago, created_at__lte=soon).exists())
+
+    def test_t7_one_demo_reservation_is_past_its_2_hours_and_waits_for_a_page_load(self):
+        past = Reservation.objects.filter(status="active", created_at__lte=self.two_hours_ago)
+        self.assertEqual(past.count(), 1)
+
+    def test_10_3_demo_reservations_belong_to_patients_with_logins(self):
+        for reservation in Reservation.objects.all():
+            self.assertIsNotNone(reservation.patient.user)
+
+    def test_10_3_demo_reservations_took_their_stock_when_they_were_made(self):
+        for reservation in Reservation.objects.all():
+            entry = ActivityLog.objects.get(action="Took stock", user=reservation.patient.user, time=reservation.created_at)
+            self.assertIn(f"batch {reservation.batch.batch_number}", entry.details)
+
+
 class SeedDemoTwiceTests(TestCase):
     def test_t4_running_twice_creates_nothing_new(self):
         call_command("seed_demo")
@@ -303,6 +334,7 @@ class SeedDemoTwiceTests(TestCase):
         current_medicines = CurrentMedicine.objects.count()
         prescriptions = Prescription.objects.count()
         sales = Sale.objects.count()
+        reservations = Reservation.objects.count()
         quantities = list(Batch.objects.order_by("id").values_list("quantity", flat=True))
 
         call_command("seed_demo")
@@ -316,6 +348,7 @@ class SeedDemoTwiceTests(TestCase):
         self.assertEqual(CurrentMedicine.objects.count(), current_medicines)
         self.assertEqual(Prescription.objects.count(), prescriptions)
         self.assertEqual(Sale.objects.count(), sales)
+        self.assertEqual(Reservation.objects.count(), reservations)
         self.assertEqual(list(Batch.objects.order_by("id").values_list("quantity", flat=True)), quantities)
 
 
