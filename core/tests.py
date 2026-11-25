@@ -11,7 +11,7 @@ from core.services import activity_log, log_action, notifications_for, notify
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, Patient
 from prescriptions.models import Prescription, PrescriptionItem
-from reservations.models import Reservation
+from reservations.models import RefillRequest, Reservation
 from sales.models import Sale
 
 NEW_MEDICINES = [
@@ -171,9 +171,10 @@ class SeedDemoMedicineTests(TestCase):
         metformin = Medicine.objects.filter(name="Metformin")
         self.assertEqual(sorted(medicine.strength for medicine in metformin), ["500 mg", "850 mg"])
 
-    def test_t8_metformin_850_has_no_stock(self):
+    def test_t8_metformin_850_has_no_available_stock(self):
         metformin = Medicine.objects.get(name="Metformin", strength="850 mg")
-        self.assertFalse(metformin.batch_set.exists())
+        batches = metformin.batch_set.filter(expiry_date__gte=timezone.localdate())
+        self.assertEqual(sum(batch.quantity for batch in batches), 0)
 
     def test_t8_ahmad_still_takes_metformin_500(self):
         current_medicine = CurrentMedicine.objects.get(patient__name="Ahmad")
@@ -244,17 +245,16 @@ class SeedDemoPrescriptionTests(TestCase):
         waiting = Prescription.objects.filter(status="ready", ready_at__lt=two_days_ago)
         self.assertTrue(waiting.exists())
 
-    def test_1_1_a_collected_prescription_has_its_sale(self):
-        collected = Prescription.objects.get(status="collected")
-        sale = Sale.objects.get(source="prescription")
-        self.assertEqual(sale.patient, collected.patient)
-        self.assertEqual(sale.time, collected.collected_at)
+    def test_1_1_each_collected_prescription_has_its_sale(self):
+        for collected in Prescription.objects.filter(status="collected"):
+            sales = Sale.objects.filter(source="prescription", patient=collected.patient, time=collected.collected_at)
+            self.assertEqual(sales.count(), 1)
 
-    def test_8_3_the_seeded_sale_is_logged_when_it_was_collected(self):
-        collected = Prescription.objects.get(status="collected")
-        sale = Sale.objects.get(source="prescription")
-        entry = ActivityLog.objects.get(action="Recorded sale", details__startswith=f"Sale {sale.pk} ·")
-        self.assertEqual(entry.time, collected.collected_at)
+    def test_8_3_each_seeded_prescription_sale_is_logged_when_it_was_collected(self):
+        for collected in Prescription.objects.filter(status="collected"):
+            sale = Sale.objects.get(source="prescription", patient=collected.patient, time=collected.collected_at)
+            entry = ActivityLog.objects.get(action="Recorded sale", details__startswith=f"Sale {sale.pk} ·")
+            self.assertEqual(entry.time, collected.collected_at)
 
     def test_8_3_stock_is_logged_on_the_day_each_prescription_became_ready(self):
         items = PrescriptionItem.objects.filter(prescription__status__in=["ready", "collected"])
@@ -322,6 +322,39 @@ class SeedDemoReservationTests(TestCase):
             self.assertIn(f"batch {reservation.batch.batch_number}", entry.details)
 
 
+class SeedDemoRefillTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo")
+
+    def available(self, medicine):
+        batches = medicine.batch_set.filter(expiry_date__gte=timezone.localdate())
+        return sum(batch.quantity for batch in batches)
+
+    def test_11_2_the_demo_has_two_new_refill_requests_from_omars_father(self):
+        requests = RefillRequest.objects.filter(status="waiting")
+        self.assertEqual(requests.count(), 2)
+        self.assertEqual({request.requested_by.username for request in requests}, {"omars_father"})
+
+    def test_11_2_demo_requests_point_at_collected_long_term_items(self):
+        for request in RefillRequest.objects.select_related("prescription_item__prescription"):
+            self.assertEqual(request.prescription_item.prescription.status, "collected")
+            self.assertTrue(request.prescription_item.long_term)
+
+    def test_11_2_the_demo_requests_were_made_at_different_times(self):
+        times = RefillRequest.objects.values_list("created_at", flat=True)
+        self.assertEqual(len(set(times)), 2)
+
+    def test_11_3_one_demo_request_is_for_a_medicine_with_no_stock(self):
+        requests = RefillRequest.objects.select_related("prescription_item__medicine")
+        empty = [request for request in requests if self.available(request.prescription_item.medicine) == 0]
+        self.assertEqual(len(empty), 1)
+        self.assertEqual(str(empty[0].prescription_item.medicine), "Metformin 850 mg")
+
+    def test_11_2_samira_has_no_refill_request_yet(self):
+        self.assertFalse(RefillRequest.objects.filter(prescription_item__prescription__patient__name="Samira").exists())
+
+
 class SeedDemoTwiceTests(TestCase):
     def test_t4_running_twice_creates_nothing_new(self):
         call_command("seed_demo")
@@ -335,6 +368,7 @@ class SeedDemoTwiceTests(TestCase):
         prescriptions = Prescription.objects.count()
         sales = Sale.objects.count()
         reservations = Reservation.objects.count()
+        refill_requests = RefillRequest.objects.count()
         quantities = list(Batch.objects.order_by("id").values_list("quantity", flat=True))
 
         call_command("seed_demo")
@@ -349,6 +383,7 @@ class SeedDemoTwiceTests(TestCase):
         self.assertEqual(Prescription.objects.count(), prescriptions)
         self.assertEqual(Sale.objects.count(), sales)
         self.assertEqual(Reservation.objects.count(), reservations)
+        self.assertEqual(RefillRequest.objects.count(), refill_requests)
         self.assertEqual(list(Batch.objects.order_by("id").values_list("quantity", flat=True)), quantities)
 
 
