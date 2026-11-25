@@ -1,0 +1,25 @@
+{% load static %}
+<div class="panel-section">
+    <div class="card-header panel-header">
+        <span class="card-icon-bubble"><img src="{% static 'core/images/reservation-bookmark.svg' %}" alt=""></span>
+        <div>
+            <h2>Reservations</h2>
+            <p>Held for 2 hours, then back to stock</p>
+        </div>
+        <span class="panel-count">{{ reservation_count }} active</span>
+    </div>
+
+    <div class="panel-rows">
+        {% for row in panel_reservations %}
+        <div class="panel-reservation">
+            <div>
+                <strong{% if not row.time_left %} class="ended"{% endif %}>{{ row.reservation.patient.name }}</strong>
+                <small title="{{ row.reservation.medicine }}">{{ row.reservation.medicine }} · {{ row.reservation.quantity }} unit{{ row.reservation.quantity|pluralize }}</small>
+            </div>
+            {% include "reservations/reservation_status.html" %}
+        </div>
+        {% empty %}
+        <p class="panel-empty">No reservations right now.</p>
+        {% endfor %}
+    </div>
+</div>

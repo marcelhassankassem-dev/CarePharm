@@ -20,9 +20,11 @@ from inventory.services import (
     record_delivery,
     stock_rows,
 )
+from reservations.services import expire_reservations
 
 
 def stock_page_data(user, search="", days=NEAR_EXPIRY_DAYS, show="all"):
+    expire_reservations()
     if show == "expiring":
         rows = near_expiry_rows(days, search)
     elif show == "low_stock":
