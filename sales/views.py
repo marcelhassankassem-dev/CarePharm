@@ -9,7 +9,15 @@ from inventory.services import get_medicine, medicine_with_barcode
 from passport.forms import PatientChoiceForm
 from passport.services import get_patient
 from sales.forms import PaymentForm
-from sales.services import add_one, complete_sale, medicine_cards, remove_one, sale_lines, sale_total
+from sales.services import (
+    add_one,
+    complete_sale,
+    medicine_cards,
+    medicine_match_count,
+    remove_one,
+    sale_lines,
+    sale_total,
+)
 
 
 def current_sale_of(request):
@@ -34,11 +42,19 @@ def change_current_sale(request, change, medicine):
     return True
 
 
+def sale_page_address(search):
+    if search:
+        return f"/sales/?{urlencode({'search': search})}"
+    return "/sales/"
+
+
 def sale_page_data(request):
-    search = request.GET.get("search", "")
+    search = request.GET.get("search", "").strip()
     lines = sale_lines(current_sale_of(request))
     return {
         "cards": medicine_cards(search),
+        "match_count": medicine_match_count(search),
+        "add_on_scan": request.session.get("add_on_scan", False),
         "search": search,
         "lines": lines,
         "in_sale": [line["medicine"].pk for line in lines],
@@ -74,17 +90,19 @@ def sale_patient_remove(request):
 @staff_required
 def sale_add(request, medicine_id):
     medicine = get_medicine(medicine_id)
-    if request.method == "POST":
-        change_current_sale(request, add_one, medicine)
-    return redirect("sale_page")
+    if request.method != "POST":
+        return redirect("sale_page")
+    change_current_sale(request, add_one, medicine)
+    return redirect(sale_page_address(request.POST.get("search", "")))
 
 
 @staff_required
 def sale_remove(request, medicine_id):
     medicine = get_medicine(medicine_id)
-    if request.method == "POST":
-        change_current_sale(request, remove_one, medicine)
-    return redirect("sale_page")
+    if request.method != "POST":
+        return redirect("sale_page")
+    change_current_sale(request, remove_one, medicine)
+    return redirect(sale_page_address(request.POST.get("search", "")))
 
 
 @staff_required
@@ -92,14 +110,14 @@ def sale_scan(request):
     if request.method != "POST":
         return redirect("sale_page")
     code = request.POST.get("search", "").strip()
+    add_on_scan = request.POST.get("add_on_scan") == "on"
+    request.session["add_on_scan"] = add_on_scan
     medicine = medicine_with_barcode(code)
-    if medicine:
+    if add_on_scan and medicine:
         if change_current_sale(request, add_one, medicine):
             messages.success(request, f"{medicine} added to the sale.")
         return redirect("sale_page")
-    if code:
-        return redirect(f"/sales/?{urlencode({'search': code})}")
-    return redirect("sale_page")
+    return redirect(sale_page_address(code))
 
 
 @staff_required

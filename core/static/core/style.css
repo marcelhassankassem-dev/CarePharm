@@ -2185,7 +2185,33 @@ body {
 
 .sales-search {
     position: relative;
+    margin-bottom: 16px;
+}
+
+.sales-scan-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: max-content;
+    height: 34px;
     margin-bottom: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #4f6070;
+    cursor: pointer;
+}
+
+.sales-scan-toggle input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: #14756f;
+}
+
+.sales-more {
+    margin: 16px 0 0;
+    font-size: 13px;
+    color: #4f6070;
 }
 
 .sales-search img {

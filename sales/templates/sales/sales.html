@@ -14,11 +14,14 @@
 
 <div class="sales-layout">
     <section class="card sales-catalog">
-        <form method="post" action="/sales/scan/" class="sales-search">
+        <form method="post" action="/sales/scan/">
             {% csrf_token %}
-            <img src="{% static 'core/images/icon-search.svg' %}" alt="">
-            <input type="search" name="search" value="{{ search }}" placeholder="Search a medicine or scan its barcode" aria-label="Search a medicine or scan its barcode" autofocus>
-            <img src="{% static 'core/images/sale-barcode.svg' %}" alt="" class="sales-barcode">
+            <div class="sales-search">
+                <img src="{% static 'core/images/icon-search.svg' %}" alt="">
+                <input type="search" name="search" value="{{ search }}" placeholder="Search a medicine or scan its barcode" aria-label="Search a medicine or scan its barcode" autofocus>
+                <img src="{% static 'core/images/sale-barcode.svg' %}" alt="" class="sales-barcode">
+            </div>
+            <label class="sales-scan-toggle"><input type="checkbox" name="add_on_scan"{% if add_on_scan %} checked{% endif %}> Add to sale on scan</label>
         </form>
 
         <div class="sales-products">
@@ -45,6 +48,7 @@
                     {% if card.available %}
                     <form method="post" action="/sales/add/{{ card.medicine.pk }}/">
                         {% csrf_token %}
+                        <input type="hidden" name="search" value="{{ search }}">
                         <button type="submit" class="sales-add" aria-label="Add {{ card.medicine }}">
                             {% if card.medicine.pk in in_sale %}
                             <img src="{% static 'core/images/sale-add.svg' %}" alt="">
@@ -57,9 +61,17 @@
                 </div>
             </div>
             {% empty %}
+            {% if search %}
             <p class="sales-empty">No medicines found.</p>
+            {% else %}
+            <p class="sales-empty">Search a medicine or scan its barcode</p>
+            {% endif %}
             {% endfor %}
         </div>
+
+        {% if match_count > cards|length %}
+        <p class="sales-more">Showing {{ cards|length }} of {{ match_count }}, refine your search</p>
+        {% endif %}
     </section>
 
     <section class="card current-sale">
@@ -89,11 +101,13 @@
                 <div class="sale-stepper">
                     <form method="post" action="/sales/remove/{{ line.medicine.pk }}/">
                         {% csrf_token %}
+                        <input type="hidden" name="search" value="{{ search }}">
                         <button type="submit" aria-label="One less {{ line.medicine }}"><img src="{% static 'core/images/sale-minus.svg' %}" alt=""></button>
                     </form>
                     <span>{{ line.quantity }}</span>
                     <form method="post" action="/sales/add/{{ line.medicine.pk }}/">
                         {% csrf_token %}
+                        <input type="hidden" name="search" value="{{ search }}">
                         <button type="submit" aria-label="One more {{ line.medicine }}"><img src="{% static 'core/images/sale-plus.svg' %}" alt=""></button>
                     </form>
                 </div>
