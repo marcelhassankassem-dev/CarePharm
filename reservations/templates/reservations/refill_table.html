@@ -1,0 +1,50 @@
+<table class="data-table prescription-table">
+    <thead>
+        <tr>
+            <th>Patient</th>
+            <th>Medicine</th>
+            <th>Requested</th>
+            <th>Status</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        {% with refill_request=row.request item=row.request.prescription_item %}
+        <tr class="refill-row">
+            <td>
+                <div class="staff-name">
+                    <span class="staff-initials">{{ item.prescription.patient.name|slice:":2"|upper }}</span>
+                    <div>
+                        <strong>{{ item.prescription.patient.name }}</strong>
+                        <small>{{ item.prescription.patient.phone|default:"No phone recorded" }}</small>
+                    </div>
+                </div>
+            </td>
+            <td>
+                <strong class="prescription-medicine">{{ item.medicine }} · {{ item.quantity }} unit{{ item.quantity|pluralize }}</strong>
+                {% if row.out_of_stock %}<small class="refill-flag">Out of stock</small>{% endif %}
+            </td>
+            <td>{{ refill_request.created_at|date:"d M Y, H:i" }}</td>
+            <td><span class="pill refill-status {{ refill_request.status }}">{{ refill_request.get_status_display }}</span></td>
+            <td class="prescription-action">
+                {% if can_change %}
+                <form method="post" action="/reservations/refills/{{ refill_request.pk }}/approve/">
+                    {% csrf_token %}
+                    <button type="submit" class="row-button filled">Approve</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr>
+            <td colspan="5" class="prescription-empty">
+                {% if search %}No refill requests match "{{ search }}".{% else %}No refill requests right now.{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<p class="stock-count">Showing {{ rows|length }} refill request{{ rows|length|pluralize }}, oldest first</p>

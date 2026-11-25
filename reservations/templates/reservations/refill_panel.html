@@ -1,0 +1,29 @@
+{% load static %}
+<div class="panel-section">
+    <div class="card-header panel-header">
+        <span class="card-icon-bubble"><img src="{% static 'core/images/refill-refresh.svg' %}" alt=""></span>
+        <div>
+            <h2>Refill Requests</h2>
+            <p>Sent by patients from the chat</p>
+        </div>
+        <span class="panel-count">{{ new_refill_count }} new</span>
+    </div>
+
+    <div class="panel-rows">
+        {% for row in panel_refills %}
+        {% with item=row.request.prescription_item %}
+        <div class="panel-refill">
+            <div>
+                <strong>{{ item.prescription.patient.name }}</strong>
+                <small title="{{ item.medicine }}">{{ item.medicine }} · {% if row.out_of_stock %}out of stock{% else %}requested {{ row.request.created_at|date:"d M, H:i" }}{% endif %}</small>
+            </div>
+            <span class="pill refill-status {{ row.request.status }}">{{ row.request.get_status_display }}</span>
+        </div>
+        {% endwith %}
+        {% empty %}
+        <p class="panel-empty">No refill requests right now.</p>
+        {% endfor %}
+    </div>
+
+    <a href="/prescriptions/?show=refills" class="panel-link">View all refill requests</a>
+</div>

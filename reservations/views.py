@@ -2,9 +2,15 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.shortcuts import redirect, render
 
-from accounts.permissions import staff_required
+from accounts.permissions import pharmacist_required, staff_required
 from prescriptions.views import list_page_data
-from reservations.services import collect_reservation, expire_reservations, get_reservation
+from reservations.services import (
+    approve_refill,
+    collect_reservation,
+    expire_reservations,
+    get_refill_request,
+    get_reservation,
+)
 from sales.forms import PaymentForm
 
 
@@ -28,3 +34,17 @@ def reservation_collect(request, reservation_id):
         "reservations/collect.html",
         {**list_page_data(request, "reservations"), "form": form, "reservation": reservation},
     )
+
+
+@pharmacist_required
+def refill_approve(request, refill_request_id):
+    refill_request = get_refill_request(refill_request_id)
+    if request.method != "POST":
+        return redirect("/prescriptions/?show=refills")
+    try:
+        prescription = approve_refill(refill_request)
+    except ValidationError as problem:
+        messages.error(request, " ".join(problem.messages))
+        return redirect("/prescriptions/?show=refills")
+    messages.success(request, f"Refill approved: prescription {prescription.pk} created for {prescription.patient}.")
+    return redirect("prescription_detail", prescription.pk)

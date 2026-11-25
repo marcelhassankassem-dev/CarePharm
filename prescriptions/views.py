@@ -22,7 +22,14 @@ from prescriptions.services import (
     uncollected_count,
     uncollected_rows,
 )
-from reservations.services import active_reservation_count, expire_reservations, reservation_rows
+from reservations.services import (
+    active_reservation_count,
+    expire_reservations,
+    new_refill_count,
+    open_refill_count,
+    refill_rows,
+    reservation_rows,
+)
 from safety.services import safety_warnings
 from safety.views import safety_check_page
 from sales.forms import PaymentForm
@@ -36,6 +43,8 @@ def list_page_data(request, show=""):
         rows = ready_rows(search)
     elif show == "reservations":
         rows = reservation_rows(search)
+    elif show == "refills":
+        rows = refill_rows(search)
     else:
         show = "all"
         rows = uncollected_rows(search)
@@ -47,6 +56,9 @@ def list_page_data(request, show=""):
         "ready_count": ready_count(),
         "reservation_count": active_reservation_count(),
         "panel_reservations": reservation_rows()[:4],
+        "refill_count": open_refill_count(),
+        "new_refill_count": new_refill_count(),
+        "panel_refills": refill_rows()[:3],
         "can_change": can_act_as_pharmacist(request.user),
     }
 
