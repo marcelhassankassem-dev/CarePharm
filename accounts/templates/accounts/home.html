@@ -38,6 +38,45 @@
         <img src="{% static 'core/images/home-reserve-medicine.png' %}" alt="">
         <p>Reserve available medicine before visiting the pharmacy.</p>
     </a>
+    <section class="card home-refills" id="refill-reminders">
+        {% for reminder in refill_reminders %}
+        <div class="refill-reminder">
+            <span class="refill-reminder-icon"><img src="{% static 'core/images/refill-reminder-bell.svg' %}" alt=""></span>
+            <div class="refill-reminder-text">
+                <strong>Refill reminder</strong>
+                <small>Runs out {{ reminder.runs_out_on|date:"j M" }}</small>
+                <p>{{ reminder.text }}</p>
+            </div>
+            <form method="post" action="{% url 'refill_request' reminder.item.pk %}">
+                {% csrf_token %}
+                <button type="submit">Request Refill</button>
+            </form>
+        </div>
+        {% endfor %}
+        {% for refill_request in refill_requests %}
+        <div class="refill-reminder {{ refill_request.status }}">
+            {% if refill_request.status == "delayed" %}
+            <span class="refill-reminder-icon"><img src="{% static 'core/images/refill-reminder-pill-delayed.svg' %}" alt=""></span>
+            <div class="refill-reminder-text">
+                <strong>{{ refill_request.prescription_item.medicine }}</strong>
+                <p>Refill delayed · expected {{ refill_request.expected_on|date:"j M" }}</p>
+            </div>
+            <span class="refill-reminder-status delayed">Delayed</span>
+            {% else %}
+            <span class="refill-reminder-icon"><img src="{% static 'core/images/refill-reminder-pill.svg' %}" alt=""></span>
+            <div class="refill-reminder-text">
+                <strong>{{ refill_request.prescription_item.medicine }}</strong>
+                <p>Refill request · {{ refill_request.prescription_item.quantity }} units</p>
+            </div>
+            <span class="refill-reminder-status waiting">Sent to pharmacist</span>
+            {% endif %}
+        </div>
+        {% empty %}
+        {% if not refill_reminders %}
+        <p class="home-refills-empty"><strong>Refill reminders</strong>No refills due. We will remind you 3 days before a long-term medicine runs out.</p>
+        {% endif %}
+        {% endfor %}
+    </section>
     <a href="{% url 'my_prescriptions' %}" class="home-card track">
         <h2>Track Prescription</h2>
         <img src="{% static 'core/images/home-track-prescription.png' %}" alt="">
@@ -48,11 +87,11 @@
         <img src="{% static 'core/images/home-medication-passport.png' %}" alt="">
         <p>Your allergies, medicines and history in one record you can share with any pharmacy.</p>
     </div>
-    <div class="home-card refill">
+    <a href="#refill-reminders" class="home-card refill">
         <h2>Request a Refill</h2>
         <img src="{% static 'core/images/home-request-refill.png' %}" alt="">
         <p>Ask for a refill before your medicine runs out.</p>
-    </div>
+    </a>
     <div class="home-card assistant">
         <h2>AI Pharmacy Assistant</h2>
         <img src="{% static 'core/images/home-assistant.png' %}" alt="">

@@ -3425,6 +3425,114 @@ body {
     background: rgba(60, 176, 233, 0.8);
 }
 
+.home-refills {
+    grid-column: 3 / span 2;
+    grid-row: 1;
+    align-self: start;
+    padding: 4px 20px;
+    border-radius: 20px;
+}
+
+.refill-reminder {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 90px;
+    box-sizing: border-box;
+}
+
+.refill-reminder + .refill-reminder {
+    border-top: 1px solid #e1e9e8;
+}
+
+.refill-reminder-icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: #e6f0fb;
+}
+
+.refill-reminder.waiting .refill-reminder-icon {
+    background: #e3f4f0;
+}
+
+.refill-reminder.delayed .refill-reminder-icon {
+    background: #ffe3cc;
+}
+
+.refill-reminder-text {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.refill-reminder-text strong {
+    font-size: 14.5px;
+    color: #0f2233;
+}
+
+.refill-reminder-text small {
+    position: absolute;
+    top: 1px;
+    right: 0;
+    font-size: 12px;
+    color: #7c8a96;
+}
+
+.refill-reminder-text p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: #4f6070;
+}
+
+.refill-reminder button {
+    height: 38px;
+    padding: 0 16px;
+    border: 1px solid #d6e3e0;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f2233;
+    background: white;
+    cursor: pointer;
+}
+
+.refill-reminder-status {
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.refill-reminder-status.waiting {
+    color: #14756f;
+    background: #e3f4f0;
+}
+
+.refill-reminder-status.delayed {
+    color: #d9480f;
+    background: #ffe3cc;
+}
+
+.home-refills-empty {
+    margin: 16px 0;
+    font-size: 13px;
+    color: #4f6070;
+}
+
+.home-refills-empty strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14.5px;
+    color: #0f2233;
+}
+
 .console-page.find-page {
     background: url("images/find-background.jpg") center / cover no-repeat, #e9f4f1;
 }

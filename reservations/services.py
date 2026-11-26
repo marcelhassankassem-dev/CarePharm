@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from core.services import notify_patient
 from inventory.services import available_stock, find_medicines, return_stock, take_stock
-from prescriptions.services import create_refill_prescription
+from prescriptions.services import UNCOLLECTED_STATUSES, collected_long_term_items, create_refill_prescription
 from reservations.models import RefillRequest, Reservation
 from sales.services import record_sale
 
@@ -17,6 +17,7 @@ HOLD_TIME = timedelta(hours=2)
 SOON_MINUTES = 30
 OPEN_REFILL_STATUSES = ["waiting", "delayed"]
 FIND_LIMIT = 5
+REMINDER_DAYS = 3
 
 
 def availability(medicine, quantity):
@@ -154,6 +155,65 @@ def open_refill_count():
 
 def new_refill_count():
     return RefillRequest.objects.filter(status="waiting").count()
+
+
+def runs_out_on(item):
+    collected_on = timezone.localtime(item.prescription.collected_at).date()
+    return collected_on + timedelta(days=item.days_of_supply)
+
+
+def runs_out_text(medicine, days_left):
+    if days_left > 1:
+        return f"Your {medicine} will run out in {days_left} days."
+    if days_left == 1:
+        return f"Your {medicine} will run out tomorrow."
+    if days_left == 0:
+        return f"Your {medicine} runs out today."
+    if days_left == -1:
+        return f"Your {medicine} ran out yesterday."
+    return f"Your {medicine} ran out {-days_left} days ago."
+
+
+def refill_in_progress(item):
+    open_request = Q(status__in=OPEN_REFILL_STATUSES)
+    approved_and_on_its_way = Q(status="approved", new_prescription__status__in=UNCOLLECTED_STATUSES)
+    return RefillRequest.objects.filter(open_request | approved_and_on_its_way, prescription_item=item).exists()
+
+
+def latest_item_of_each_medicine(items):
+    latest = {}
+    for item in items:
+        latest.setdefault(item.medicine_id, item)
+    return list(latest.values())
+
+
+def refill_reminder(item, today):
+    days_left = (runs_out_on(item) - today).days
+    return {
+        "item": item,
+        "runs_out_on": runs_out_on(item),
+        "days_left": days_left,
+        "text": runs_out_text(item.medicine, days_left),
+    }
+
+
+def refill_reminders(patient):
+    today = timezone.localdate()
+    reminders = []
+    for item in latest_item_of_each_medicine(collected_long_term_items(patient)):
+        reminder = refill_reminder(item, today)
+        if reminder["days_left"] <= REMINDER_DAYS and not refill_in_progress(item):
+            reminders.append(reminder)
+    return sorted(reminders, key=lambda reminder: reminder["days_left"])
+
+
+def patient_refill_requests(patient):
+    return (
+        open_refill_requests()
+        .filter(prescription_item__prescription__patient=patient)
+        .select_related("prescription_item__medicine")
+        .order_by("created_at", "id")
+    )
 
 
 def refill_rows(search=""):
