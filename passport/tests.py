@@ -8,6 +8,7 @@ from django.db.models import ProtectedError
 from django.test import TestCase
 from django.utils import timezone
 
+from accounts.models import CaregiverLink
 from inventory.models import DrugClass, Medicine
 from passport.forms import PatientChoiceForm
 from passport.models import Allergy, CurrentMedicine, Patient
@@ -19,6 +20,8 @@ from passport.services import (
     patient_header,
     patient_name_for,
     patient_of,
+    patients_cared_for,
+    viewable_patients,
 )
 
 STAFF_PAGES = ["/patients/", "/patients/new/", "/patients/logins/new/"]
@@ -232,6 +235,43 @@ class PatientOfUserTests(TestCase):
     def test_9_2_every_patient_page_gets_the_name_and_the_unread_count(self):
         notify(self.samira_user, "Ready", "/prescriptions/mine/")
         self.assertEqual(patient_header(self.samira_user), {"patient_name": "Samira Khalil", "unread_count": 1})
+
+
+class PatientsCaredForTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.samira_user = make_user("samira", "patient")
+        cls.samira = Patient.objects.create(name="Samira Khalil", date_of_birth=date(1958, 3, 14), user=cls.samira_user)
+        cls.father = Patient.objects.create(name="Khalil Nassar", date_of_birth=date(1949, 11, 5))
+        cls.maya = Patient.objects.create(name="Maya Farah", date_of_birth=date(1990, 6, 2))
+        cls.omar = make_user("omar", "patient")
+
+    def test_12_1_a_user_with_no_links_cares_for_nobody(self):
+        self.assertEqual(list(patients_cared_for(self.omar)), [])
+
+    def test_12_1_an_active_link_lets_the_caregiver_care_for_the_patient(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        self.assertEqual(list(patients_cared_for(self.omar)), [self.father])
+
+    def test_12_1_a_revoked_link_no_longer_counts(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.omar, active=False)
+        self.assertEqual(list(patients_cared_for(self.omar)), [])
+
+    def test_12_1_patients_cared_for_are_in_name_order(self):
+        CaregiverLink.objects.create(patient=self.maya, caregiver=self.omar)
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        self.assertEqual(list(patients_cared_for(self.omar)), [self.father, self.maya])
+
+    def test_12_1_a_patient_views_only_their_own_record_with_no_links(self):
+        self.assertEqual(viewable_patients(self.samira_user), [self.samira])
+
+    def test_12_1_a_patient_who_is_also_a_caregiver_sees_themselves_first(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.samira_user)
+        self.assertEqual(viewable_patients(self.samira_user), [self.samira, self.father])
+
+    def test_12_1_a_caregiver_with_no_record_views_only_the_patients_they_care_for(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        self.assertEqual(viewable_patients(self.omar), [self.father])
 
 
 class PatientChoiceFormTests(TestCase):

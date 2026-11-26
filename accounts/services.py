@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
 
+from accounts.models import CaregiverLink
 from accounts.permissions import ASSIGNABLE_STAFF_ROLES, STAFF_ROLES, is_pharmacy_staff
 
 
@@ -49,3 +50,29 @@ def update_staff_member(member, role, is_active):
     member.is_active = is_active
     member.save()
     return member
+
+
+def add_caregiver(patient, username):
+    caregiver = get_user_model().objects.filter(username=username, role="patient").first()
+    if caregiver is None:
+        raise ValidationError(f"No patient account has the username {username}.")
+    if caregiver == patient.user:
+        raise ValidationError("You cannot add yourself.")
+    link, created = CaregiverLink.objects.get_or_create(patient=patient, caregiver=caregiver)
+    if link.active and not created:
+        raise ValidationError(f"{username} can already manage your medicines.")
+    link.active = True
+    link.save()
+    return link
+
+
+def revoke_caregiver(patient, link_id):
+    link = get_object_or_404(CaregiverLink, pk=link_id, patient=patient, active=True)
+    link.active = False
+    link.save()
+    return link
+
+
+def caregiver_links_of(patient):
+    links = CaregiverLink.objects.filter(patient=patient, active=True).select_related("caregiver")
+    return links.order_by("caregiver__username")

@@ -1,0 +1,123 @@
+{% extends "core/patient.html" %}
+{% load static %}
+
+{% block title %}Family Access - CarePharm{% endblock %}
+
+{% block profile_switch %}{% endblock %}
+
+{% block patient_content %}
+<img class="inventory-leaves" src="{% static 'core/images/inventory-leaves.svg' %}" alt="">
+<p class="inventory-quote">Care<br>runs in<br>families</p>
+
+<div class="page-heading">
+    <div>
+        <p class="page-eyebrow">Family care</p>
+        <h1>Caregiver Access</h1>
+        <p class="page-intro">Manage a family member’s medicines, reminders, and pickup status from your account.</p>
+    </div>
+</div>
+
+<div class="family-layout">
+    <div class="family-main">
+        <section class="card family-card">
+            <div class="family-card-header">
+                <span class="family-header-icon"><img src="{% static 'core/images/family-user.svg' %}" alt=""></span>
+                <div>
+                    <h2>Linked Family Profiles</h2>
+                    <p>Manage the people you care for</p>
+                </div>
+            </div>
+            <div class="family-profiles">
+                <div class="family-profile">
+                    {% with words=patient_name.split %}
+                    <span class="family-avatar">{{ words.0|first|upper }}{{ words.1|first|upper }}</span>
+                    {% endwith %}
+                    <div>
+                        <strong>{{ patient_name }} <span class="family-pill">You</span></strong>
+                        <small>Account owner&nbsp;&nbsp;•&nbsp;&nbsp;Managing {{ cared_for|length }} family member{{ cared_for|length|pluralize }}</small>
+                    </div>
+                </div>
+                {% for patient in cared_for %}
+                <form method="post" action="/family/view/{{ patient.pk }}/">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="/family/">
+                    <button type="submit" class="family-profile{% if patient == viewing %} selected{% endif %}">
+                        {% with words=patient.name.split %}
+                        <span class="family-avatar">{{ words.0|first|upper }}{{ words.1|first|upper }}</span>
+                        {% endwith %}
+                        <span>
+                            <strong>{{ patient.name }}</strong>
+                            <small><img src="{% static 'core/images/family-users.svg' %}" alt="">Managed by you</small>
+                        </span>
+                    </button>
+                </form>
+                {% endfor %}
+            </div>
+        </section>
+
+        {% if own_record %}
+        <section class="card family-card">
+            <div class="family-card-header">
+                <span class="family-header-icon"><img src="{% static 'core/images/family-users.svg' %}" alt=""></span>
+                <div>
+                    <h2>Family Members With Access</h2>
+                    <p>They manage your medicines from their own account. You can remove access at any time.</p>
+                </div>
+                <a href="/family/add/" class="primary-button family-add-button">
+                    <img src="{% static 'core/images/family-plus.svg' %}" alt="">
+                    Add Family Member
+                </a>
+            </div>
+            {% for member in family_members %}
+            <div class="family-member">
+                {% with words=member.name.split %}
+                <span class="family-avatar small">{{ words.0|first|upper }}{{ words.1|first|upper }}</span>
+                {% endwith %}
+                <div>
+                    <strong>{{ member.name }}</strong>
+                    <small>Username {{ member.link.caregiver.username }}</small>
+                </div>
+                <form method="post" action="/family/{{ member.link.pk }}/remove/">
+                    {% csrf_token %}
+                    <button type="submit" class="row-button">Remove Access</button>
+                </form>
+            </div>
+            {% empty %}
+            <p class="family-empty">No family member has access yet.</p>
+            {% endfor %}
+        </section>
+        {% endif %}
+    </div>
+
+    <aside class="card family-card family-permissions">
+        <div class="family-card-header">
+            <span class="family-header-icon"><img src="{% static 'core/images/family-shield.svg' %}" alt=""></span>
+            <h2>Permission &amp; Access</h2>
+        </div>
+        <div class="family-permission-box">
+            <div class="family-status">
+                <span class="family-status-icon"><img src="{% static 'core/images/family-check.svg' %}" alt=""></span>
+                {% if viewing and viewing.user_id != user.id %}
+                <div>
+                    <strong>Authorized caregiver access active</strong>
+                    <p>You can manage {{ viewing.name }}’s medicines, reminders, and pickup status from your account.</p>
+                </div>
+                {% else %}
+                <div>
+                    <strong>You stay in control</strong>
+                    <p>A family member you add can do the following for you, until you remove their access.</p>
+                </div>
+                {% endif %}
+            </div>
+            <ul class="family-permission-list">
+                <li><span class="family-permission-icon"><img src="{% static 'core/images/family-pill.svg' %}" alt=""></span>View and manage medicines<span class="family-allowed">Allowed</span></li>
+                <li><span class="family-permission-icon"><img src="{% static 'core/images/family-bell.svg' %}" alt=""></span>Manage reminders<span class="family-allowed">Allowed</span></li>
+                <li><span class="family-permission-icon"><img src="{% static 'core/images/family-bag.svg' %}" alt=""></span>View pickup status<span class="family-allowed">Allowed</span></li>
+                <li><span class="family-permission-icon"><img src="{% static 'core/images/family-file.svg' %}" alt=""></span>Access pharmacy details<span class="family-allowed">Allowed</span></li>
+            </ul>
+        </div>
+    </aside>
+</div>
+
+{% block popup %}{% endblock %}
+{% endblock %}

@@ -12,3 +12,9 @@ class User(AbstractUser):
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="patient")
     is_pharmacist = models.BooleanField(default=False)
+
+
+class CaregiverLink(models.Model):
+    patient = models.ForeignKey("passport.Patient", on_delete=models.CASCADE)
+    caregiver = models.ForeignKey(User, on_delete=models.CASCADE)
+    active = models.BooleanField(default=True)
