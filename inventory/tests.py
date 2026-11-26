@@ -12,16 +12,19 @@ from django.utils import timezone
 from core.models import ActivityLog
 from inventory.models import Batch, DrugClass, Medicine
 from inventory.services import (
+    MEDICINES_PER_PAGE,
     NEAR_EXPIRY_DAYS,
     add_medicine,
     adjust_stock,
     adjustable_batches,
     available_stock,
+    batch_rows,
     batches_expiring_between,
     change_price,
     deliveries_today_count,
     low_stock_count,
     low_stock_rows,
+    matching_medicine_count,
     medicine_count,
     medicine_with_barcode,
     medicines_in_stock_count,
@@ -564,6 +567,101 @@ class NearExpiryServiceTests(TestCase):
         self.assertEqual(self.near_expiry_medicines(search="asp"), [self.aspirin])
 
 
+def create_medicines(count):
+    painkillers, created = DrugClass.objects.get_or_create(name="Analgesics")
+    for number in range(count):
+        Medicine.objects.create(
+            name=f"Medicine {number:03}",
+            strength="10 mg",
+            barcode=f"300000000{number:04}",
+            drug_class=painkillers,
+            price=Decimal("2.00"),
+            minimum_quantity=20,
+        )
+
+
+class BatchRowsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.amoxicillin = create_medicine()
+        cls.aspirin = create_aspirin()
+
+    def batches_of(self, medicine, days=NEAR_EXPIRY_DAYS):
+        return [line["batch"] for line in batch_rows(medicine, days)]
+
+    def test_f3_a_medicine_lists_its_batches_soonest_expiry_first(self):
+        late = create_batch(self.amoxicillin, batch_number="LATE", expiry_date=in_days(300))
+        soon = create_batch(self.amoxicillin, batch_number="SOON", expiry_date=in_days(30))
+        self.assertEqual(self.batches_of(self.amoxicillin), [soon, late])
+
+    def test_f3_a_batch_line_says_how_many_days_are_left(self):
+        create_batch(self.amoxicillin, expiry_date=in_days(45))
+        line = batch_rows(self.amoxicillin, NEAR_EXPIRY_DAYS)[0]
+        self.assertEqual(line["days_left"], 45)
+        self.assertFalse(line["expired"])
+
+    def test_f3_a_batch_line_is_near_expiry_within_the_chosen_period(self):
+        create_batch(self.amoxicillin, expiry_date=in_days(45))
+        self.assertTrue(batch_rows(self.amoxicillin, 60)[0]["near_expiry"])
+        self.assertFalse(batch_rows(self.amoxicillin, 30)[0]["near_expiry"])
+
+    def test_f3_an_expired_batch_is_listed_and_marked_expired(self):
+        old = create_batch(self.amoxicillin, batch_number="OLD", expiry_date=in_days(-3))
+        line = batch_rows(self.amoxicillin, NEAR_EXPIRY_DAYS)[0]
+        self.assertEqual(line["batch"], old)
+        self.assertTrue(line["expired"])
+        self.assertFalse(line["near_expiry"])
+
+    def test_f3_a_batch_expiring_today_is_not_expired(self):
+        create_batch(self.amoxicillin, expiry_date=in_days(0))
+        self.assertFalse(batch_rows(self.amoxicillin, NEAR_EXPIRY_DAYS)[0]["expired"])
+
+    def test_f3_an_empty_batch_is_left_out(self):
+        create_batch(self.amoxicillin, batch_number="EMPTY", quantity=0)
+        full = create_batch(self.amoxicillin, batch_number="FULL")
+        self.assertEqual(self.batches_of(self.amoxicillin), [full])
+
+    def test_f3_only_the_medicines_own_batches_are_listed(self):
+        create_batch(self.aspirin, batch_number="ASP-001")
+        self.assertEqual(self.batches_of(self.amoxicillin), [])
+
+    def test_f3_each_stock_row_carries_its_batches(self):
+        batch = create_batch(self.amoxicillin)
+        row = next(row for row in stock_rows() if row["medicine"] == self.amoxicillin)
+        self.assertEqual([line["batch"] for line in row["batches"]], [batch])
+
+    def test_f3_expired_batches_still_stay_out_of_the_total(self):
+        create_batch(self.amoxicillin, batch_number="OLD", quantity=25, expiry_date=in_days(-3))
+        create_batch(self.amoxicillin, batch_number="NEW", quantity=200)
+        row = next(row for row in stock_rows() if row["medicine"] == self.amoxicillin)
+        self.assertEqual(row["available"], 200)
+        self.assertEqual(len(row["batches"]), 2)
+
+
+class MedicineLimitTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        create_medicines(3)
+
+    def test_f3_the_page_shows_50_medicines_at_a_time(self):
+        self.assertEqual(MEDICINES_PER_PAGE, 50)
+
+    def test_f3_the_stock_list_can_stop_at_a_limit(self):
+        names = [row["medicine"].name for row in stock_rows(limit=2)]
+        self.assertEqual(names, ["Medicine 000", "Medicine 001"])
+
+    def test_f3_without_a_limit_every_medicine_is_listed(self):
+        self.assertEqual(len(stock_rows()), 3)
+
+    def test_f3_the_limit_applies_after_the_search(self):
+        names = [row["medicine"].name for row in stock_rows("002", limit=2)]
+        self.assertEqual(names, ["Medicine 002"])
+
+    def test_f3_matching_medicines_are_counted_without_the_limit(self):
+        self.assertEqual(matching_medicine_count(), 3)
+        self.assertEqual(matching_medicine_count("002"), 1)
+
+
 class StockServicesTestData(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -899,8 +997,9 @@ class AdjustStockPageTests(InventoryPagesTestData):
         self.assertContains(response, "Save Count")
 
     def test_4_3_an_expired_batch_is_not_offered(self):
-        create_batch(self.medicine, batch_number="OLD-001", expiry_date=in_days(-1))
-        self.assertNotContains(self.client.get(self.address), "OLD-001")
+        old = create_batch(self.medicine, batch_number="OLD-001", expiry_date=in_days(-1))
+        choices = self.client.get(self.address).context["form"].fields["batch"].queryset
+        self.assertNotIn(old, choices)
 
     def test_4_3_the_popup_stays_on_top_of_the_stock_list(self):
         self.assertContains(self.client.get(self.address), "Stock List")
@@ -1045,8 +1144,8 @@ class StockLookupPageTests(InventoryPagesTestData):
         create_batch(self.medicine, batch_number="NEW-001", quantity=200)
         response = self.client.get("/inventory/")
         self.assertContains(response, "NEW-001")
-        self.assertNotContains(response, "OLD-001")
         self.assertContains(response, ">200<")
+        self.assertNotContains(response, ">225<")
 
 
 class NearExpiryPageTests(InventoryPagesTestData):
@@ -1110,6 +1209,107 @@ class NearExpiryPageTests(InventoryPagesTestData):
         response = self.client.get("/inventory/?show=expiring&search=amox")
         self.assertContains(response, 'name="show" value="expiring"')
         self.assertContains(response, "Amoxicillin 500 mg")
+
+
+class BatchRowsPageTests(InventoryPagesTestData):
+    def setUp(self):
+        self.client.force_login(self.karim)
+
+    def position_of(self, response, words):
+        return response.content.decode().index(words)
+
+    def test_f3_each_batch_has_its_own_row_under_its_medicine(self):
+        create_batch(self.medicine, batch_number="AMX-LATE", quantity=60, expiry_date=in_days(300))
+        create_batch(self.medicine, batch_number="AMX-SOON", quantity=40, expiry_date=in_days(30))
+        response = self.client.get("/inventory/")
+        self.assertContains(response, 'class="batch-row', count=2)
+        self.assertLess(self.position_of(response, "Amoxicillin 500 mg"), self.position_of(response, "AMX-SOON"))
+        self.assertLess(self.position_of(response, "AMX-SOON"), self.position_of(response, "AMX-LATE"))
+
+    def test_f3_the_medicine_row_keeps_the_total_and_counts_its_batches(self):
+        create_batch(self.medicine, batch_number="AMX-001", quantity=40)
+        create_batch(self.medicine, batch_number="AMX-002", quantity=60)
+        response = self.client.get("/inventory/")
+        self.assertContains(response, ">100<")
+        self.assertContains(response, "2 batches")
+
+    def test_f3_one_batch_is_written_in_the_singular(self):
+        create_batch(self.medicine)
+        self.assertContains(self.client.get("/inventory/"), "1 batch<")
+
+    def test_f3_a_batch_row_shows_its_expiry_days_left_and_quantity(self):
+        create_batch(self.medicine, batch_number="AMX-045", quantity=64, expiry_date=in_days(45))
+        response = self.client.get("/inventory/")
+        self.assertContains(response, in_days(45).strftime("%d %b %Y"))
+        self.assertContains(response, "in 45 days")
+        self.assertContains(response, ">64<")
+
+    def test_f3_a_batch_row_shows_when_it_was_received(self):
+        create_batch(self.medicine, batch_number="AMX-NEW")
+        old = create_batch(self.medicine, batch_number="AMX-OLD", expiry_date=date(2031, 1, 31))
+        received = timezone.now() - timedelta(days=12)
+        Batch.objects.filter(pk=old.pk).update(received_at=received)
+        response = self.client.get("/inventory/")
+        self.assertContains(response, timezone.localtime(received).strftime("%d %b %Y"))
+
+    def test_f3_an_expired_batch_is_greyed_out_and_marked_expired(self):
+        create_batch(self.medicine, batch_number="AMX-OLD", quantity=25, expiry_date=in_days(-3))
+        response = self.client.get("/inventory/")
+        self.assertContains(response, 'class="batch-row expired"')
+        self.assertContains(response, "AMX-OLD")
+        self.assertContains(response, "Expired")
+
+    def test_f3_an_empty_batch_has_no_row(self):
+        create_batch(self.medicine, batch_number="AMX-EMPTY", quantity=0)
+        self.assertNotContains(self.client.get("/inventory/"), "AMX-EMPTY")
+
+    def test_f3_batch_rows_have_no_buttons(self):
+        create_batch(self.medicine)
+        response = self.client.get("/inventory/")
+        self.assertContains(response, f'href="/inventory/{self.medicine.pk}/adjust/"', count=1)
+
+    def test_f3_a_medicine_with_no_stock_still_says_so(self):
+        self.assertContains(self.client.get("/inventory/"), "No stock left")
+
+
+class ShowAllPageTests(InventoryPagesTestData):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        create_medicines(55)
+
+    def setUp(self):
+        self.client.force_login(self.karim)
+
+    def test_f3_the_page_shows_the_first_50_medicines(self):
+        response = self.client.get("/inventory/")
+        self.assertEqual(len(response.context["rows"]), 50)
+        self.assertContains(response, "Showing 50 of 56 medicines")
+
+    def test_f3_a_show_all_button_appears_when_there_are_more(self):
+        response = self.client.get("/inventory/")
+        self.assertContains(response, "Show all")
+        self.assertContains(response, "all=1")
+
+    def test_f3_show_all_lists_every_medicine(self):
+        response = self.client.get("/inventory/?all=1")
+        self.assertEqual(len(response.context["rows"]), 56)
+        self.assertContains(response, "Showing 56 of 56 medicines")
+        self.assertNotContains(response, "Show all")
+
+    def test_f3_show_all_keeps_the_search_filter_and_days(self):
+        response = self.client.get("/inventory/?show=low_stock&days=30&search=medicine")
+        self.assertContains(response, "/inventory/?show=low_stock&amp;days=30&amp;search=medicine&amp;all=1")
+
+    def test_f3_the_low_stock_list_also_stops_at_50(self):
+        response = self.client.get("/inventory/?show=low_stock")
+        self.assertEqual(len(response.context["rows"]), 50)
+        self.assertContains(response, "Show all")
+
+    def test_f3_a_search_with_few_matches_has_no_show_all_button(self):
+        response = self.client.get("/inventory/?search=amox")
+        self.assertEqual(len(response.context["rows"]), 1)
+        self.assertNotContains(response, "Show all")
 
 
 class DeliveryPageTests(InventoryPagesTestData):

@@ -67,3 +67,4 @@ class StockListForm(forms.Form):
     search = forms.CharField(required=False)
     days = forms.IntegerField(required=False, min_value=1, max_value=365)
     show = forms.ChoiceField(choices=SHOW_CHOICES, required=False)
+    all = forms.BooleanField(required=False)

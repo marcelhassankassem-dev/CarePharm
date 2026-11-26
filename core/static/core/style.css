@@ -1369,6 +1369,43 @@ body {
     border-color: #cfe3de;
 }
 
+.stock-table .batch-count {
+    font-size: 12.5px;
+    color: #7c8a96;
+}
+
+.stock-table .batch-row td {
+    height: 44px;
+    font-size: 12.5px;
+    color: #4f6070;
+    background: #f7fbfa;
+}
+
+.stock-table .batch-row.expired td,
+.stock-table .batch-row.expired .days-left {
+    color: #a3adb5;
+}
+
+.stock-table .batch-row.expired .days-left {
+    font-weight: 700;
+}
+
+.stock-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 16px;
+}
+
+.stock-footer .stock-count {
+    margin: 0;
+}
+
+.stock-footer .secondary-button {
+    height: 36px;
+    padding: 0 18px;
+}
+
 .popup-medicine {
     margin: 0 0 14px;
     font-size: 15px;

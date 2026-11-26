@@ -100,7 +100,7 @@
         </thead>
         <tbody>
             {% for row in rows %}
-            <tr>
+            <tr class="medicine-row">
                 <td>
                     <div class="stock-medicine">
                         <span class="row-bubble"><img src="{% static 'core/images/row-pill.svg' %}" alt=""></span>
@@ -110,17 +110,15 @@
                         </div>
                     </div>
                 </td>
-                {% if row.batch %}
-                <td>{{ row.batch.batch_number }}</td>
-                <td>
-                    {{ row.batch.expiry_date|date:"d M Y" }}
-                    <small class="days-left {% if row.near_expiry %}near-expiry{% endif %}">
-                        {% if row.days_left == 0 %}today{% else %}in {{ row.days_left }} day{{ row.days_left|pluralize }}{% endif %}
-                    </small>
-                </td>
-                <td><strong class="stock-quantity">{{ row.available }}</strong></td>
+                {% if row.batches %}
+                <td class="batch-count">{{ row.batches|length }} batch{{ row.batches|length|pluralize:"es" }}</td>
                 {% else %}
                 <td>&mdash;</td>
+                {% endif %}
+                {% if row.batch %}
+                <td></td>
+                <td><strong class="stock-quantity">{{ row.available }}</strong></td>
+                {% else %}
                 <td class="no-stock">No stock left</td>
                 <td><strong class="stock-quantity no-stock">0</strong></td>
                 {% endif %}
@@ -132,6 +130,21 @@
                     <a href="/inventory/{{ row.medicine.pk }}/adjust/" class="row-button">Adjust</a>
                 </td>
             </tr>
+            {% for line in row.batches %}
+            <tr class="batch-row{% if line.expired %} expired{% endif %}">
+                <td></td>
+                <td>{{ line.batch.batch_number }}</td>
+                <td>
+                    {{ line.batch.expiry_date|date:"d M Y" }}
+                    <small class="days-left{% if line.near_expiry %} near-expiry{% endif %}">
+                        {% if line.expired %}Expired{% elif line.days_left == 0 %}today{% else %}in {{ line.days_left }} day{{ line.days_left|pluralize }}{% endif %}
+                    </small>
+                </td>
+                <td>{{ line.batch.quantity }}</td>
+                <td class="stock-received">{{ line.batch.received_at|date:"d M Y" }}</td>
+                <td></td>
+            </tr>
+            {% endfor %}
             {% empty %}
             <tr>
                 <td colspan="6" class="stock-empty">No medicines found.</td>
@@ -140,7 +153,12 @@
         </tbody>
     </table>
 
-    <p class="stock-count">Showing {{ rows|length }} of {{ medicine_count }} medicines</p>
+    <div class="stock-footer">
+        <p class="stock-count">Showing {{ rows|length }} of {{ medicine_count }} medicines</p>
+        {% if has_more %}
+        <a href="/inventory/?show={{ show }}&amp;days={{ days }}&amp;search={{ search|urlencode }}&amp;all=1" class="secondary-button">Show all</a>
+        {% endif %}
+    </div>
 </section>
 
 {% block popup %}{% endblock %}

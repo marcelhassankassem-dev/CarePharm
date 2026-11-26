@@ -5,6 +5,7 @@ from django.shortcuts import redirect, render
 from accounts.permissions import can_add_medicines, is_owner, require_owner, staff_required
 from inventory.forms import AdjustStockForm, DeliveryForm, MedicineForm, PriceForm, StockListForm
 from inventory.services import (
+    MEDICINES_PER_PAGE,
     NEAR_EXPIRY_DAYS,
     add_medicine,
     adjust_stock,
@@ -13,6 +14,7 @@ from inventory.services import (
     get_medicine,
     low_stock_count,
     low_stock_rows,
+    matching_medicine_count,
     medicine_count,
     medicines_in_stock_count,
     near_expiry_count,
@@ -23,16 +25,22 @@ from inventory.services import (
 from reservations.services import expire_reservations
 
 
-def stock_page_data(user, search="", days=NEAR_EXPIRY_DAYS, show="all"):
+def stock_page_data(user, search="", days=NEAR_EXPIRY_DAYS, show="all", show_all=False):
     expire_reservations()
+    limit = None if show_all else MEDICINES_PER_PAGE
     if show == "expiring":
         rows = near_expiry_rows(days, search)
+        matching_count = len(rows)
     elif show == "low_stock":
         rows = low_stock_rows(days, search)
+        matching_count = len(rows)
     else:
-        rows = stock_rows(search, days)
+        rows = stock_rows(search, days, limit)
+        matching_count = matching_medicine_count(search)
+    rows = rows[:limit]
     return {
         "rows": rows,
+        "has_more": len(rows) < matching_count,
         "search": search,
         "days": days,
         "show": show,
@@ -53,7 +61,8 @@ def inventory_page(request):
     search = list_form.cleaned_data.get("search", "")
     days = list_form.cleaned_data.get("days") or NEAR_EXPIRY_DAYS
     show = list_form.cleaned_data.get("show") or "all"
-    data = stock_page_data(request.user, search, days, show)
+    show_all = list_form.cleaned_data.get("all", False)
+    data = stock_page_data(request.user, search, days, show, show_all)
     return render(request, "inventory/inventory.html", {**data, "list_form": list_form})
 
 
