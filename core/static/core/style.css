@@ -3424,3 +3424,370 @@ body {
 .home-card.assistant {
     background: rgba(60, 176, 233, 0.8);
 }
+
+.console-page.find-page {
+    background: url("images/find-background.jpg") center / cover no-repeat, #e9f4f1;
+}
+
+.find-content {
+    padding: 224px 24px 40px 115px;
+}
+
+.find-heading .page-eyebrow,
+.find-heading .page-intro {
+    padding-left: 0;
+}
+
+.find-heading .page-eyebrow {
+    font-size: 13px;
+}
+
+.find-heading h1,
+.availability-heading h1 {
+    margin: 2px 0 0;
+    font-size: 46px;
+    color: #0f2233;
+}
+
+.find-form {
+    display: grid;
+    grid-template-columns: 404px 280px;
+    column-gap: 94px;
+    width: 880px;
+    margin-top: 59px;
+    padding: 50px 52px 26px;
+    border-radius: 30px;
+    background: white;
+}
+
+.find-field label {
+    display: block;
+    margin-bottom: 9px;
+    font-size: 22px;
+    font-weight: 600;
+    color: #0f2233;
+}
+
+.find-input {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 66px;
+    border-radius: 20px;
+    background: #f2f2f7;
+}
+
+.find-input img {
+    position: absolute;
+    width: 52px;
+    height: 52px;
+    pointer-events: none;
+}
+
+.find-name .find-input img {
+    left: 6px;
+}
+
+.find-quantity .find-input img {
+    left: 140px;
+}
+
+.find-input input,
+.find-input select {
+    width: 100%;
+    height: 66px;
+    padding: 0 20px 0 64px;
+    border: 0;
+    border-radius: 20px;
+    font: inherit;
+    font-size: 26px;
+    font-weight: 600;
+    color: #0f2233;
+    background: transparent;
+    appearance: none;
+}
+
+.find-input select {
+    padding-left: 40px;
+    cursor: pointer;
+}
+
+.find-field .errorlist {
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 14px;
+    color: #a12a22;
+}
+
+.find-button {
+    position: relative;
+    grid-column: 1 / -1;
+    height: 82px;
+    margin-top: 38px;
+    border: 0;
+    border-radius: 30px;
+    font: inherit;
+    font-size: 30px;
+    font-weight: 800;
+    color: white;
+    background: linear-gradient(to right, #145566, #0b3b49);
+    cursor: pointer;
+}
+
+.find-button img {
+    position: absolute;
+    top: -6px;
+    right: 32px;
+    width: 93px;
+    height: 93px;
+}
+
+.find-blocks {
+    display: flex;
+    margin: 36px 0 0 -115px;
+}
+
+.find-block {
+    display: flex;
+    align-items: flex-start;
+    gap: 2px;
+    width: 470px;
+}
+
+.find-block:first-child {
+    width: 479px;
+}
+
+.find-block img {
+    width: 118px;
+    height: 118px;
+}
+
+.find-block strong,
+.find-block span {
+    display: block;
+    color: #0f2233;
+}
+
+.find-block strong {
+    margin-top: 46px;
+    font-size: 30px;
+    font-weight: 800;
+}
+
+.find-block span {
+    font-size: 26px;
+}
+
+.availability-content {
+    padding: 44px 24px 40px 31px;
+}
+
+.availability-back-link {
+    display: inline-flex;
+    align-items: center;
+    margin-left: -44px;
+    font-size: 17px;
+    font-weight: 600;
+    color: #0f2233;
+    text-decoration: none;
+}
+
+.availability-back-link img {
+    width: 48px;
+    height: 48px;
+}
+
+.availability-heading {
+    margin: 25px 0 59px;
+}
+
+.availability-heading .page-intro {
+    padding-left: 0;
+}
+
+.availability-card,
+.availability-pharmacy {
+    width: 1341px;
+    border-radius: 30px;
+    background: white;
+}
+
+.availability-card {
+    display: flex;
+    align-items: center;
+    gap: 88px;
+    min-height: 180px;
+    margin-bottom: 20px;
+    padding: 18px 40px 18px 23px;
+}
+
+.availability-tile {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 144px;
+    height: 144px;
+    border-radius: 28px;
+    background: #e3f4f0;
+}
+
+.availability-name {
+    flex: 1;
+}
+
+.availability-name h2 {
+    margin: 0 0 12px;
+    font-size: 32px;
+    color: #0f2233;
+}
+
+.availability-name p {
+    margin: 0;
+    font-size: 18px;
+    color: #7c8a96;
+}
+
+.availability-name p span {
+    margin: 0 12px;
+}
+
+.availability-status {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    height: 76px;
+    padding: 0 30px;
+    border: 1px solid #cfe3de;
+    border-radius: 38px;
+    background: #eef1f3;
+}
+
+.availability-status.available {
+    padding-left: 4px;
+    border-color: #cfe9e2;
+    background: #e3f4f0;
+}
+
+.availability-status.low {
+    border-color: #ffd2b0;
+    background: #ffe3cc;
+}
+
+.availability-check {
+    position: relative;
+    display: flex;
+    width: 68px;
+    height: 68px;
+    margin: 8px -10px 0 0;
+}
+
+.availability-check .availability-tick {
+    position: absolute;
+    top: 23px;
+    left: 24px;
+}
+
+.availability-badge {
+    font-size: 26px;
+    font-weight: 700;
+    color: #4f6070;
+}
+
+.availability-badge.available {
+    color: #14756f;
+}
+
+.availability-badge.low {
+    color: #d9480f;
+}
+
+.availability-none p {
+    margin: 0 0 0 20px;
+    font-size: 20px;
+    color: #4f6070;
+}
+
+.availability-pharmacy {
+    display: grid;
+    grid-template-columns: 358px 1fr 326px;
+    column-gap: 24px;
+    margin-top: 41px;
+    padding: 17px 24px 28px 17px;
+}
+
+.availability-photo {
+    width: 358px;
+    height: 201px;
+    border-radius: 30px;
+    object-fit: cover;
+}
+
+.availability-place h2 {
+    margin: 34px 0 20px;
+    font-size: 24px;
+    color: #0f2233;
+}
+
+.availability-place h2 span {
+    color: #14756f;
+}
+
+.availability-place p,
+.availability-info p {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+    color: #0f2233;
+}
+
+.availability-place img,
+.availability-info img {
+    width: 44px;
+    height: 44px;
+}
+
+.availability-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 24px;
+    padding-left: 24px;
+    border-left: 1px solid #cfe3de;
+}
+
+.availability-info p {
+    white-space: nowrap;
+}
+
+.availability-actions {
+    display: flex;
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    margin-top: 85px;
+}
+
+.availability-back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 52px;
+    padding: 0 26px 0 10px;
+    border: 1px solid #cfe3de;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f2233;
+    background: white;
+    text-decoration: none;
+}
+
+.availability-back-button img {
+    width: 40px;
+    height: 40px;
+}

@@ -1,0 +1,63 @@
+{% extends "core/patient.html" %}
+{% load static %}
+
+{% block title %}Find a Medicine - CarePharm{% endblock %}
+
+{% block page_class %}find-page{% endblock %}
+
+{% block main_class %}find-content{% endblock %}
+
+{% block patient_content %}
+<div class="find-heading">
+    <p class="page-eyebrow">Medicine availability</p>
+    <h1>Find a Medicine</h1>
+    <p class="page-intro">Check availability before visiting your pharmacy</p>
+</div>
+
+<form method="get" action="/reservations/find/results/" class="find-form">
+    <div class="find-field find-name">
+        <label for="{{ form.name.id_for_label }}">Medicine Name</label>
+        <div class="find-input">
+            <img src="{% static 'core/images/find-search.png' %}" alt="">
+            {{ form.name }}
+        </div>
+        {{ form.name.errors }}
+    </div>
+    <div class="find-field find-quantity">
+        <label for="{{ form.quantity.id_for_label }}">Quantity</label>
+        <div class="find-input">
+            {{ form.quantity }}
+            <img src="{% static 'core/images/find-chevron.png' %}" alt="">
+        </div>
+        {{ form.quantity.errors }}
+    </div>
+    <button type="submit" class="find-button">
+        Check Availability
+        <img src="{% static 'core/images/find-arrow.png' %}" alt="">
+    </button>
+</form>
+
+<div class="find-blocks">
+    <div class="find-block">
+        <img src="{% static 'core/images/find-block-availability.png' %}" alt="">
+        <div>
+            <strong>Real-Time Availability</strong>
+            <span>Check if your pharmacy has it in stock</span>
+        </div>
+    </div>
+    <div class="find-block">
+        <img src="{% static 'core/images/find-block-time.png' %}" alt="">
+        <div>
+            <strong>Save Time</strong>
+            <span>Avoid unnecessary trips</span>
+        </div>
+    </div>
+    <div class="find-block">
+        <img src="{% static 'core/images/find-block-reliable.png' %}" alt="">
+        <div>
+            <strong>Reliable Information</strong>
+            <span>Straight from your pharmacy's records</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
