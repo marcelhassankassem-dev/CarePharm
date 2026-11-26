@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -13,6 +13,7 @@ from core.services import notify
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Patient
 from prescriptions.models import Prescription, PrescriptionItem
+from prescriptions.services import delete_prescription, patient_long_term_item
 from reservations.models import RefillRequest, Reservation
 from reservations.services import (
     active_reservation_count,
@@ -24,12 +25,17 @@ from reservations.services import (
     minutes_left,
     new_refill_count,
     open_refill_count,
+    patient_refill_requests,
     patient_reservation,
     pickup_deadline,
+    refill_in_progress,
+    refill_reminders,
     refill_rows,
     request_refill,
     reservation_rows,
     reserve_medicine,
+    runs_out_on,
+    runs_out_text,
     time_left_text,
 )
 from sales.models import Sale
@@ -1159,3 +1165,231 @@ class ReserveMedicinePageTests(ReserveTestData):
     def test_10_2_signed_out_visitors_go_to_the_patient_login(self):
         self.client.logout()
         self.assertRedirects(self.client.get("/reservations/1/"), "/login/?next=/reservations/1/")
+
+
+def collected_days_ago(patient, medicine, days, days_of_supply=30, long_term=True):
+    collected_on = timezone.localdate() - timedelta(days=days)
+    prescription = Prescription.objects.create(
+        patient=patient,
+        status="collected",
+        collected_at=timezone.make_aware(datetime.combine(collected_on, time(12, 0))),
+    )
+    return PrescriptionItem.objects.create(
+        prescription=prescription,
+        medicine=medicine,
+        quantity=60,
+        days_of_supply=days_of_supply,
+        long_term=long_term,
+    )
+
+
+def reminder_items(patient):
+    return [reminder["item"] for reminder in refill_reminders(patient)]
+
+
+def short_date(day):
+    return f"{day.day} {day:%b}"
+
+
+class RefillReminderTests(RefillTestData):
+    def test_11_1a_a_medicine_that_runs_out_in_3_days_is_due(self):
+        item = collected_days_ago(self.samira, self.metformin, 27)
+        reminders = refill_reminders(self.samira)
+        self.assertEqual([reminder["item"] for reminder in reminders], [item])
+        self.assertEqual(reminders[0]["days_left"], 3)
+        self.assertEqual(reminders[0]["runs_out_on"], timezone.localdate() + timedelta(days=3))
+        self.assertEqual(reminders[0]["text"], "Your Metformin 500 mg will run out in 3 days.")
+
+    def test_11_1a_it_runs_out_on_the_collected_date_plus_the_days_of_supply(self):
+        item = collected_days_ago(self.samira, self.metformin, 10, days_of_supply=45)
+        self.assertEqual(runs_out_on(item), timezone.localdate() + timedelta(days=35))
+
+    def test_11_1a_a_medicine_with_4_days_left_is_not_due_yet(self):
+        collected_days_ago(self.samira, self.metformin, 26)
+        self.assertEqual(refill_reminders(self.samira), [])
+
+    def test_11_1a_an_overdue_medicine_is_still_due(self):
+        item = collected_days_ago(self.samira, self.metformin, 40)
+        self.assertEqual(reminder_items(self.samira), [item])
+        self.assertEqual(refill_reminders(self.samira)[0]["days_left"], -10)
+
+    def test_11_1a_a_short_term_medicine_gets_no_reminder(self):
+        collected_days_ago(self.samira, self.metformin, 40, long_term=False)
+        self.assertEqual(refill_reminders(self.samira), [])
+
+    def test_11_1a_only_the_latest_collection_of_a_medicine_counts(self):
+        collected_days_ago(self.samira, self.metformin, 60)
+        collected_days_ago(self.samira, self.metformin, 5)
+        self.assertEqual(refill_reminders(self.samira), [])
+
+    def test_11_1a_a_prescription_not_collected_yet_gets_no_reminder(self):
+        item = collected_days_ago(self.samira, self.metformin, 40)
+        Prescription.objects.filter(pk=item.prescription_id).update(status="ready")
+        self.assertEqual(refill_reminders(self.samira), [])
+
+    def test_11_1a_an_open_request_hides_the_reminder(self):
+        item = collected_days_ago(self.samira, self.metformin, 40)
+        refill_request = request_refill(self.samira_user, item)
+        self.assertEqual(refill_reminders(self.samira), [])
+        delay(refill_request)
+        self.assertEqual(refill_reminders(self.samira), [])
+
+    def test_11_1a_an_approved_refill_on_its_way_hides_the_reminder(self):
+        item = collected_days_ago(self.samira, self.metformin, 40)
+        prescription = approve_refill(request_refill(self.samira_user, item))
+        self.assertTrue(refill_in_progress(item))
+        self.assertEqual(refill_reminders(self.samira), [])
+        Prescription.objects.filter(pk=prescription.pk).update(status="returned")
+        self.assertFalse(refill_in_progress(item))
+        self.assertEqual(reminder_items(self.samira), [item])
+
+    def test_11_1a_a_deleted_refill_prescription_brings_the_reminder_back(self):
+        item = collected_days_ago(self.samira, self.metformin, 40)
+        delete_prescription(approve_refill(request_refill(self.samira_user, item)))
+        self.assertEqual(reminder_items(self.samira), [item])
+
+    def test_11_1a_each_patient_sees_only_their_own_reminders(self):
+        item = collected_days_ago(self.samira, self.losartan, 40)
+        self.assertEqual(reminder_items(self.samira), [item])
+        self.assertEqual(refill_reminders(self.father), [])
+
+    def test_11_1a_the_soonest_to_run_out_comes_first(self):
+        losartan = collected_days_ago(self.samira, self.losartan, 28)
+        metformin = collected_days_ago(self.samira, self.metformin, 35)
+        self.assertEqual(reminder_items(self.samira), [metformin, losartan])
+
+    def test_11_1a_no_patient_record_means_no_reminders(self):
+        self.assertEqual(refill_reminders(None), [])
+
+    def test_11_1a_the_reminder_sentence(self):
+        for days_left, text in [
+            (3, "Your Metformin 500 mg will run out in 3 days."),
+            (1, "Your Metformin 500 mg will run out tomorrow."),
+            (0, "Your Metformin 500 mg runs out today."),
+            (-1, "Your Metformin 500 mg ran out yesterday."),
+            (-10, "Your Metformin 500 mg ran out 10 days ago."),
+        ]:
+            self.assertEqual(runs_out_text(self.metformin, days_left), text)
+
+    def test_11_1b_a_patient_finds_their_own_long_term_item(self):
+        item = collected_days_ago(self.samira, self.metformin, 27)
+        self.assertEqual(patient_long_term_item(self.samira, item.pk), item)
+
+    def test_11_1b_other_items_are_not_found(self):
+        short_term = collected_days_ago(self.samira, self.losartan, 27, long_term=False)
+        not_collected = collected_days_ago(self.samira, self.metformin, 27)
+        Prescription.objects.filter(pk=not_collected.prescription_id).update(status="ready")
+        for patient, item in [
+            (self.samira, self.losartan_item),
+            (self.samira, short_term),
+            (self.samira, not_collected),
+            (None, self.losartan_item),
+        ]:
+            with self.assertRaises(Http404):
+                patient_long_term_item(patient, item.pk)
+
+    def test_11_1b_the_patient_sees_their_open_requests_oldest_first(self):
+        losartan = collected_days_ago(self.samira, self.losartan, 27)
+        metformin = collected_days_ago(self.samira, self.metformin, 28)
+        first = requested_minutes_ago(request_refill(self.samira_user, metformin), 60)
+        second = request_refill(self.samira_user, losartan)
+        request_refill(self.father_user, self.losartan_item)
+        self.assertEqual(list(patient_refill_requests(self.samira)), [first, second])
+        approve_refill(first)
+        self.assertEqual(list(patient_refill_requests(self.samira)), [second])
+
+
+class RefillReminderPageTests(RefillTestData):
+    def setUp(self):
+        super().setUp()
+        self.due_item = collected_days_ago(self.samira, self.metformin, 27)
+        self.client.force_login(self.samira_user)
+
+    def request_address(self, item):
+        return f"/reservations/refills/request/{item.pk}/"
+
+    def shown_messages(self, response):
+        return [str(message) for message in response.context["messages"]]
+
+    def test_11_1a_the_home_page_shows_the_reminder(self):
+        response = self.client.get("/home/")
+        runs_out = timezone.localdate() + timedelta(days=3)
+        self.assertContains(response, 'id="refill-reminders"')
+        self.assertContains(response, "Refill reminder")
+        self.assertContains(response, "Your Metformin 500 mg will run out in 3 days.")
+        self.assertContains(response, f"Runs out {short_date(runs_out)}")
+        self.assertContains(response, f'action="{self.request_address(self.due_item)}"')
+        self.assertContains(response, "Request Refill")
+
+    def test_11_1a_with_nothing_due_the_box_says_when_reminders_come(self):
+        self.client.force_login(self.father_user)
+        response = self.client.get("/home/")
+        self.assertContains(response, "We will remind you 3 days before a long-term medicine runs out.")
+        self.assertNotContains(response, 'action="/reservations/refills/request/')
+
+    def test_11_1a_the_request_a_refill_card_leads_to_the_reminders(self):
+        self.assertContains(self.client.get("/home/"), '<a href="#refill-reminders" class="home-card refill">')
+
+    def test_11_1b_one_click_sends_the_request_to_the_pharmacy(self):
+        response = self.client.post(self.request_address(self.due_item), follow=True)
+        self.assertRedirects(response, "/home/")
+        refill_request = RefillRequest.objects.get()
+        self.assertEqual(
+            (refill_request.prescription_item, refill_request.requested_by, refill_request.status),
+            (self.due_item, self.samira_user, "waiting"),
+        )
+        self.assertEqual(
+            self.shown_messages(response),
+            ["Refill requested: Metformin 500 mg. The pharmacy will let you know when it is ready."],
+        )
+
+    def test_11_1b_after_requesting_the_reminder_becomes_sent_to_pharmacist(self):
+        self.client.post(self.request_address(self.due_item))
+        response = self.client.get("/home/")
+        self.assertNotContains(response, 'action="/reservations/refills/request/')
+        self.assertContains(response, "Metformin 500 mg")
+        self.assertContains(response, '<span class="refill-reminder-status waiting">Sent to pharmacist</span>', html=True)
+
+    def test_11_1b_a_delayed_request_shows_its_expected_date(self):
+        expected = timezone.localdate() + timedelta(days=7)
+        delay_refill(request_refill(self.samira_user, self.due_item), expected)
+        response = self.client.get("/home/")
+        self.assertContains(response, '<span class="refill-reminder-status delayed">Delayed</span>', html=True)
+        self.assertContains(response, f"expected {short_date(expected)}")
+
+    def test_11_1b_a_second_click_does_not_send_a_second_request(self):
+        self.client.post(self.request_address(self.due_item), follow=True)
+        response = self.client.post(self.request_address(self.due_item), follow=True)
+        self.assertEqual(self.shown_messages(response), ["A refill of Metformin 500 mg has already been requested."])
+        self.assertEqual(RefillRequest.objects.count(), 1)
+
+    def test_11_1b_the_pharmacy_sees_the_request(self):
+        self.client.post(self.request_address(self.due_item))
+        self.client.force_login(self.karim)
+        response = self.client.get("/prescriptions/", {"show": "refills"})
+        self.assertContains(response, "Samira")
+        self.assertContains(response, "Metformin 500 mg · 60 units")
+
+    def test_11_1b_someone_elses_medicine_cannot_be_requested(self):
+        self.assertEqual(self.client.post(self.request_address(self.losartan_item)).status_code, 404)
+        self.assertFalse(RefillRequest.objects.exists())
+
+    def test_11_1b_a_caregiver_with_no_patient_record_cannot_request(self):
+        omar = get_user_model().objects.create(username="omar", role="patient")
+        self.client.force_login(omar)
+        self.assertEqual(self.client.post(self.request_address(self.due_item)).status_code, 404)
+        self.assertFalse(RefillRequest.objects.exists())
+
+    def test_11_1b_opening_the_address_requests_nothing(self):
+        self.assertRedirects(self.client.get(self.request_address(self.due_item)), "/home/")
+        self.assertFalse(RefillRequest.objects.exists())
+
+    def test_11_1b_staff_cannot_use_the_patient_button(self):
+        self.client.force_login(self.karim)
+        self.assertEqual(self.client.post(self.request_address(self.due_item)).status_code, 403)
+        self.assertFalse(RefillRequest.objects.exists())
+
+    def test_11_1b_signed_out_visitors_go_to_the_patient_login(self):
+        self.client.logout()
+        address = self.request_address(self.due_item)
+        self.assertRedirects(self.client.post(address), f"/login/?next={address}")
