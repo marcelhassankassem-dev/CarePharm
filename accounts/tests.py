@@ -360,6 +360,28 @@ class AddStaffTests(StaffPagesTestData):
         self.assertEqual(response.status_code, 403)
         self.assert_nobody_was_added()
 
+    def test_f5_a_common_staff_password_is_refused(self):
+        response = self.client.post("/staff/add/", {**NEW_STAFF, "password": "password"})
+        self.assertContains(response, "This password is too common.")
+        self.assert_nobody_was_added()
+
+    def test_f5_an_all_digits_staff_password_is_refused(self):
+        response = self.client.post("/staff/add/", {**NEW_STAFF, "password": "12345678"})
+        self.assertContains(response, "This password is entirely numeric.")
+        self.assert_nobody_was_added()
+
+    def test_f5_a_staff_password_like_the_username_is_refused(self):
+        response = self.client.post(
+            "/staff/add/", {**NEW_STAFF, "username": "halanader", "password": "halanader1"}
+        )
+        self.assertContains(response, "The password is too similar to the username.")
+        self.assertFalse(get_user_model().objects.filter(username="halanader").exists())
+
+    def test_f5_a_staff_username_with_a_space_is_refused(self):
+        response = self.client.post("/staff/add/", {**NEW_STAFF, "username": "hala nader"})
+        self.assertContains(response, "Enter a valid username.")
+        self.assertFalse(get_user_model().objects.filter(username="hala nader").exists())
+
 
 class EditStaffTests(StaffPagesTestData):
     def setUp(self):

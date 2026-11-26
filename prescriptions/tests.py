@@ -639,6 +639,31 @@ class PrescriptionPageTests(PrescriptionPagesTestData):
         self.assertContains(response, "Check the medicine, quantity and days of supply.")
         self.assertFalse(PrescriptionItem.objects.exists())
 
+    def post_item(self, **changes):
+        return self.client.post(f"{self.address}items/", {**self.new_item, **changes}, follow=True)
+
+    def test_f5_a_quantity_above_1000_is_refused(self):
+        response = self.post_item(quantity=1001)
+        self.assertContains(response, "The quantity can be at most 1,000.")
+        self.assertFalse(PrescriptionItem.objects.exists())
+
+    def test_f5_a_quantity_of_1000_is_allowed(self):
+        self.post_item(quantity=1000)
+        self.assertEqual(PrescriptionItem.objects.get().quantity, 1000)
+
+    def test_f5_days_of_supply_above_365_are_refused(self):
+        response = self.post_item(days_of_supply=366)
+        self.assertContains(response, "Days of supply can be at most 365.")
+        self.assertFalse(PrescriptionItem.objects.exists())
+
+    def test_f5_365_days_of_supply_are_allowed(self):
+        self.post_item(days_of_supply=365)
+        self.assertEqual(PrescriptionItem.objects.get().days_of_supply, 365)
+
+    def test_f5_the_refusal_still_starts_with_what_to_check(self):
+        response = self.post_item(quantity=1001)
+        self.assertContains(response, "Check the medicine, quantity and days of supply.")
+
     def test_1_1_a_pharmacist_can_remove_a_medicine(self):
         item = add_item(self.prescription, self.amoxicillin, 21, 7)
         response = self.client.post(f"/prescriptions/items/{item.pk}/remove/")
