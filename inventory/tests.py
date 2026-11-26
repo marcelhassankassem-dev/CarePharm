@@ -18,6 +18,7 @@ from inventory.services import (
     adjust_stock,
     adjustable_batches,
     available_stock,
+    batch_number_used,
     batch_rows,
     batches_expiring_between,
     change_price,
@@ -636,6 +637,26 @@ class BatchRowsTests(TestCase):
         row = next(row for row in stock_rows() if row["medicine"] == self.amoxicillin)
         self.assertEqual(row["available"], 200)
         self.assertEqual(len(row["batches"]), 2)
+
+
+class BatchNumberUsedTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.amoxicillin = create_medicine()
+        cls.aspirin = create_aspirin()
+        create_batch(cls.amoxicillin, batch_number="AMX-001")
+
+    def test_f5_a_batch_number_already_recorded_for_the_medicine_is_used(self):
+        self.assertTrue(batch_number_used(self.amoxicillin, "AMX-001"))
+
+    def test_f5_the_batch_number_check_ignores_case(self):
+        self.assertTrue(batch_number_used(self.amoxicillin, "amx-001"))
+
+    def test_f5_a_new_batch_number_is_not_used(self):
+        self.assertFalse(batch_number_used(self.amoxicillin, "AMX-002"))
+
+    def test_f5_another_medicine_can_use_the_same_batch_number(self):
+        self.assertFalse(batch_number_used(self.aspirin, "AMX-001"))
 
 
 class MedicineLimitTests(TestCase):
@@ -1341,6 +1362,25 @@ class DeliveryPageTests(InventoryPagesTestData):
 
     def test_4_1_cancelling_goes_back_to_the_inventory_page(self):
         self.assertContains(self.client.get("/inventory/delivery/"), 'href="/inventory/"')
+
+    def test_f5_a_batch_number_already_used_for_the_medicine_is_refused(self):
+        create_batch(self.medicine, batch_number="NEW-001")
+        response = self.client.post("/inventory/delivery/", self.delivery)
+        self.assertContains(response, "Batch NEW-001 is already recorded for Amoxicillin 500 mg.")
+        self.assertEqual(Batch.objects.count(), 1)
+        self.assertFalse(ActivityLog.objects.exists())
+
+    def test_f5_a_batch_number_in_other_letter_case_is_refused(self):
+        create_batch(self.medicine, batch_number="NEW-001")
+        response = self.client.post("/inventory/delivery/", {**self.delivery, "batch_number": "new-001"})
+        self.assertContains(response, "<dialog open")
+        self.assertEqual(Batch.objects.count(), 1)
+
+    def test_f5_another_medicines_batch_number_can_be_reused(self):
+        create_batch(create_aspirin(), batch_number="NEW-001")
+        response = self.client.post("/inventory/delivery/", self.delivery)
+        self.assertRedirects(response, "/inventory/")
+        self.assertEqual(Batch.objects.filter(medicine=self.medicine).count(), 1)
 
     def test_4_1_a_valid_delivery_is_saved(self):
         response = self.client.post("/inventory/delivery/", self.delivery)

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.db.models import ProtectedError
 from django.test import TestCase
+from django.utils import timezone
 
 from inventory.models import DrugClass, Medicine
 from passport.forms import PatientChoiceForm
@@ -396,6 +397,64 @@ class AddPatientPageTests(TestCase):
         response = self.client.post("/patients/new/", details)
         self.assertNotContains(response, "Enter both a username and a temporary password")
 
+    def post_patient(self, **changes):
+        return self.client.post("/patients/new/", {**self.patient_details(), **changes})
+
+    def assert_refused(self, response, message):
+        self.assertContains(response, message)
+        self.assertFalse(Patient.objects.exists())
+
+    def test_f5_a_date_of_birth_in_the_future_is_refused(self):
+        tomorrow = timezone.localdate() + timedelta(days=1)
+        response = self.post_patient(date_of_birth=tomorrow.isoformat())
+        self.assert_refused(response, "The date of birth cannot be in the future.")
+
+    def test_f5_a_baby_born_today_can_be_added(self):
+        self.post_patient(date_of_birth=timezone.localdate().isoformat())
+        self.assertTrue(Patient.objects.filter(name="Samira").exists())
+
+    def test_f5_a_date_of_birth_more_than_120_years_ago_is_refused(self):
+        too_old = date(timezone.localdate().year - 121, 12, 31)
+        response = self.post_patient(date_of_birth=too_old.isoformat())
+        self.assert_refused(response, "Enter a date of birth within the last 120 years.")
+
+    def test_f5_a_date_of_birth_120_years_ago_is_allowed(self):
+        oldest = date(timezone.localdate().year - 120, 1, 1)
+        self.post_patient(date_of_birth=oldest.isoformat())
+        self.assertTrue(Patient.objects.filter(name="Samira").exists())
+
+    def test_f5_a_phone_with_letters_is_refused(self):
+        response = self.post_patient(phone="03 ABC 001")
+        self.assert_refused(response, "Enter a phone number with only digits, spaces, + and -.")
+
+    def test_f5_a_phone_with_plus_dashes_and_spaces_is_allowed(self):
+        self.post_patient(phone="+961 3-100-001")
+        self.assertEqual(Patient.objects.get().phone, "+961 3-100-001")
+
+    def test_f5_the_phone_can_still_be_left_empty(self):
+        self.post_patient(phone="")
+        self.assertEqual(Patient.objects.get().phone, "")
+
+    def test_f5_a_patient_username_with_a_space_is_refused(self):
+        response = self.post_patient(username="samira k", password="temporary1")
+        self.assert_refused(response, "Enter a valid username.")
+
+    def test_f5_a_patient_username_with_allowed_symbols_is_accepted(self):
+        self.post_patient(username="samira.k@1", password="temporary1")
+        self.assertEqual(Patient.objects.get().user.username, "samira.k@1")
+
+    def test_f5_a_common_patient_password_is_refused(self):
+        response = self.post_patient(username="samira", password="password")
+        self.assert_refused(response, "This password is too common.")
+
+    def test_f5_an_all_digits_patient_password_is_refused(self):
+        response = self.post_patient(username="samira", password="12345678")
+        self.assert_refused(response, "This password is entirely numeric.")
+
+    def test_f5_a_patient_password_like_the_username_is_refused(self):
+        response = self.post_patient(username="samirakhalil", password="samirakhalil1")
+        self.assert_refused(response, "The password is too similar to the username.")
+
 
 class AddLoginPageTests(TestCase):
     def setUp(self):
@@ -434,3 +493,20 @@ class AddLoginPageTests(TestCase):
         )
         self.assertContains(response, "at least 8 characters")
         self.assertFalse(get_user_model().objects.filter(username="omar").exists())
+
+    def assert_login_refused(self, username, password, message):
+        response = self.client.post("/patients/logins/new/", {"username": username, "password": password})
+        self.assertContains(response, message)
+        self.assertFalse(get_user_model().objects.filter(username=username).exists())
+
+    def test_f5_a_caregiver_username_with_a_space_is_refused(self):
+        self.assert_login_refused("omar k", "temporary1", "Enter a valid username.")
+
+    def test_f5_a_common_caregiver_password_is_refused(self):
+        self.assert_login_refused("omar", "password", "This password is too common.")
+
+    def test_f5_an_all_digits_caregiver_password_is_refused(self):
+        self.assert_login_refused("omar", "12345678", "This password is entirely numeric.")
+
+    def test_f5_a_caregiver_password_like_the_username_is_refused(self):
+        self.assert_login_refused("omarhaddad", "omarhaddad1", "The password is too similar to the username.")
