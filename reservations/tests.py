@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
@@ -17,6 +18,7 @@ from reservations.services import (
     collect_reservation,
     delay_refill,
     expire_reservations,
+    medicine_availability,
     minutes_left,
     new_refill_count,
     open_refill_count,
@@ -840,3 +842,154 @@ class DelayRefillPageTests(RefillPagesTestData):
 
     def test_11_4_an_unknown_request_is_not_found(self):
         self.assertEqual(self.client.get("/reservations/refills/9999/delay/").status_code, 404)
+
+class FindMedicineTestData(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.maya_user = User.objects.create(username="maya", role="patient")
+        cls.maya = Patient.objects.create(name="Maya", date_of_birth=date(1988, 9, 21), user=cls.maya_user)
+        cls.omar = User.objects.create(username="omar", role="patient")
+        cls.karim = User.objects.create(username="karim", role="assistant")
+        cls.syrup = make_medicine("Paracetamol syrup", "1000000000017", "4.50")
+        cls.tablets = make_medicine("Paracetamol", "1000000000005", "3.00")
+        cls.cetirizine = make_medicine("Cetirizine", "1000000000011", "5.00")
+
+    def setUp(self):
+        self.syrup_batch = make_batch(self.syrup, "SYR-001", 34)
+        make_batch(self.cetirizine, "CET-001", 2)
+
+    def found(self, name, quantity=1):
+        return {row["medicine"]: row for row in medicine_availability(name, quantity)}
+
+
+class MedicineAvailabilityTests(FindMedicineTestData):
+    def test_10_1_enough_stock_is_available(self):
+        row = self.found("syrup")[self.syrup]
+        self.assertEqual((row["available"], row["status"], row["label"]), (34, "available", "Available"))
+
+    def test_10_1_less_than_asked_says_how_many_are_left(self):
+        row = self.found("cetirizine", quantity=5)[self.cetirizine]
+        self.assertEqual((row["available"], row["status"], row["label"]), (2, "low", "Only 2 left"))
+
+    def test_10_1_exactly_enough_is_available(self):
+        self.assertEqual(self.found("cetirizine", quantity=2)[self.cetirizine]["status"], "available")
+
+    def test_10_1_no_stock_is_out_of_stock(self):
+        row = self.found("paracetamol")[self.tablets]
+        self.assertEqual((row["available"], row["status"], row["label"]), (0, "out", "Out of stock"))
+
+    def test_10_1_expired_stock_does_not_count(self):
+        make_batch(self.tablets, "PAR-OLD", 50, days_until_expiry=-1)
+        self.assertEqual(self.found("paracetamol")[self.tablets]["status"], "out")
+
+    def test_10_1_part_of_a_name_in_any_case_is_found(self):
+        self.assertEqual(list(self.found("PARACET")), [self.tablets, self.syrup])
+
+    def test_10_1_no_name_finds_nothing(self):
+        self.assertEqual(medicine_availability("", 1), [])
+
+    def test_10_1_at_most_five_medicines_are_shown(self):
+        for number in range(1, 8):
+            make_medicine(f"Vitamin {number}", f"20000000000{number:02d}", "2.00")
+        self.assertEqual(len(medicine_availability("vitamin", 1)), 5)
+
+
+class FindMedicinePageTests(FindMedicineTestData):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.maya_user)
+
+    def results(self, name, quantity=1):
+        return self.client.get("/reservations/find/results/", {"name": name, "quantity": quantity})
+
+    def test_10_1_the_search_page_uses_the_figma_wording(self):
+        response = self.client.get("/reservations/find/")
+        for words in [
+            "Medicine availability",
+            "Find a Medicine",
+            "Check availability before visiting your pharmacy",
+            "Medicine Name",
+            "Quantity",
+            "Check Availability",
+            "Real-Time Availability",
+            "Save Time",
+            "Reliable Information",
+        ]:
+            self.assertContains(response, words)
+
+    def test_10_1_the_search_form_sends_a_name_and_a_quantity(self):
+        response = self.client.get("/reservations/find/")
+        self.assertContains(response, 'action="/reservations/find/results/"')
+        self.assertContains(response, 'method="get"')
+        self.assertContains(response, 'name="name"')
+        self.assertContains(response, '<option value="1" selected>1</option>', html=True)
+        self.assertContains(response, '<option value="10">10</option>', html=True)
+
+    def test_10_1_the_menu_links_to_find_medicine(self):
+        response = self.client.get("/home/")
+        self.assertContains(response, 'href="/reservations/find/"')
+        response = self.client.get("/reservations/find/")
+        self.assertContains(response, 'href="/reservations/find/" class="active"')
+
+    def test_10_1_results_show_each_medicine_with_its_stock(self):
+        response = self.results("syrup")
+        self.assertContains(response, "Medicine Availability")
+        self.assertContains(response, "Here are the results for your search")
+        self.assertContains(response, "Paracetamol syrup 500 mg")
+        self.assertContains(response, "Test class")
+        self.assertContains(response, '<span class="availability-badge available">Available</span>', html=True)
+        self.assertContains(response, "In stock: 34")
+
+    def test_10_1_results_say_when_there_is_not_enough(self):
+        response = self.results("cetirizine", quantity=5)
+        self.assertContains(response, '<span class="availability-badge low">Only 2 left</span>', html=True)
+
+    def test_10_1_results_say_when_it_is_out_of_stock(self):
+        response = self.results("paracetamol")
+        self.assertContains(response, '<span class="availability-badge out">Out of stock</span>', html=True)
+        self.assertContains(response, "In stock: 0")
+
+    def test_10_1_results_show_the_pharmacy_once(self):
+        response = self.results("paracetamol")
+        self.assertContains(response, settings.PHARMACY_NAME)
+        self.assertContains(response, settings.PHARMACY_ADDRESS, count=1)
+        self.assertContains(response, settings.PHARMACY_PHONE)
+        self.assertContains(response, settings.PHARMACY_HOURS)
+
+    def test_10_1_results_link_back_to_the_search(self):
+        response = self.results("syrup")
+        self.assertContains(response, "Back to Search")
+        self.assertContains(response, 'href="/reservations/find/"')
+
+    def test_10_1_a_name_with_no_match_says_so(self):
+        response = self.results("zzz")
+        self.assertContains(response, 'No medicine matches "zzz".')
+
+    def test_10_1_a_name_is_required(self):
+        response = self.results("")
+        self.assertContains(response, "Enter a medicine name.")
+        self.assertContains(response, "Find a Medicine")
+
+    def test_10_1_the_quantity_must_be_1_to_10(self):
+        for quantity in [0, 11, "two"]:
+            response = self.results("syrup", quantity)
+            self.assertContains(response, "Find a Medicine")
+            self.assertNotContains(response, "Here are the results for your search")
+
+    def test_t7_a_stock_lookup_expires_old_reservations_first(self):
+        reserved_minutes_ago(reserve_medicine(self.maya_user, self.maya, self.syrup, 4), 121)
+        self.assertContains(self.results("syrup"), "In stock: 34")
+
+    def test_10_1_a_caregiver_with_no_patient_record_can_search(self):
+        self.client.force_login(self.omar)
+        self.assertContains(self.results("syrup"), "In stock: 34")
+
+    def test_10_1_staff_cannot_open_the_patient_pages(self):
+        self.client.force_login(self.karim)
+        self.assertEqual(self.client.get("/reservations/find/").status_code, 403)
+        self.assertEqual(self.results("syrup").status_code, 403)
+
+    def test_10_1_signed_out_visitors_go_to_the_patient_login(self):
+        self.client.logout()
+        self.assertRedirects(self.client.get("/reservations/find/"), "/login/?next=/reservations/find/")
