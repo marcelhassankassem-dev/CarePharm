@@ -7,12 +7,29 @@ from accounts.services import create_patient_login
 from passport.forms import PatientForm, PatientLoginForm
 from passport.services import (
     allergies_of,
+    chosen_patient,
     create_patient,
     current_medicines_of,
     find_patients,
     get_patient,
+    patient_header,
+    viewable_patients,
 )
 from sales.services import dispensing_history
+
+VIEWING_PATIENT = "viewing_patient_id"
+
+
+def selected_patient(request):
+    return chosen_patient(request.user, request.session.get(VIEWING_PATIENT))
+
+
+def patient_page_data(request):
+    return {
+        **patient_header(request.user),
+        "viewable_patients": viewable_patients(request.user),
+        "viewing": selected_patient(request),
+    }
 
 
 @staff_required

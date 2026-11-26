@@ -152,7 +152,7 @@ def reserve(request):
 @patient_required
 def reservation_page(request, reservation_id):
     expire_reservations()
-    reservation = patient_reservation(request.user, reservation_id)
+    reservation = patient_reservation(patient_of(request.user), reservation_id)
     return render(
         request,
         "reservations/reserved.html",

@@ -41,3 +41,7 @@ class NewStaffForm(forms.ModelForm):
 class EditStaffForm(forms.Form):
     role = forms.ChoiceField(choices=STAFF_ROLE_CHOICES)
     is_active = forms.BooleanField(label="This account can sign in", required=False)
+
+
+class FamilyMemberForm(forms.Form):
+    username = forms.CharField(label="Their CarePharm username", max_length=150)

@@ -10,18 +10,13 @@ from django.test import RequestFactory, TestCase
 from django.utils import timezone
 
 from accounts.models import CaregiverLink
-from accounts.permissions import (
-    can_act_as_pharmacist,
-    can_add_medicines,
-    is_owner,
-    is_pharmacy_staff,
-    selected_patient,
-)
+from accounts.permissions import can_act_as_pharmacist, can_add_medicines, is_owner, is_pharmacy_staff
 from accounts.services import add_caregiver, caregiver_links_of, create_patient_login, revoke_caregiver
 from core.models import ActivityLog
 from core.services import log_action, notify
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Patient
+from passport.views import selected_patient
 from prescriptions.models import Prescription, PrescriptionItem
 from reservations.models import RefillRequest, Reservation
 
