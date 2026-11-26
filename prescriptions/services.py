@@ -1,9 +1,11 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
+from core.services import notify_patient
 from inventory.services import return_stock, take_stock
 from passport.services import add_current_medicine
 from prescriptions.models import Prescription, PrescriptionItem
@@ -11,6 +13,13 @@ from sales.services import record_sale
 
 ITEMS_ARE_LOCKED = "Medicines can only be changed while the prescription is Received."
 UNCOLLECTED_STATUSES = ["received", "preparing", "ready"]
+TRACKER_STEPS = [
+    ("received", "Received"),
+    ("preparing", "Preparing"),
+    ("ready", "Ready"),
+    ("collected", "Collected"),
+]
+PATIENT_PRESCRIPTIONS_LINK = "/prescriptions/mine/"
 
 
 def check_status(prescription, status, problem):
@@ -79,6 +88,27 @@ def ready_rows(search=""):
     ]
 
 
+def prescriptions_of(patient):
+    return Prescription.objects.filter(patient=patient).order_by("-created_at", "-id")
+
+
+def status_steps(prescription):
+    statuses = [status for status, label in TRACKER_STEPS]
+    if prescription.status not in statuses:
+        return []
+    current = statuses.index(prescription.status)
+    steps = []
+    for position, (status, label) in enumerate(TRACKER_STEPS):
+        if position < current:
+            state = "done"
+        elif position == current:
+            state = "current"
+        else:
+            state = "next"
+        steps.append({"label": label, "state": state})
+    return steps
+
+
 def add_item(prescription, medicine, quantity, days_of_supply, long_term=False):
     check_status(prescription, "received", ITEMS_ARE_LOCKED)
     return PrescriptionItem.objects.create(
@@ -115,15 +145,25 @@ def start_preparing(prescription):
     prescription.save()
 
 
+def ready_text(prescription, items):
+    medicines = ", ".join(str(item.medicine) for item in items)
+    return (
+        f"{prescription.patient.name}'s prescription is ready for pickup at {settings.PHARMACY_NAME}: "
+        f"{medicines}."
+    )
+
+
 @transaction.atomic
 def mark_ready(user, prescription):
     check_status(prescription, "preparing", "Only a Preparing prescription can be marked Ready.")
-    for item in items_of(prescription):
+    items = list(items_of(prescription))
+    for item in items:
         item.batch = take_stock(user, item.medicine, item.quantity)
         item.save()
     prescription.status = "ready"
     prescription.ready_at = timezone.now()
     prescription.save()
+    notify_patient(prescription.patient, ready_text(prescription, items), PATIENT_PRESCRIPTIONS_LINK)
 
 
 @transaction.atomic

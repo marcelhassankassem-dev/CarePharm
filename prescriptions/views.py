@@ -2,8 +2,9 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.shortcuts import redirect, render
 
-from accounts.permissions import can_act_as_pharmacist, pharmacist_required, staff_required
+from accounts.permissions import can_act_as_pharmacist, patient_required, pharmacist_required, staff_required
 from passport.forms import PatientChoiceForm
+from passport.services import patient_header, patient_of
 from prescriptions.forms import ItemForm
 from prescriptions.services import (
     add_item,
@@ -15,10 +16,12 @@ from prescriptions.services import (
     mark_collected,
     mark_ready,
     mark_returned,
+    prescriptions_of,
     ready_count,
     ready_rows,
     remove_item,
     start_preparing,
+    status_steps,
     uncollected_count,
     uncollected_rows,
 )
@@ -181,3 +184,17 @@ def prescription_returned(request, prescription_id):
     prescription = get_prescription(prescription_id)
     run_action(request, mark_returned, request.user, prescription)
     return redirect("prescription_detail", prescription.pk)
+
+
+def tracked_prescriptions(patient):
+    return [
+        {"prescription": prescription, "items": list(items_of(prescription)), "steps": status_steps(prescription)}
+        for prescription in prescriptions_of(patient)
+    ]
+
+
+@patient_required
+def my_prescriptions(request):
+    context = patient_header(request.user)
+    context["rows"] = tracked_prescriptions(patient_of(request.user))
+    return render(request, "prescriptions/mine.html", context)

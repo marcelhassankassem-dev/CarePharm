@@ -19,7 +19,7 @@ from accounts.services import (
     update_staff_member,
 )
 from core.services import activity_log, pharmacy_details
-from passport.services import patient_name_for
+from passport.services import patient_header
 
 
 def site_root(request):
@@ -55,11 +55,9 @@ def login_page(request, side):
 
 @patient_required
 def patient_home(request):
-    return render(
-        request,
-        "accounts/home.html",
-        {"patient_name": patient_name_for(request.user), "pharmacy": pharmacy_details()},
-    )
+    context = patient_header(request.user)
+    context["pharmacy"] = pharmacy_details()
+    return render(request, "accounts/home.html", context)
 
 
 def sign_out(request):

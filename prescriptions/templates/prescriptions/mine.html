@@ -1,0 +1,38 @@
+{% extends "core/patient.html" %}
+{% load static %}
+
+{% block title %}Track Prescription - CarePharm{% endblock %}
+
+{% block patient_content %}
+<div class="page-heading">
+    <div>
+        <h1>Track Prescription</h1>
+        <p class="page-intro">Follow your prescription from processing to pickup.</p>
+    </div>
+</div>
+
+<div class="tracked-list">
+    {% for row in rows %}
+    <article class="tracked-prescription">
+        <div class="tracked-title">
+            <span class="tracked-icon"><img src="{% static 'core/images/prescription-pill.svg' %}" alt=""></span>
+            <div>
+                <h2>{% for item in row.items %}{{ item.medicine }}{% if not forloop.last %}, {% endif %}{% endfor %}</h2>
+                <p>Received {{ row.prescription.created_at|date:"d M Y" }} · Prescription #{{ row.prescription.pk }}</p>
+            </div>
+        </div>
+        {% if row.steps %}
+        <ol class="tracker">
+            {% for step in row.steps %}
+            <li class="step {{ step.state }}">{{ step.label }}</li>
+            {% endfor %}
+        </ol>
+        {% else %}
+        <p class="tracked-returned">Returned to stock</p>
+        {% endif %}
+    </article>
+    {% empty %}
+    <p class="card patient-empty">No prescriptions yet.</p>
+    {% endfor %}
+</div>
+{% endblock %}

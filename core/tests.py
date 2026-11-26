@@ -7,7 +7,16 @@ from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
 from core.models import ActivityLog, Notification
-from core.services import activity_log, log_action, notifications_for, notify, notify_patient, pharmacy_details
+from core.services import (
+    activity_log,
+    log_action,
+    mark_all_read,
+    notifications_for,
+    notify,
+    notify_patient,
+    pharmacy_details,
+    unread_count,
+)
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, Patient
 from prescriptions.models import Prescription, PrescriptionItem
@@ -236,6 +245,22 @@ class SeedDemoPrescriptionTests(TestCase):
     def setUpTestData(cls):
         call_command("seed_demo")
 
+    def test_9_2_maya_is_told_her_prescription_is_ready(self):
+        notifications = Notification.objects.filter(user__username="maya", text__contains="ready for pickup")
+        self.assertEqual(notifications.count(), 1)
+        self.assertFalse(notifications.get().read)
+
+    def test_9_2_samiras_notification_for_her_collected_prescription_is_already_read(self):
+        notifications = Notification.objects.filter(user__username="samira", text__contains="ready for pickup")
+        self.assertTrue(notifications.exists())
+        self.assertFalse(notifications.filter(read=False).exists())
+
+    def test_9_2_omars_father_is_still_told_about_the_prescription_waiting_for_him(self):
+        unread = Notification.objects.filter(
+            user__username="omars_father", text__contains="ready for pickup", read=False
+        )
+        self.assertEqual([notification.text.split(": ")[1] for notification in unread], ["Atorvastatin 20 mg."])
+
     def test_1_1_every_status_before_returned_has_a_demo_prescription(self):
         statuses = set(Prescription.objects.values_list("status", flat=True))
         for status in ["received", "preparing", "ready", "collected"]:
@@ -360,7 +385,7 @@ class SeedDemoRefillTests(TestCase):
 
     def test_11_4_omars_father_was_told_about_the_delay(self):
         delayed = RefillRequest.objects.get(status="delayed")
-        notification = Notification.objects.get(user__username="omars_father")
+        notification = Notification.objects.get(user__username="omars_father", text__startswith="Refill delayed")
         self.assertEqual(
             notification.text,
             f"Refill delayed: Metformin 850 mg, expected {delayed.expected_on:%d %b %Y}.",
@@ -511,6 +536,69 @@ class NotificationTests(TestCase):
         notify(self.samira, "Newer", "/b/")
         texts = [notification.text for notification in notifications_for(self.samira)]
         self.assertEqual(texts, ["Newer", "Older"])
+
+    def test_9_2_unread_notifications_are_counted(self):
+        maya = get_user_model().objects.create_user(username="maya", password="pass")
+        notify(self.samira, "One", "/a/")
+        notify(self.samira, "Two", "/b/")
+        notify(maya, "Maya's", "/c/")
+        self.assertEqual(unread_count(self.samira), 2)
+
+    def test_9_2_marking_all_read_only_touches_that_users_notifications(self):
+        maya = get_user_model().objects.create_user(username="maya", password="pass")
+        notify(self.samira, "One", "/a/")
+        notify(maya, "Maya's", "/c/")
+        mark_all_read(self.samira)
+        self.assertEqual(unread_count(self.samira), 0)
+        self.assertEqual(unread_count(maya), 1)
+
+
+class NotificationsPageTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.maya = User.objects.create_user(username="maya", password="pass", role="patient")
+        Patient.objects.create(name="Maya", date_of_birth="1990-06-02", user=cls.maya)
+        cls.rana = User.objects.create_user(username="rana", password="pass", role="pharmacist")
+
+    def setUp(self):
+        self.client.force_login(self.maya)
+
+    def test_9_2_signed_out_visitors_go_to_the_patient_sign_in(self):
+        self.client.logout()
+        self.assertRedirects(self.client.get("/notifications/"), "/login/?next=/notifications/")
+
+    def test_9_2_staff_cannot_open_the_patients_notifications(self):
+        self.client.force_login(self.rana)
+        self.assertEqual(self.client.get("/notifications/").status_code, 403)
+
+    def test_9_2_the_page_lists_the_notifications_with_their_links(self):
+        notify(self.maya, "Maya's prescription is ready for pickup.", "/prescriptions/mine/")
+        response = self.client.get("/notifications/")
+        self.assertContains(response, "Notifications")
+        self.assertContains(response, "Maya&#x27;s prescription is ready for pickup.")
+        self.assertContains(response, 'href="/prescriptions/mine/"')
+
+    def test_9_2_unread_notifications_come_first_and_stand_out(self):
+        old = notify(self.maya, "Seen before", "/a/")
+        old.read = True
+        old.save()
+        notify(self.maya, "Not seen yet", "/b/")
+        page = self.client.get("/notifications/").content.decode()
+        self.assertLess(page.index("Not seen yet"), page.index("Seen before"))
+        self.assertEqual(page.count('class="notification unread"'), 1)
+
+    def test_9_2_opening_the_page_marks_everything_read(self):
+        notify(self.maya, "Not seen yet", "/b/")
+        self.client.get("/notifications/")
+        self.assertEqual(unread_count(self.maya), 0)
+
+    def test_9_2_other_users_notifications_are_not_shown(self):
+        notify(self.rana, "For Rana", "/a/")
+        self.assertNotContains(self.client.get("/notifications/"), "For Rana")
+
+    def test_9_2_no_notifications_says_so(self):
+        self.assertContains(self.client.get("/notifications/"), "No notifications yet.")
 
 
 class NotifyPatientTests(TestCase):
