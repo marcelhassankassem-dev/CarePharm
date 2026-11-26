@@ -31,6 +31,20 @@ def staff_required(view):
     return checked_view
 
 
+def is_patient_side(user):
+    return user.role == "patient"
+
+
+def patient_required(view):
+    @login_required(login_url="/login/")
+    def checked_view(request, *args, **kwargs):
+        if not is_patient_side(request.user):
+            raise PermissionDenied
+        return view(request, *args, **kwargs)
+
+    return checked_view
+
+
 def pharmacist_required(view):
     @login_required(login_url="/login/staff/")
     def checked_view(request, *args, **kwargs):

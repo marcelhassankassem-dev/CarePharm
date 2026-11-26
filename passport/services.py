@@ -43,6 +43,17 @@ def get_patient(patient_id):
     return get_object_or_404(Patient, pk=patient_id)
 
 
+def patient_of(user):
+    return Patient.objects.filter(user=user).first()
+
+
+def patient_name_for(user):
+    patient = patient_of(user)
+    if patient:
+        return patient.name
+    return user.get_full_name() or user.username
+
+
 def allergies_of(patient):
     return Allergy.objects.filter(patient=patient).select_related("drug_class")
 

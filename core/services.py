@@ -1,6 +1,16 @@
+from django.conf import settings
 from django.utils import timezone
 
 from core.models import ActivityLog, Notification
+
+
+def pharmacy_details():
+    return {
+        "name": settings.PHARMACY_NAME,
+        "address": settings.PHARMACY_ADDRESS,
+        "phone": settings.PHARMACY_PHONE,
+        "hours": settings.PHARMACY_HOURS,
+    }
 
 
 def log_action(user, action, details=""):
