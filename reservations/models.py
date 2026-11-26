@@ -35,6 +35,7 @@ class RefillRequest(models.Model):
     requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="waiting")
     created_at = models.DateTimeField(auto_now_add=True)
+    expected_on = models.DateField(null=True, blank=True)
     new_prescription = models.ForeignKey(Prescription, on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):

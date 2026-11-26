@@ -1,0 +1,37 @@
+{% extends "prescriptions/prescriptions.html" %}
+{% load static %}
+
+{% block title %}Delay Refill - CarePharm{% endblock %}
+
+{% block popup %}
+{% with item=refill_request.prescription_item %}
+<div class="popup-overlay">
+    <dialog open class="popup">
+        <div class="popup-header">
+            <span class="card-icon-bubble"><img src="{% static 'core/images/refill-refresh.svg' %}" alt=""></span>
+            <div>
+                <h2>Delay Refill</h2>
+                <p>{{ item.prescription.patient.name }} · {{ item.medicine }} · {{ item.quantity }} unit{{ item.quantity|pluralize }}</p>
+            </div>
+            <a href="/prescriptions/?show=refills" class="popup-close" aria-label="Close"><img src="{% static 'core/images/icon-close.svg' %}" alt=""></a>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="popup-fields">
+                <div class="form-field full-width">
+                    <label for="{{ form.expected_on.id_for_label }}">{{ form.expected_on.label }}</label>
+                    {{ form.expected_on }}
+                    {{ form.expected_on.errors }}
+                </div>
+            </div>
+            <p class="popup-note">The patient gets a message with the medicine and this date.</p>
+            <div class="popup-actions">
+                <a href="/prescriptions/?show=refills" class="secondary-button">Cancel</a>
+                <button type="submit" class="primary-button">Delay Refill</button>
+            </div>
+        </form>
+    </dialog>
+</div>
+{% endwith %}
+{% endblock %}

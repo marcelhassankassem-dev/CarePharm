@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
-from core.models import ActivityLog
+from core.models import ActivityLog, Notification
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Patient
 from prescriptions.models import Prescription, PrescriptionItem
@@ -15,6 +15,7 @@ from reservations.services import (
     active_reservation_count,
     approve_refill,
     collect_reservation,
+    delay_refill,
     expire_reservations,
     minutes_left,
     new_refill_count,
@@ -692,3 +693,150 @@ class ApproveRefillPageTests(RefillPagesTestData):
 
     def test_11_2_an_unknown_request_is_not_found(self):
         self.assertEqual(self.client.post("/reservations/refills/9999/approve/").status_code, 404)
+
+
+def next_week():
+    return timezone.localdate() + timedelta(days=7)
+
+
+class DelayRefillTests(RefillTestData):
+    def test_11_4_delaying_marks_the_request_delayed_with_its_date(self):
+        refill_request = request_refill(self.father_user, self.metformin_item)
+        delay_refill(refill_request, next_week())
+        refill_request.refresh_from_db()
+        self.assertEqual((refill_request.status, refill_request.expected_on), ("delayed", next_week()))
+
+    def test_11_4_the_patient_is_told_the_medicine_and_the_date(self):
+        delay_refill(request_refill(self.father_user, self.metformin_item), next_week())
+        notification = Notification.objects.get()
+        self.assertEqual(notification.user, self.father_user)
+        self.assertEqual(notification.text, f"Refill delayed: Metformin 500 mg, expected {next_week():%d %b %Y}.")
+        self.assertEqual(notification.link, "/")
+
+    def test_11_4_the_expected_date_must_be_after_today(self):
+        refill_request = request_refill(self.father_user, self.metformin_item)
+        with self.assertRaises(ValidationError):
+            delay_refill(refill_request, timezone.localdate())
+        refill_request.refresh_from_db()
+        self.assertEqual(refill_request.status, "waiting")
+        self.assertFalse(Notification.objects.exists())
+
+    def test_11_4_a_delayed_request_cannot_be_delayed_again(self):
+        refill_request = request_refill(self.father_user, self.metformin_item)
+        delay_refill(refill_request, next_week())
+        with self.assertRaises(ValidationError):
+            delay_refill(refill_request, next_week() + timedelta(days=7))
+        refill_request.refresh_from_db()
+        self.assertEqual(refill_request.expected_on, next_week())
+        self.assertEqual(Notification.objects.count(), 1)
+
+    def test_11_4_an_approved_request_cannot_be_delayed(self):
+        refill_request = request_refill(self.father_user, self.metformin_item)
+        approve_refill(refill_request)
+        with self.assertRaises(ValidationError):
+            delay_refill(refill_request, next_week())
+
+    def test_11_4_a_delayed_request_can_still_be_approved(self):
+        refill_request = request_refill(self.father_user, self.metformin_item)
+        delay_refill(refill_request, next_week())
+        approve_refill(refill_request)
+        refill_request.refresh_from_db()
+        self.assertEqual(refill_request.status, "approved")
+
+
+class DelayRefillPageTests(RefillPagesTestData):
+    def delay_address(self, refill_request):
+        return f"/reservations/refills/{refill_request.pk}/delay/"
+
+    def delay(self, refill_request, expected_on, follow=False):
+        return self.client.post(self.delay_address(refill_request), {"expected_on": expected_on}, follow=follow)
+
+    def shown_messages(self, response):
+        return [str(message) for message in response.context["messages"]]
+
+    def test_11_4_new_requests_have_a_delay_button_for_pharmacists(self):
+        response = self.client.get("/prescriptions/", {"show": "refills"})
+        self.assertContains(response, f'href="{self.delay_address(self.losartan_request)}"')
+        self.assertContains(response, f'href="{self.delay_address(self.metformin_request)}"')
+
+    def test_11_4_a_delayed_request_has_no_delay_button_but_can_be_approved(self):
+        delay_refill(self.metformin_request, next_week())
+        response = self.client.get("/prescriptions/", {"show": "refills"})
+        self.assertNotContains(response, self.delay_address(self.metformin_request))
+        self.assertContains(response, f'action="{self.approve_address(self.metformin_request)}"')
+
+    def test_11_4_an_assistant_sees_no_delay_button(self):
+        self.client.force_login(self.karim)
+        self.assertNotContains(self.client.get("/prescriptions/", {"show": "refills"}), "/delay/")
+
+    def test_11_4_delay_opens_a_popup_over_the_refill_requests(self):
+        response = self.client.get(self.delay_address(self.losartan_request))
+        self.assertContains(response, "<dialog open")
+        self.assertContains(response, "Delay Refill")
+        self.assertContains(response, 'name="expected_on"')
+        self.assertContains(response, "Losartan 500 mg · 30 units")
+        self.assertContains(response, 'class="selected">Refill requests 2')
+
+    def test_11_4_delaying_goes_back_to_the_tab_and_tells_the_patient(self):
+        response = self.delay(self.losartan_request, next_week(), follow=True)
+        self.assertRedirects(response, "/prescriptions/?show=refills")
+        self.assertEqual(
+            self.shown_messages(response),
+            [f"Refill delayed until {next_week():%d %b %Y}. Omar's Father was told."],
+        )
+        self.losartan_request.refresh_from_db()
+        self.assertEqual(self.losartan_request.status, "delayed")
+        self.assertEqual(Notification.objects.get().user, self.father_user)
+
+    def test_11_4_a_delayed_row_shows_its_expected_date(self):
+        self.delay(self.losartan_request, next_week())
+        response = self.client.get("/prescriptions/", {"show": "refills"})
+        self.assertContains(response, '<span class="pill refill-status delayed">Delayed</span>', html=True)
+        self.assertContains(response, f"Expected {next_week():%d %b %Y}")
+
+    def test_11_4_a_date_that_is_not_after_today_keeps_the_popup_open(self):
+        response = self.delay(self.losartan_request, timezone.localdate())
+        self.assertContains(response, "<dialog open")
+        self.assertContains(response, "The expected date must be after today.")
+        self.losartan_request.refresh_from_db()
+        self.assertEqual(self.losartan_request.status, "waiting")
+
+    def test_11_4_a_date_is_required(self):
+        response = self.client.post(self.delay_address(self.losartan_request), {})
+        self.assertContains(response, "<dialog open")
+        self.assertFalse(Notification.objects.exists())
+
+    def test_11_4_a_patient_with_no_login_is_mentioned(self):
+        ahmad = Patient.objects.create(name="Ahmad", date_of_birth=date(1980, 6, 2))
+        refill_request = request_refill(self.rana, collected_item(ahmad, self.losartan))
+        response = self.delay(refill_request, next_week(), follow=True)
+        self.assertEqual(
+            self.shown_messages(response),
+            [f"Refill delayed until {next_week():%d %b %Y}. Ahmad has no login, so let them know by phone."],
+        )
+        self.assertFalse(Notification.objects.exists())
+
+    def test_11_4_delaying_twice_is_refused(self):
+        delay_refill(self.losartan_request, next_week())
+        response = self.delay(self.losartan_request, next_week() + timedelta(days=7), follow=True)
+        self.assertRedirects(response, "/prescriptions/?show=refills")
+        self.assertEqual(self.shown_messages(response), ["Only a new refill request can be delayed."])
+        self.assertEqual(Notification.objects.count(), 1)
+
+    def test_11_4_an_owner_who_is_a_pharmacist_can_delay(self):
+        self.client.force_login(self.nadim)
+        self.delay(self.losartan_request, next_week())
+        self.losartan_request.refresh_from_db()
+        self.assertEqual(self.losartan_request.status, "delayed")
+
+    def test_11_4_an_assistant_cannot_delay(self):
+        self.client.force_login(self.karim)
+        self.assertEqual(self.client.get(self.delay_address(self.losartan_request)).status_code, 403)
+        self.assertEqual(self.delay(self.losartan_request, next_week()).status_code, 403)
+
+    def test_11_4_patient_side_users_cannot_delay(self):
+        self.client.force_login(self.father_user)
+        self.assertEqual(self.delay(self.losartan_request, next_week()).status_code, 403)
+
+    def test_11_4_an_unknown_request_is_not_found(self):
+        self.assertEqual(self.client.get("/reservations/refills/9999/delay/").status_code, 404)

@@ -7,6 +7,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
+from core.services import notify_patient
 from inventory.services import available_stock, return_stock, take_stock
 from prescriptions.services import create_refill_prescription
 from reservations.models import RefillRequest, Reservation
@@ -101,6 +102,20 @@ def approve_refill(refill_request):
     refill_request.new_prescription = prescription
     refill_request.save()
     return prescription
+
+
+@transaction.atomic
+def delay_refill(refill_request, expected_on):
+    if refill_request.status != "waiting":
+        raise ValidationError("Only a new refill request can be delayed.")
+    if expected_on <= timezone.localdate():
+        raise ValidationError("The expected date must be after today.")
+    refill_request.status = "delayed"
+    refill_request.expected_on = expected_on
+    refill_request.save()
+    item = refill_request.prescription_item
+    text = f"Refill delayed: {item.medicine}, expected {expected_on:%d %b %Y}."
+    return notify_patient(item.prescription.patient, text, "/")
 
 
 def get_refill_request(refill_request_id):

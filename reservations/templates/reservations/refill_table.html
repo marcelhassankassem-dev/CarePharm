@@ -1,4 +1,4 @@
-<table class="data-table prescription-table">
+<table class="data-table prescription-table refill-table">
     <thead>
         <tr>
             <th>Patient</th>
@@ -26,13 +26,21 @@
                 {% if row.out_of_stock %}<small class="refill-flag">Out of stock</small>{% endif %}
             </td>
             <td>{{ refill_request.created_at|date:"d M Y, H:i" }}</td>
-            <td><span class="pill refill-status {{ refill_request.status }}">{{ refill_request.get_status_display }}</span></td>
+            <td>
+                <span class="pill refill-status {{ refill_request.status }}">{{ refill_request.get_status_display }}</span>
+                {% if refill_request.expected_on %}<small class="refill-expected">Expected {{ refill_request.expected_on|date:"d M Y" }}</small>{% endif %}
+            </td>
             <td class="prescription-action">
                 {% if can_change %}
-                <form method="post" action="/reservations/refills/{{ refill_request.pk }}/approve/">
-                    {% csrf_token %}
-                    <button type="submit" class="row-button filled">Approve</button>
-                </form>
+                <div class="refill-actions">
+                    {% if refill_request.status == "waiting" %}
+                    <a href="/reservations/refills/{{ refill_request.pk }}/delay/" class="row-button">Delay</a>
+                    {% endif %}
+                    <form method="post" action="/reservations/refills/{{ refill_request.pk }}/approve/">
+                        {% csrf_token %}
+                        <button type="submit" class="row-button filled">Approve</button>
+                    </form>
+                </div>
                 {% endif %}
             </td>
         </tr>

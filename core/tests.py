@@ -7,7 +7,7 @@ from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
 from core.models import ActivityLog, Notification
-from core.services import activity_log, log_action, notifications_for, notify
+from core.services import activity_log, log_action, notifications_for, notify, notify_patient
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, Patient
 from prescriptions.models import Prescription, PrescriptionItem
@@ -331,10 +331,29 @@ class SeedDemoRefillTests(TestCase):
         batches = medicine.batch_set.filter(expiry_date__gte=timezone.localdate())
         return sum(batch.quantity for batch in batches)
 
-    def test_11_2_the_demo_has_two_new_refill_requests_from_omars_father(self):
-        requests = RefillRequest.objects.filter(status="waiting")
+    def test_11_2_the_demo_has_two_open_refill_requests_from_omars_father(self):
+        requests = RefillRequest.objects.filter(status__in=["waiting", "delayed"])
         self.assertEqual(requests.count(), 2)
         self.assertEqual({request.requested_by.username for request in requests}, {"omars_father"})
+
+    def test_11_4_the_out_of_stock_demo_request_is_delayed_with_a_date(self):
+        delayed = RefillRequest.objects.get(status="delayed")
+        self.assertEqual(str(delayed.prescription_item.medicine), "Metformin 850 mg")
+        self.assertGreater(delayed.expected_on, timezone.localdate())
+        self.assertEqual(RefillRequest.objects.filter(status="waiting").count(), 1)
+
+    def test_11_4_the_delayed_demo_request_is_still_the_older_one(self):
+        delayed = RefillRequest.objects.get(status="delayed")
+        new = RefillRequest.objects.get(status="waiting")
+        self.assertLess(delayed.created_at, new.created_at - timedelta(hours=12))
+
+    def test_11_4_omars_father_was_told_about_the_delay(self):
+        delayed = RefillRequest.objects.get(status="delayed")
+        notification = Notification.objects.get(user__username="omars_father")
+        self.assertEqual(
+            notification.text,
+            f"Refill delayed: Metformin 850 mg, expected {delayed.expected_on:%d %b %Y}.",
+        )
 
     def test_11_2_demo_requests_point_at_collected_long_term_items(self):
         for request in RefillRequest.objects.select_related("prescription_item__prescription"):
@@ -481,3 +500,18 @@ class NotificationTests(TestCase):
         notify(self.samira, "Newer", "/b/")
         texts = [notification.text for notification in notifications_for(self.samira)]
         self.assertEqual(texts, ["Newer", "Older"])
+
+
+class NotifyPatientTests(TestCase):
+    def test_11_4_a_patient_with_a_login_is_notified(self):
+        samira_user = get_user_model().objects.create_user(username="samira", password="pass")
+        samira = Patient.objects.create(name="Samira", date_of_birth="1958-03-14", user=samira_user)
+        told = notify_patient(samira, "Refill delayed", "/")
+        notification = Notification.objects.get()
+        self.assertEqual((notification.user, notification.text, notification.link), (samira_user, "Refill delayed", "/"))
+        self.assertEqual(told, [samira_user])
+
+    def test_11_4_a_patient_with_no_login_is_not_notified(self):
+        ahmad = Patient.objects.create(name="Ahmad", date_of_birth="1980-06-02")
+        self.assertEqual(notify_patient(ahmad, "Refill delayed", "/"), [])
+        self.assertFalse(Notification.objects.exists())
