@@ -304,6 +304,7 @@ def demo_refill_request(patient_name, medicine_name, strength, hours):
     )
     refill_request = request_refill(patient.user, item)
     RefillRequest.objects.filter(pk=refill_request.pk).update(created_at=timezone.now() - timedelta(hours=hours))
+    refill_request.refresh_from_db()
     return refill_request
 
 

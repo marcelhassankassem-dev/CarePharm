@@ -1665,6 +1665,39 @@ body {
     background: #ffe3cc;
 }
 
+.refill-table th:nth-child(1) {
+    width: 190px;
+}
+
+.refill-table th:nth-child(2) {
+    width: 230px;
+}
+
+.refill-table th:nth-child(4) {
+    width: 170px;
+}
+
+.refill-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.refill-expected {
+    display: block;
+    margin-top: 4px;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 700;
+    color: #d9480f;
+}
+
+.popup-note {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: #4f6070;
+}
+
 .refill-flag {
     display: block;
     margin-top: 3px;

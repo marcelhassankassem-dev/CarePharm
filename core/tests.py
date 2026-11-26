@@ -342,6 +342,11 @@ class SeedDemoRefillTests(TestCase):
         self.assertGreater(delayed.expected_on, timezone.localdate())
         self.assertEqual(RefillRequest.objects.filter(status="waiting").count(), 1)
 
+    def test_11_4_the_delayed_demo_request_is_still_the_older_one(self):
+        delayed = RefillRequest.objects.get(status="delayed")
+        new = RefillRequest.objects.get(status="waiting")
+        self.assertLess(delayed.created_at, new.created_at - timedelta(hours=12))
+
     def test_11_4_omars_father_was_told_about_the_delay(self):
         delayed = RefillRequest.objects.get(status="delayed")
         notification = Notification.objects.get(user__username="omars_father")
