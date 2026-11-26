@@ -997,8 +997,9 @@ class AdjustStockPageTests(InventoryPagesTestData):
         self.assertContains(response, "Save Count")
 
     def test_4_3_an_expired_batch_is_not_offered(self):
-        create_batch(self.medicine, batch_number="OLD-001", expiry_date=in_days(-1))
-        self.assertNotContains(self.client.get(self.address), "OLD-001")
+        old = create_batch(self.medicine, batch_number="OLD-001", expiry_date=in_days(-1))
+        choices = self.client.get(self.address).context["form"].fields["batch"].queryset
+        self.assertNotIn(old, choices)
 
     def test_4_3_the_popup_stays_on_top_of_the_stock_list(self):
         self.assertContains(self.client.get(self.address), "Stock List")
