@@ -3,7 +3,13 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 
 from accounts.forms import EditStaffForm, NewStaffForm
-from accounts.permissions import ROLE_PERMISSIONS, is_owner, is_pharmacy_staff, require_owner
+from accounts.permissions import (
+    ROLE_PERMISSIONS,
+    is_owner,
+    is_pharmacy_staff,
+    patient_required,
+    require_owner,
+)
 from accounts.services import (
     active_staff_count,
     create_staff_member,
@@ -12,7 +18,8 @@ from accounts.services import (
     staff_members,
     update_staff_member,
 )
-from core.services import activity_log
+from core.services import activity_log, pharmacy_details
+from passport.services import patient_name_for
 
 
 def site_root(request):
@@ -42,8 +49,17 @@ def login_page(request, side):
                 return redirect("staff_list")
             if is_pharmacy_staff(user):
                 return redirect("dashboard")
-            return redirect(request.path)
+            return redirect("patient_home")
     return render(request, "accounts/login.html", {"side": side, "problem": problem})
+
+
+@patient_required
+def patient_home(request):
+    return render(
+        request,
+        "accounts/home.html",
+        {"patient_name": patient_name_for(request.user), "pharmacy": pharmacy_details()},
+    )
 
 
 def sign_out(request):

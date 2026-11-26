@@ -3267,3 +3267,160 @@ body {
 .report-losses td .report-loss-current {
     color: #c8102e;
 }
+
+.patient-menu {
+    gap: 30px;
+    margin-left: 117px;
+    font-size: 15px;
+}
+
+.patient-menu a,
+.patient-menu span {
+    gap: 9px;
+}
+
+.patient-bell {
+    margin-right: 20px;
+}
+
+.console-page.home-page {
+    background: url("images/shelf-photo.png") -382px -2px / 1823px 1026px no-repeat, #e9f4f1;
+}
+
+.home-content {
+    position: relative;
+    padding: 146px 24px 40px 21px;
+}
+
+.home-intro {
+    width: 811px;
+}
+
+.home-welcome {
+    margin: 0 0 16px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #14756f;
+}
+
+.home-intro h1 {
+    margin: 0;
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 48px;
+    color: #032d48;
+}
+
+.home-lead {
+    width: 783px;
+    margin: 40px 0 0 28px;
+    font-size: 25px;
+    font-style: italic;
+    font-weight: 800;
+    color: #406263;
+}
+
+.home-pharmacy {
+    position: absolute;
+    top: 182px;
+    left: 1041px;
+    width: 310px;
+    box-sizing: border-box;
+    border-radius: 20px;
+}
+
+.home-pharmacy h2 {
+    margin: 0 0 10px;
+    font-size: 18px;
+    font-weight: 800;
+    color: #032d48;
+}
+
+.home-pharmacy strong {
+    font-size: 15px;
+    color: #14756f;
+}
+
+.home-pharmacy dl {
+    margin: 12px 0 0;
+    font-size: 13.5px;
+}
+
+.home-pharmacy dt {
+    margin-top: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #7c8a96;
+}
+
+.home-pharmacy dd {
+    margin: 2px 0 0;
+    color: #1f3345;
+}
+
+.home-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 310px);
+    column-gap: 30px;
+    row-gap: 40px;
+    margin-top: 181px;
+}
+
+.home-card {
+    position: relative;
+    height: 132px;
+    padding: 9px 12px;
+    box-sizing: border-box;
+    border-radius: 20px;
+}
+
+.home-card h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 800;
+    color: #032d48;
+}
+
+.home-card img {
+    position: absolute;
+    top: 36px;
+    left: 4px;
+    width: 88px;
+    height: 88px;
+}
+
+.home-card p {
+    position: absolute;
+    top: 44px;
+    right: 12px;
+    left: 100px;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 800;
+    color: #406263;
+}
+
+.home-card.find {
+    background: rgba(81, 202, 205, 0.8);
+}
+
+.home-card.reserve {
+    background: rgba(83, 188, 132, 0.8);
+}
+
+.home-card.track {
+    grid-column: 1;
+    background: rgba(233, 245, 254, 0.8);
+}
+
+.home-card.passport {
+    background: rgba(199, 231, 253, 0.8);
+}
+
+.home-card.refill {
+    background: rgba(153, 214, 241, 0.8);
+}
+
+.home-card.assistant {
+    background: rgba(60, 176, 233, 0.8);
+}
