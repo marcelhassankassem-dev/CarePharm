@@ -4,11 +4,16 @@ from unittest.mock import MagicMock, patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import SimpleTestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from assistant.agent import MAX_STEPS, MODEL, gemini_client, run_agent, system_prompt
+from assistant.services import ask_assistant, unavailable_message
 from assistant.tools import TOOL_DECLARATIONS, TOOL_FUNCTIONS, pharmacy_info
+from assistant.views import QUICK_OPTIONS
 from core.services import pharmacy_details
+from passport.models import Patient
+
+HOURS_QUESTION = "What are your opening hours and where are you?"
 
 STUCK_MESSAGE = "I got stuck working on that. Please try rephrasing."
 
@@ -140,4 +145,151 @@ class GeminiClientTests(SimpleTestCase):
     def test_t5_the_client_is_made_from_the_setting(self):
         with patch("assistant.agent.genai.Client") as client_class:
             gemini_client()
-        client_class.assert_called_once_with(api_key="test-key")
+        self.assertEqual(client_class.call_args.kwargs["api_key"], "test-key")
+
+    def test_9_1a_gemini_is_given_up_on_after_30_seconds(self):
+        with patch("assistant.agent.genai.Client") as client_class:
+            gemini_client()
+        self.assertEqual(client_class.call_args.kwargs["http_options"], {"timeout": 30000})
+
+
+class AskAssistantTests(SimpleTestCase):
+    def setUp(self):
+        self.user = get_user_model()(username="samira", role="patient")
+        patcher = patch("assistant.services.run_agent", return_value=("We open at 8:00.", "first"))
+        self.run_agent = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_9_1a_the_assistants_answer_and_interaction_id_come_back(self):
+        self.assertEqual(ask_assistant(self.user, "When do you open?", None), ("We open at 8:00.", "first"))
+        self.run_agent.assert_called_once_with(self.user, "When do you open?", None)
+
+    def test_9_1a_the_conversation_continues_from_the_last_interaction(self):
+        ask_assistant(self.user, "And on Sunday?", "first")
+        self.run_agent.assert_called_once_with(self.user, "And on Sunday?", "first")
+
+    def test_9_1a_when_gemini_fails_the_patient_is_told_clearly(self):
+        self.run_agent.side_effect = Exception("503 high demand")
+        self.assertEqual(ask_assistant(self.user, "When do you open?", "first"), (unavailable_message(), "first"))
+
+    def test_9_1a_the_unavailable_message_gives_the_pharmacys_phone(self):
+        message = unavailable_message()
+        self.assertIn("not available right now", message)
+        self.assertIn(settings.PHARMACY_PHONE, message)
+
+
+class QuickOptionTests(SimpleTestCase):
+    def test_9_1a_the_quick_options_are_the_ones_in_the_figma_frame(self):
+        self.assertEqual(
+            [option["label"] for option in QUICK_OPTIONS],
+            [
+                "Find a medicine",
+                "Check prescription status",
+                "Request a refill",
+                "Pharmacy opening hours",
+                "General questions",
+            ],
+        )
+
+    def test_9_1a_the_opening_hours_option_asks_for_hours_and_location(self):
+        hours_option = next(option for option in QUICK_OPTIONS if option["label"] == "Pharmacy opening hours")
+        self.assertEqual(hours_option["question"], HOURS_QUESTION)
+
+
+class ChatPageTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.samira = User.objects.create_user(username="samira", password="pass", role="patient")
+        Patient.objects.create(name="Samira Haddad", date_of_birth="1958-03-14", user=cls.samira)
+        cls.rana = User.objects.create_user(username="rana", password="pass", role="pharmacist")
+
+    def setUp(self):
+        self.client.force_login(self.samira)
+        patcher = patch("assistant.services.run_agent", return_value=("We open at 8:00.", "first"))
+        self.run_agent = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def send(self, message):
+        return self.client.post("/assistant/", {"message": message})
+
+    def test_9_1a_signed_out_visitors_go_to_the_patient_sign_in(self):
+        self.client.logout()
+        self.assertRedirects(self.client.get("/assistant/"), "/login/?next=/assistant/")
+
+    def test_9_1a_staff_cannot_open_the_patients_chat(self):
+        self.client.force_login(self.rana)
+        self.assertEqual(self.client.get("/assistant/").status_code, 403)
+
+    def test_9_1a_an_empty_chat_shows_the_welcome_and_the_quick_options(self):
+        response = self.client.get("/assistant/")
+        self.assertContains(response, "CarePharm assistant")
+        self.assertContains(response, "Hi, I am your CarePharm assistant")
+        self.assertContains(response, "How can I help you today?")
+        for option in QUICK_OPTIONS:
+            self.assertContains(response, option["label"])
+
+    def test_9_1a_each_quick_option_sends_its_question(self):
+        response = self.client.get("/assistant/")
+        self.assertContains(response, f'name="message" value="{HOURS_QUESTION}"')
+
+    def test_9_1a_sending_asks_the_assistant_and_comes_back_to_the_chat(self):
+        response = self.send(HOURS_QUESTION)
+        self.assertRedirects(response, "/assistant/")
+        self.run_agent.assert_called_once_with(self.samira, HOURS_QUESTION, None)
+
+    def test_9_1a_the_question_and_the_answer_are_shown_in_order(self):
+        page = self.client.get(self.send(HOURS_QUESTION).url).content.decode()
+        self.assertIn(HOURS_QUESTION, page)
+        self.assertIn("We open at 8:00.", page)
+        self.assertLess(page.index(HOURS_QUESTION), page.index("We open at 8:00."))
+
+    def test_9_1a_answers_keep_their_line_breaks(self):
+        self.run_agent.return_value = ("Mon to Sat.\nBliss Street.", "first")
+        self.send("When and where?")
+        self.assertContains(self.client.get("/assistant/"), "Mon to Sat.<br>Bliss Street.")
+
+    def test_9_1a_the_next_message_continues_the_same_conversation(self):
+        self.send(HOURS_QUESTION)
+        self.run_agent.return_value = ("We are closed on Sunday.", "second")
+        self.send("And on Sunday?")
+        self.assertEqual(self.run_agent.call_args.args, (self.samira, "And on Sunday?", "first"))
+        page = self.client.get("/assistant/").content.decode()
+        self.assertLess(page.index("We open at 8:00."), page.index("We are closed on Sunday."))
+
+    def test_9_1a_quick_options_are_hidden_once_the_chat_has_started(self):
+        self.send(HOURS_QUESTION)
+        self.assertNotContains(self.client.get("/assistant/"), "Check prescription status")
+
+    def test_9_1a_an_empty_message_is_ignored(self):
+        self.send("   ")
+        self.run_agent.assert_not_called()
+        self.assertContains(self.client.get("/assistant/"), "How can I help you today?")
+
+    def test_9_1a_when_gemini_fails_the_chat_says_the_assistant_is_unavailable(self):
+        self.run_agent.side_effect = Exception("503 high demand")
+        self.send(HOURS_QUESTION)
+        self.assertContains(self.client.get("/assistant/"), "not available right now")
+
+    def test_9_1a_start_over_clears_the_chat_but_keeps_the_patient_signed_in(self):
+        self.send(HOURS_QUESTION)
+        self.assertRedirects(self.client.get("/assistant/start-over/"), "/assistant/")
+        response = self.client.get("/assistant/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "We open at 8:00.")
+        self.assertContains(response, "How can I help you today?")
+
+    def test_9_1a_start_over_begins_a_new_gemini_conversation(self):
+        self.send(HOURS_QUESTION)
+        self.client.get("/assistant/start-over/")
+        self.send("When do you open?")
+        self.assertIsNone(self.run_agent.call_args.args[2])
+
+    def test_9_1a_the_close_button_goes_back_home(self):
+        self.assertContains(self.client.get("/assistant/"), 'href="/home/" class="chat-close"')
+
+    def test_9_1a_the_home_card_opens_the_assistant(self):
+        self.assertContains(self.client.get("/home/"), 'href="/assistant/" class="home-card assistant"')
+
+    def test_9_1a_the_patient_menu_links_to_the_assistant(self):
+        self.assertContains(self.client.get("/notifications/"), 'href="/assistant/"')
