@@ -38,11 +38,11 @@
         <img src="{% static 'core/images/home-reserve-medicine.png' %}" alt="">
         <p>Reserve available medicine before visiting the pharmacy.</p>
     </div>
-    <div class="home-card track">
+    <a href="{% url 'my_prescriptions' %}" class="home-card track">
         <h2>Track Prescription</h2>
         <img src="{% static 'core/images/home-track-prescription.png' %}" alt="">
         <p>Follow your prescription from processing to pickup.</p>
-    </div>
+    </a>
     <div class="home-card passport">
         <h2>Medication Passport</h2>
         <img src="{% static 'core/images/home-medication-passport.png' %}" alt="">

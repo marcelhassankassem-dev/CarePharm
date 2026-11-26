@@ -15,7 +15,7 @@
         </nav>
 
         <div class="console-profile">
-            <img class="patient-bell" src="{% static 'core/images/patient-bell.svg' %}" alt="Notifications">
+            <a href="{% url 'notifications' %}" class="patient-bell{% if unread_count %} unread{% endif %}"><img src="{% static 'core/images/patient-bell.svg' %}" alt="Notifications"></a>
             {% with words=patient_name.split %}
             <span class="profile-initials">{{ words.0|first|upper }}{{ words.1|first|upper }}</span>
             {% endwith %}

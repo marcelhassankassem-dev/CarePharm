@@ -5,6 +5,7 @@ from prescriptions import views
 urlpatterns = [
     path("", views.prescription_list, name="prescription_list"),
     path("new/", views.prescription_new, name="prescription_new"),
+    path("mine/", views.my_prescriptions, name="my_prescriptions"),
     path("<int:prescription_id>/", views.prescription_detail, name="prescription_detail"),
     path("<int:prescription_id>/items/", views.prescription_add_item, name="prescription_add_item"),
     path("items/<int:item_id>/remove/", views.prescription_remove_item, name="prescription_remove_item"),

@@ -10,4 +10,5 @@ urlpatterns = [
     path("sales/", include("sales.urls")),
     path("reservations/", include("reservations.urls")),
     path("", include("reports.urls")),
+    path("", include("core.urls")),
 ]
