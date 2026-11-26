@@ -1,17 +1,31 @@
 import json
+from datetime import date, timedelta
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.utils import timezone
 
 from assistant.agent import MAX_STEPS, MODEL, gemini_client, run_agent, system_prompt
 from assistant.services import ask_assistant, unavailable_message
-from assistant.tools import TOOL_DECLARATIONS, TOOL_FUNCTIONS, pharmacy_info
+from assistant.tools import (
+    TOOL_DECLARATIONS,
+    TOOL_FUNCTIONS,
+    check_stock,
+    pharmacy_info,
+    prescription_status,
+    request_refill,
+    reserve_medicine,
+)
 from assistant.views import QUICK_OPTIONS
 from core.services import pharmacy_details
-from passport.models import Patient
+from inventory.models import Batch, DrugClass, Medicine
+from passport.models import Allergy, Patient
+from prescriptions.models import Prescription, PrescriptionItem
+from reservations.models import RefillRequest, Reservation
 
 HOURS_QUESTION = "What are your opening hours and where are you?"
 
@@ -293,3 +307,270 @@ class ChatPageTests(TestCase):
 
     def test_9_1a_the_patient_menu_links_to_the_assistant(self):
         self.assertContains(self.client.get("/notifications/"), 'href="/assistant/"')
+
+
+def make_medicine(name, strength, barcode, class_name, price):
+    drug_class, created = DrugClass.objects.get_or_create(name=class_name)
+    return Medicine.objects.create(
+        name=name,
+        strength=strength,
+        barcode=barcode,
+        drug_class=drug_class,
+        price=Decimal(price),
+        minimum_quantity=5,
+    )
+
+
+def make_batch(medicine, batch_number, quantity):
+    return Batch.objects.create(
+        medicine=medicine,
+        batch_number=batch_number,
+        expiry_date=timezone.localdate() + timedelta(days=300),
+        quantity=quantity,
+        unit_cost=Decimal("2.00"),
+        supplier="Cedar Medical Supplies",
+    )
+
+
+def make_prescription(patient, medicine, status, **dates):
+    prescription = Prescription.objects.create(patient=patient, status=status, **dates)
+    PrescriptionItem.objects.create(prescription=prescription, medicine=medicine, quantity=30, days_of_supply=30)
+    return prescription
+
+
+def collected_long_term_item(patient, medicine, days_of_supply):
+    prescription = Prescription.objects.create(patient=patient, status="collected", collected_at=timezone.now())
+    return PrescriptionItem.objects.create(
+        prescription=prescription,
+        medicine=medicine,
+        quantity=30,
+        days_of_supply=days_of_supply,
+        long_term=True,
+    )
+
+
+def day(moment):
+    return timezone.localtime(moment).strftime("%d %b %Y")
+
+
+class PharmacyDataTestCase(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.samira_user = User.objects.create(username="samira", role="patient")
+        cls.samira = Patient.objects.create(
+            name="Samira Haddad",
+            date_of_birth=date(1958, 3, 14),
+            phone="03 100 001",
+            user=cls.samira_user,
+        )
+        cls.maya_user = User.objects.create(username="maya", role="patient")
+        cls.maya = Patient.objects.create(name="Maya Khoury", date_of_birth=date(1990, 6, 2), user=cls.maya_user)
+        cls.omar = User.objects.create(username="omar", role="patient")
+        cls.metformin_500 = make_medicine("Metformin", "500 mg", "1000000000001", "Biguanides", "7.50")
+        cls.metformin_850 = make_medicine("Metformin", "850 mg", "1000000000002", "Biguanides", "9.00")
+        cls.ibuprofen = make_medicine("Ibuprofen", "400 mg", "1000000000003", "NSAIDs", "3.25")
+        penicillins = DrugClass.objects.create(name="Penicillins")
+        Allergy.objects.create(patient=cls.samira, drug_class=penicillins)
+
+    def setUp(self):
+        self.metformin_500_batch = make_batch(self.metformin_500, "MET-500", 20)
+        self.metformin_850_batch = make_batch(self.metformin_850, "MET-850", 5)
+
+    def quantity_of(self, batch):
+        batch.refresh_from_db()
+        return batch.quantity
+
+
+class CheckStockToolTests(PharmacyDataTestCase):
+    def test_9_1b_check_stock_gives_the_price_and_how_many_are_in_stock(self):
+        self.assertEqual(
+            check_stock(self.samira_user, "Metformin 500 mg"),
+            {
+                "found": True,
+                "medicines": [
+                    {"medicine": "Metformin 500 mg", "price_usd": "7.50", "in_stock": 20, "status": "Available"}
+                ],
+            },
+        )
+
+    def test_9_1b_check_stock_says_when_there_are_not_enough(self):
+        line = check_stock(self.samira_user, "Metformin 850 mg", 8)["medicines"][0]
+        self.assertEqual((line["in_stock"], line["status"]), (5, "Only 5 left"))
+
+    def test_9_1b_check_stock_says_when_a_medicine_is_out_of_stock(self):
+        line = check_stock(self.samira_user, "ibuprofen")["medicines"][0]
+        self.assertEqual((line["in_stock"], line["status"]), (0, "Out of stock"))
+
+    def test_9_1b_without_a_strength_every_strength_is_given(self):
+        lines = check_stock(self.samira_user, "metformin")["medicines"]
+        self.assertEqual([line["medicine"] for line in lines], ["Metformin 500 mg", "Metformin 850 mg"])
+
+    def test_9_1b_check_stock_says_when_the_pharmacy_does_not_have_the_medicine(self):
+        result = check_stock(self.samira_user, "Aspirin")
+        self.assertFalse(result["found"])
+        self.assertIn("Aspirin", result["message"])
+
+    def test_9_1b_check_stock_first_returns_expired_reservations_to_stock(self):
+        reservation = Reservation.objects.create(
+            patient=self.maya, medicine=self.metformin_500, quantity=5, batch=self.metformin_500_batch
+        )
+        self.metformin_500_batch.quantity = 15
+        self.metformin_500_batch.save()
+        Reservation.objects.filter(pk=reservation.pk).update(created_at=timezone.now() - timedelta(hours=3))
+        self.assertEqual(check_stock(self.samira_user, "Metformin 500 mg")["medicines"][0]["in_stock"], 20)
+
+
+class ReserveMedicineToolTests(PharmacyDataTestCase):
+    def test_9_1b_reserving_takes_the_stock_and_gives_the_pickup_time(self):
+        result = reserve_medicine(self.samira_user, "Metformin 500 mg", 2)
+        reservation = Reservation.objects.get()
+        self.assertEqual(reservation.patient, self.samira)
+        self.assertEqual(self.quantity_of(self.metformin_500_batch), 18)
+        pick_up_before = timezone.localtime(reservation.created_at + timedelta(hours=2)).strftime("%d %b %Y, %H:%M")
+        self.assertEqual(
+            result,
+            {"reserved": True, "medicine": "Metformin 500 mg", "quantity": 2, "pick_up_before": pick_up_before},
+        )
+
+    def test_9_1b_quantities_from_gemini_may_come_as_decimals(self):
+        self.assertEqual(reserve_medicine(self.samira_user, "Metformin 500 mg", 2.0)["quantity"], 2)
+        self.assertEqual(self.quantity_of(self.metformin_500_batch), 18)
+
+    def test_9_1b_reserving_needs_one_exact_medicine(self):
+        result = reserve_medicine(self.samira_user, "metformin", 2)
+        self.assertFalse(result["reserved"])
+        self.assertEqual(result["choices"], ["Metformin 500 mg", "Metformin 850 mg"])
+        self.assertFalse(Reservation.objects.exists())
+
+    def test_9_1b_reserving_a_medicine_the_pharmacy_does_not_have_is_refused(self):
+        result = reserve_medicine(self.samira_user, "Aspirin", 1)
+        self.assertFalse(result["reserved"])
+        self.assertIn("Aspirin", result["message"])
+
+    def test_9_1b_reserving_more_than_one_batch_has_is_refused(self):
+        result = reserve_medicine(self.samira_user, "Metformin 850 mg", 8)
+        self.assertFalse(result["reserved"])
+        self.assertIn("No single batch", result["message"])
+        self.assertEqual(self.quantity_of(self.metformin_850_batch), 5)
+        self.assertFalse(Reservation.objects.exists())
+
+    def test_9_1b_a_login_without_a_patient_record_cannot_reserve(self):
+        self.assertFalse(reserve_medicine(self.omar, "Metformin 500 mg", 2)["reserved"])
+        self.assertFalse(Reservation.objects.exists())
+
+
+class PrescriptionStatusToolTests(PharmacyDataTestCase):
+    def test_9_1b_prescriptions_come_newest_first_with_medicines_status_and_dates(self):
+        now = timezone.now()
+        collected = make_prescription(
+            self.samira, self.metformin_500, "collected", ready_at=now, collected_at=now
+        )
+        ready = make_prescription(self.samira, self.metformin_850, "ready", ready_at=now)
+        self.assertEqual(
+            prescription_status(self.samira_user),
+            {
+                "prescriptions": [
+                    {
+                        "number": ready.pk,
+                        "medicines": ["Metformin 850 mg"],
+                        "status": "Ready",
+                        "received_on": day(ready.created_at),
+                        "ready_on": day(now),
+                        "collected_on": None,
+                    },
+                    {
+                        "number": collected.pk,
+                        "medicines": ["Metformin 500 mg"],
+                        "status": "Collected",
+                        "received_on": day(collected.created_at),
+                        "ready_on": day(now),
+                        "collected_on": day(now),
+                    },
+                ]
+            },
+        )
+
+    def test_9_1b_only_the_five_newest_prescriptions_are_given(self):
+        for _ in range(6):
+            make_prescription(self.samira, self.metformin_500, "received")
+        self.assertEqual(len(prescription_status(self.samira_user)["prescriptions"]), 5)
+
+    def test_9_1b_only_the_signed_in_patients_prescriptions_are_given(self):
+        make_prescription(self.maya, self.metformin_500, "received")
+        self.assertEqual(prescription_status(self.samira_user), {"prescriptions": []})
+
+    def test_9_1b_a_login_without_a_patient_record_has_no_prescriptions(self):
+        self.assertEqual(prescription_status(self.omar), {"prescriptions": []})
+
+
+class RequestRefillToolTests(PharmacyDataTestCase):
+    def setUp(self):
+        super().setUp()
+        self.due_item = collected_long_term_item(self.samira, self.metformin_500, days_of_supply=2)
+        self.not_due_item = collected_long_term_item(self.samira, self.metformin_850, days_of_supply=30)
+        runs_out_on = timezone.localdate() + timedelta(days=2)
+        self.due_refills = [{"medicine": "Metformin 500 mg", "runs_out_on": runs_out_on.strftime("%d %b %Y")}]
+
+    def test_9_1b_a_due_refill_is_requested(self):
+        result = request_refill(self.samira_user, "Metformin 500 mg")
+        self.assertEqual(
+            result,
+            {"requested": True, "medicine": "Metformin 500 mg", "status": "Waiting for the pharmacist"},
+        )
+        refill_request = RefillRequest.objects.get()
+        self.assertEqual(refill_request.prescription_item, self.due_item)
+        self.assertEqual(refill_request.requested_by, self.samira_user)
+
+    def test_9_1b_without_a_medicine_the_due_refills_are_listed(self):
+        result = request_refill(self.samira_user)
+        self.assertFalse(result["requested"])
+        self.assertEqual(result["due_refills"], self.due_refills)
+        self.assertFalse(RefillRequest.objects.exists())
+
+    def test_9_1b_a_refill_that_is_not_due_is_refused(self):
+        result = request_refill(self.samira_user, "Metformin 850 mg")
+        self.assertFalse(result["requested"])
+        self.assertEqual(result["due_refills"], self.due_refills)
+        self.assertFalse(RefillRequest.objects.exists())
+
+    def test_9_1b_a_refill_is_not_requested_twice(self):
+        request_refill(self.samira_user, "Metformin 500 mg")
+        result = request_refill(self.samira_user, "Metformin 500 mg")
+        self.assertFalse(result["requested"])
+        self.assertEqual(result["due_refills"], [])
+        self.assertEqual(RefillRequest.objects.count(), 1)
+
+    def test_9_1b_a_login_without_a_patient_record_cannot_request_a_refill(self):
+        self.assertFalse(request_refill(self.omar, "Metformin 500 mg")["requested"])
+        self.assertFalse(RefillRequest.objects.exists())
+
+
+class ToolPrivacyTests(PharmacyDataTestCase):
+    def test_9_1b_no_tool_result_contains_the_patients_name_phone_birth_date_or_allergies(self):
+        collected_long_term_item(self.samira, self.metformin_500, days_of_supply=2)
+        make_prescription(self.samira, self.metformin_850, "ready", ready_at=timezone.now())
+        results = [
+            pharmacy_info(self.samira_user),
+            check_stock(self.samira_user, "metformin"),
+            reserve_medicine(self.samira_user, "Metformin 850 mg", 1),
+            prescription_status(self.samira_user),
+            request_refill(self.samira_user),
+            request_refill(self.samira_user, "Metformin 500 mg"),
+        ]
+        sent_to_gemini = json.dumps(results)
+        for private in ["Samira", "Haddad", "03 100 001", "1958", "Penicillins"]:
+            self.assertNotIn(private, sent_to_gemini)
+
+
+class ToolDeclarationTests(SimpleTestCase):
+    def test_9_1b_gemini_is_told_about_the_pharmacy_data_tools(self):
+        self.assertEqual(
+            [declaration["name"] for declaration in TOOL_DECLARATIONS],
+            ["pharmacy_info", "check_stock", "reserve_medicine", "prescription_status", "request_refill"],
+        )
+
+    def test_9_1b_the_prompt_asks_to_confirm_before_reserving_or_requesting_a_refill(self):
+        prompt = system_prompt().lower()
+        self.assertIn("before reserving a medicine or requesting a refill", prompt)
+        self.assertIn("ask the patient to confirm", prompt)
