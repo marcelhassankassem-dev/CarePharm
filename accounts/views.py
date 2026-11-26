@@ -19,7 +19,8 @@ from accounts.services import (
     update_staff_member,
 )
 from core.services import activity_log, pharmacy_details
-from passport.services import patient_header
+from passport.services import patient_header, patient_of
+from reservations.services import patient_refill_requests, refill_reminders
 
 
 def site_root(request):
@@ -55,8 +56,11 @@ def login_page(request, side):
 
 @patient_required
 def patient_home(request):
+    patient = patient_of(request.user)
     context = patient_header(request.user)
     context["pharmacy"] = pharmacy_details()
+    context["refill_reminders"] = refill_reminders(patient)
+    context["refill_requests"] = patient_refill_requests(patient)
     return render(request, "accounts/home.html", context)
 
 

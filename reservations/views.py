@@ -8,6 +8,7 @@ from django.utils import timezone
 from accounts.permissions import patient_required, pharmacist_required, staff_required
 from core.services import pharmacy_details
 from passport.services import patient_header, patient_of
+from prescriptions.services import patient_long_term_item
 from prescriptions.views import list_page_data
 from reservations.forms import DelayRefillForm, FindMedicineForm, ReserveForm
 from reservations.services import (
@@ -20,6 +21,7 @@ from reservations.services import (
     medicine_availability,
     patient_reservation,
     pickup_deadline,
+    request_refill,
     reservation_row,
     reserve_medicine,
 )
@@ -162,3 +164,17 @@ def reservation_page(request, reservation_id):
             "pharmacy": pharmacy_details(),
         },
     )
+
+
+@patient_required
+def refill_request(request, item_id):
+    if request.method != "POST":
+        return redirect("patient_home")
+    item = patient_long_term_item(patient_of(request.user), item_id)
+    try:
+        request_refill(request.user, item)
+    except ValidationError as problem:
+        messages.error(request, " ".join(problem.messages))
+    else:
+        messages.success(request, f"Refill requested: {item.medicine}. The pharmacy will let you know when it is ready.")
+    return redirect("patient_home")
