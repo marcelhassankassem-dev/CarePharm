@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from core.services import notify_patient
-from inventory.services import available_stock, return_stock, take_stock
+from inventory.services import available_stock, find_medicines, return_stock, take_stock
 from prescriptions.services import create_refill_prescription
 from reservations.models import RefillRequest, Reservation
 from sales.services import record_sale
@@ -16,6 +16,24 @@ from sales.services import record_sale
 HOLD_TIME = timedelta(hours=2)
 SOON_MINUTES = 30
 OPEN_REFILL_STATUSES = ["waiting", "delayed"]
+FIND_LIMIT = 5
+
+
+def availability(medicine, quantity):
+    available = available_stock(medicine)
+    if available >= quantity:
+        status, label = "available", "Available"
+    elif available > 0:
+        status, label = "low", f"Only {available} left"
+    else:
+        status, label = "out", "Out of stock"
+    return {"medicine": medicine, "available": available, "status": status, "label": label}
+
+
+def medicine_availability(name, quantity):
+    if not name:
+        return []
+    return [availability(medicine, quantity) for medicine in find_medicines(name)[:FIND_LIMIT]]
 
 
 @transaction.atomic

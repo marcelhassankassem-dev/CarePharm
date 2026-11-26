@@ -1,0 +1,55 @@
+{% extends "core/patient.html" %}
+{% load static %}
+
+{% block title %}Medicine Availability - CarePharm{% endblock %}
+
+{% block page_class %}find-page{% endblock %}
+
+{% block main_class %}availability-content{% endblock %}
+
+{% block patient_content %}
+<a href="/reservations/find/" class="availability-back-link"><img src="{% static 'core/images/find-back.png' %}" alt="">Back to Search</a>
+
+<div class="availability-heading">
+    <h1>Medicine Availability</h1>
+    <p class="page-intro">Here are the results for your search</p>
+</div>
+
+{% for row in results %}
+<section class="availability-card">
+    <span class="availability-tile"><img src="{% static 'core/images/find-medicine.svg' %}" alt=""></span>
+    <div class="availability-name">
+        <h2>{{ row.medicine }}</h2>
+        <p>{{ row.medicine.drug_class }}<span>|</span>In stock: {{ row.available }}</p>
+    </div>
+    <div class="availability-status {{ row.status }}">
+        {% if row.status == "available" %}
+        <span class="availability-check">
+            <img src="{% static 'core/images/find-check-circle.svg' %}" alt="">
+            <img src="{% static 'core/images/find-check.svg' %}" alt="" class="availability-tick">
+        </span>
+        {% endif %}
+        <span class="availability-badge {{ row.status }}">{{ row.label }}</span>
+    </div>
+</section>
+{% empty %}
+<section class="availability-card availability-none">
+    <p>No medicine matches "{{ name }}". Check the spelling, or ask the pharmacy.</p>
+</section>
+{% endfor %}
+
+<section class="availability-pharmacy">
+    <img src="{% static 'core/images/find-pharmacy.jpg' %}" alt="" class="availability-photo">
+    <div class="availability-place">
+        <h2><span>{{ pharmacy.name }}</span> Pharmacy</h2>
+        <p><img src="{% static 'core/images/find-pin.png' %}" alt="">{{ pharmacy.address }}</p>
+    </div>
+    <div class="availability-info">
+        <p><img src="{% static 'core/images/find-clock.png' %}" alt="">Open: {{ pharmacy.hours }}</p>
+        <p><img src="{% static 'core/images/find-phone.png' %}" alt="">Phone: {{ pharmacy.phone }}</p>
+    </div>
+    <div class="availability-actions">
+        <a href="/reservations/find/" class="availability-back-button"><img src="{% static 'core/images/find-back.png' %}" alt="">Back</a>
+    </div>
+</section>
+{% endblock %}

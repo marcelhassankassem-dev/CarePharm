@@ -2,9 +2,11 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.shortcuts import redirect, render
 
-from accounts.permissions import pharmacist_required, staff_required
+from accounts.permissions import patient_required, pharmacist_required, staff_required
+from core.services import pharmacy_details
+from passport.services import patient_header
 from prescriptions.views import list_page_data
-from reservations.forms import DelayRefillForm
+from reservations.forms import DelayRefillForm, FindMedicineForm
 from reservations.services import (
     approve_refill,
     collect_reservation,
@@ -12,6 +14,7 @@ from reservations.services import (
     expire_reservations,
     get_refill_request,
     get_reservation,
+    medicine_availability,
 )
 from sales.forms import PaymentForm
 
@@ -76,4 +79,34 @@ def refill_delay(request, refill_request_id):
         request,
         "reservations/refill_delay.html",
         {**list_page_data(request, "refills"), "form": form, "refill_request": refill_request},
+    )
+
+
+@patient_required
+def find_medicine(request):
+    return render(
+        request,
+        "reservations/find.html",
+        {**patient_header(request.user), "form": FindMedicineForm()},
+    )
+
+
+@patient_required
+def find_medicine_results(request):
+    expire_reservations()
+    form = FindMedicineForm(request.GET)
+    if not form.is_valid():
+        return render(request, "reservations/find.html", {**patient_header(request.user), "form": form})
+    name = form.cleaned_data["name"]
+    quantity = form.cleaned_data["quantity"]
+    return render(
+        request,
+        "reservations/availability.html",
+        {
+            **patient_header(request.user),
+            "name": name,
+            "quantity": quantity,
+            "results": medicine_availability(name, quantity),
+            "pharmacy": pharmacy_details(),
+        },
     )
