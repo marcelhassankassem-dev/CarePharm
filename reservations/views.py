@@ -4,7 +4,7 @@ from django.shortcuts import redirect, render
 
 from accounts.permissions import patient_required, pharmacist_required, staff_required
 from core.services import pharmacy_details
-from passport.services import patient_name_for
+from passport.services import patient_header
 from prescriptions.views import list_page_data
 from reservations.forms import DelayRefillForm, FindMedicineForm
 from reservations.services import (
@@ -87,7 +87,7 @@ def find_medicine(request):
     return render(
         request,
         "reservations/find.html",
-        {"patient_name": patient_name_for(request.user), "form": FindMedicineForm()},
+        {**patient_header(request.user), "form": FindMedicineForm()},
     )
 
 
@@ -96,14 +96,14 @@ def find_medicine_results(request):
     expire_reservations()
     form = FindMedicineForm(request.GET)
     if not form.is_valid():
-        return render(request, "reservations/find.html", {"patient_name": patient_name_for(request.user), "form": form})
+        return render(request, "reservations/find.html", {**patient_header(request.user), "form": form})
     name = form.cleaned_data["name"]
     quantity = form.cleaned_data["quantity"]
     return render(
         request,
         "reservations/availability.html",
         {
-            "patient_name": patient_name_for(request.user),
+            **patient_header(request.user),
             "name": name,
             "quantity": quantity,
             "results": medicine_availability(name, quantity),

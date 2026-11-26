@@ -8,6 +8,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from core.models import ActivityLog, Notification
+from core.services import notify
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Patient
 from prescriptions.models import Prescription, PrescriptionItem
@@ -980,6 +981,11 @@ class FindMedicinePageTests(FindMedicineTestData):
     def test_t7_a_stock_lookup_expires_old_reservations_first(self):
         reserved_minutes_ago(reserve_medicine(self.maya_user, self.maya, self.syrup, 4), 121)
         self.assertContains(self.results("syrup"), "In stock: 34")
+
+    def test_10_1_the_bell_shows_unread_notifications_on_both_pages(self):
+        notify(self.maya_user, "Your prescription is ready", "/")
+        for response in [self.client.get("/reservations/find/"), self.results("syrup")]:
+            self.assertContains(response, 'class="patient-bell unread"')
 
     def test_10_1_a_caregiver_with_no_patient_record_can_search(self):
         self.client.force_login(self.omar)
