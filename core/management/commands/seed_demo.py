@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from accounts.services import add_caregiver, caregiver_links_of
 from core.models import ActivityLog
 from core.services import mark_all_read
 from inventory.models import Batch, DrugClass, Medicine
@@ -72,6 +73,12 @@ def create_patients():
     create_patient("Maya", date(1988, 9, 21), "03 100 002", maya)
     create_patient("Omar's Father", date(1949, 11, 5), "03 100 003", omars_father)
     create_patient("Ahmad", date(1980, 6, 2), "03 100 004", None)
+
+
+def create_family_links():
+    omars_father = Patient.objects.get(name="Omar's Father")
+    if not caregiver_links_of(omars_father).exists():
+        add_caregiver(omars_father, "omar")
 
 
 def create_medicine(name, strength, barcode, drug_class_name, price, minimum_quantity):
@@ -323,6 +330,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         create_staff()
         create_patients()
+        create_family_links()
         create_stock()
         create_passports()
         create_prescriptions()

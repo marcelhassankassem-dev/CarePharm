@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from accounts.permissions import patient_required, pharmacist_required, staff_required
 from core.services import pharmacy_details
-from passport.services import patient_header, patient_of
+from passport.views import patient_page_data, selected_patient
 from prescriptions.services import patient_long_term_item
 from prescriptions.views import list_page_data
 from reservations.forms import DelayRefillForm, FindMedicineForm, ReserveForm
@@ -96,7 +96,7 @@ def find_medicine(request):
     return render(
         request,
         "reservations/find.html",
-        {**patient_header(request.user), "form": FindMedicineForm()},
+        {**patient_page_data(request), "form": FindMedicineForm()},
     )
 
 
@@ -105,19 +105,19 @@ def find_medicine_results(request):
     expire_reservations()
     form = FindMedicineForm(request.GET)
     if not form.is_valid():
-        return render(request, "reservations/find.html", {**patient_header(request.user), "form": form})
+        return render(request, "reservations/find.html", {**patient_page_data(request), "form": form})
     name = form.cleaned_data["name"]
     quantity = form.cleaned_data["quantity"]
     return render(
         request,
         "reservations/availability.html",
         {
-            **patient_header(request.user),
+            **patient_page_data(request),
             "name": name,
             "quantity": quantity,
             "results": medicine_availability(name, quantity),
             "pharmacy": pharmacy_details(),
-            "can_reserve": patient_of(request.user) is not None,
+            "can_reserve": selected_patient(request) is not None,
         },
     )
 
@@ -126,7 +126,7 @@ def find_medicine_results(request):
 def reserve(request):
     if request.method != "POST":
         return redirect("find_medicine")
-    patient = patient_of(request.user)
+    patient = selected_patient(request)
     if patient is None:
         messages.error(
             request,
@@ -152,12 +152,12 @@ def reserve(request):
 @patient_required
 def reservation_page(request, reservation_id):
     expire_reservations()
-    reservation = patient_reservation(request.user, reservation_id)
+    reservation = patient_reservation(selected_patient(request), reservation_id)
     return render(
         request,
         "reservations/reserved.html",
         {
-            **patient_header(request.user),
+            **patient_page_data(request),
             "reservation": reservation,
             "row": reservation_row(reservation, timezone.now()),
             "deadline": pickup_deadline(reservation),
@@ -170,7 +170,7 @@ def reservation_page(request, reservation_id):
 def refill_request(request, item_id):
     if request.method != "POST":
         return redirect("patient_home")
-    item = patient_long_term_item(patient_of(request.user), item_id)
+    item = patient_long_term_item(selected_patient(request), item_id)
     try:
         request_refill(request.user, item)
     except ValidationError as problem:
