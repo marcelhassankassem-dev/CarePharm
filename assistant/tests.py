@@ -10,7 +10,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
 from assistant.agent import MAX_STEPS, MODEL, gemini_client, run_agent, system_prompt
-from assistant.services import ask_assistant, unavailable_message
+from assistant.services import ask_assistant, cannot_answer_message, unavailable_message
 from assistant.tools import (
     TOOL_DECLARATIONS,
     TOOL_FUNCTIONS,
@@ -308,6 +308,11 @@ class ChatPageTests(TestCase):
     def test_9_1a_the_patient_menu_links_to_the_assistant(self):
         self.assertContains(self.client.get("/notifications/"), 'href="/assistant/"')
 
+    def test_9_1c_a_blank_answer_shows_the_cannot_answer_message_in_the_chat(self):
+        self.run_agent.return_value = ("", "first")
+        self.send("What is the weather today?")
+        self.assertContains(self.client.get("/assistant/"), "Sorry, I can&#x27;t answer that.")
+
 
 def make_medicine(name, strength, barcode, class_name, price):
     drug_class, created = DrugClass.objects.get_or_create(name=class_name)
@@ -577,3 +582,39 @@ class ToolDeclarationTests(SimpleTestCase):
 
     def test_9_1b_the_prompt_asks_for_plain_text_because_the_chat_shows_no_markdown(self):
         self.assertIn("plain text only, without markdown", system_prompt().lower())
+
+
+class CannotAnswerTests(SimpleTestCase):
+    def setUp(self):
+        self.user = get_user_model()(username="samira", role="patient")
+        patcher = patch("assistant.services.run_agent")
+        self.run_agent = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_9_1c_a_blank_answer_becomes_the_cannot_answer_message(self):
+        self.run_agent.return_value = ("", "first")
+        self.assertEqual(ask_assistant(self.user, "What is the weather?", None), (cannot_answer_message(), "first"))
+
+    def test_9_1c_an_answer_of_only_spaces_counts_as_blank(self):
+        self.run_agent.return_value = ("  \n ", "first")
+        self.assertEqual(ask_assistant(self.user, "What is the weather?", None)[0], cannot_answer_message())
+
+    def test_9_1c_no_answer_at_all_counts_as_blank(self):
+        self.run_agent.return_value = (None, "first")
+        self.assertEqual(ask_assistant(self.user, "What is the weather?", None)[0], cannot_answer_message())
+
+    def test_9_1c_a_real_answer_is_kept(self):
+        self.run_agent.return_value = ("We open at 8:00.", "first")
+        self.assertEqual(ask_assistant(self.user, "When do you open?", None)[0], "We open at 8:00.")
+
+    def test_9_1c_the_cannot_answer_message_says_so_and_gives_the_phone_and_hours(self):
+        message = cannot_answer_message()
+        self.assertTrue(message.startswith("Sorry, I can't answer that."))
+        self.assertIn(settings.PHARMACY_PHONE, message)
+        self.assertIn(settings.PHARMACY_HOURS, message)
+
+    def test_9_1c_the_prompt_gives_one_opening_for_every_refusal(self):
+        self.assertIn('start with "Sorry, I can\'t answer that."', system_prompt())
+
+    def test_9_1c_the_prompt_gives_the_phone_number_for_refusals(self):
+        self.assertIn(settings.PHARMACY_PHONE, system_prompt())
