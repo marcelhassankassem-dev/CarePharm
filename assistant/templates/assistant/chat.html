@@ -1,0 +1,61 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}AI Assistant · CarePharm{% endblock %}
+
+{% block content %}
+<div class="chat-page">
+    <section class="chat-box">
+        <header class="chat-header">
+            <img src="{% static 'core/images/chat-robot-online.png' %}" alt="" class="chat-header-robot">
+            <div>
+                <h1>CarePharm assistant</h1>
+                <p><span>Online</span><span>Always here to help</span></p>
+            </div>
+            <a href="{% url 'patient_home' %}" class="chat-close"><img src="{% static 'core/images/chat-close.png' %}" alt="Close"></a>
+        </header>
+
+        <div class="chat-messages" id="chat-messages">
+            <div class="chat-message assistant">
+                <img src="{% static 'core/images/chat-robot.png' %}" alt="" class="chat-avatar">
+                <p>Hi, I am your CarePharm assistant<br><br>How can I help you today?</p>
+            </div>
+
+            {% if not history %}
+            <form method="post" class="chat-options">
+                {% csrf_token %}
+                {% for option in quick_options %}
+                <button type="submit" name="message" value="{{ option.question }}" class="chat-option">
+                    <img src="{% static 'core/images/'|add:option.icon %}" alt="">{{ option.label }}
+                </button>
+                {% endfor %}
+            </form>
+            {% endif %}
+
+            {% for message in history %}
+            <div class="chat-message {{ message.role }}">
+                {% if message.role == "assistant" %}
+                <img src="{% static 'core/images/chat-robot.png' %}" alt="" class="chat-avatar">
+                {% endif %}
+                <p>{{ message.text|linebreaksbr }}</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <form method="post" class="chat-send">
+            {% csrf_token %}
+            <input type="text" name="message" placeholder="Type Your Message" autocomplete="off" autofocus>
+            <button type="submit"><img src="{% static 'core/images/chat-send.png' %}" alt="Send"></button>
+        </form>
+
+        {% if history %}
+        <a href="{% url 'assistant_start_over' %}" class="chat-start-over">Start over</a>
+        {% endif %}
+    </section>
+</div>
+
+<script>
+    const chatMessages = document.getElementById("chat-messages");
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+</script>
+{% endblock %}
