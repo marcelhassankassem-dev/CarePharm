@@ -1,12 +1,15 @@
+from urllib.parse import urlencode
+
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.shortcuts import redirect, render
+from django.utils import timezone
 
 from accounts.permissions import patient_required, pharmacist_required, staff_required
 from core.services import pharmacy_details
-from passport.services import patient_header
+from passport.services import patient_header, patient_of
 from prescriptions.views import list_page_data
-from reservations.forms import DelayRefillForm, FindMedicineForm
+from reservations.forms import DelayRefillForm, FindMedicineForm, ReserveForm
 from reservations.services import (
     approve_refill,
     collect_reservation,
@@ -15,6 +18,10 @@ from reservations.services import (
     get_refill_request,
     get_reservation,
     medicine_availability,
+    patient_reservation,
+    pickup_deadline,
+    reservation_row,
+    reserve_medicine,
 )
 from sales.forms import PaymentForm
 
@@ -107,6 +114,51 @@ def find_medicine_results(request):
             "name": name,
             "quantity": quantity,
             "results": medicine_availability(name, quantity),
+            "pharmacy": pharmacy_details(),
+            "can_reserve": patient_of(request.user) is not None,
+        },
+    )
+
+
+@patient_required
+def reserve(request):
+    if request.method != "POST":
+        return redirect("find_medicine")
+    patient = patient_of(request.user)
+    if patient is None:
+        messages.error(
+            request,
+            "Reservations are made for your own patient record. Please ask the pharmacy to set it up.",
+        )
+        return redirect("find_medicine")
+    form = ReserveForm(request.POST)
+    if not form.is_valid():
+        return redirect("find_medicine")
+    medicine = form.cleaned_data["medicine"]
+    quantity = form.cleaned_data["quantity"]
+    try:
+        reservation = reserve_medicine(request.user, patient, medicine, quantity)
+    except ValidationError:
+        messages.error(
+            request,
+            f"Sorry, {medicine} cannot be reserved in that quantity right now. Please ask the pharmacy.",
+        )
+        return redirect(f"/reservations/find/results/?{urlencode({'name': medicine.name, 'quantity': quantity})}")
+    return redirect("reservation_page", reservation.pk)
+
+
+@patient_required
+def reservation_page(request, reservation_id):
+    expire_reservations()
+    reservation = patient_reservation(request.user, reservation_id)
+    return render(
+        request,
+        "reservations/reserved.html",
+        {
+            **patient_header(request.user),
+            "reservation": reservation,
+            "row": reservation_row(reservation, timezone.now()),
+            "deadline": pickup_deadline(reservation),
             "pharmacy": pharmacy_details(),
         },
     )

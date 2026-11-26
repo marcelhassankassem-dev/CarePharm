@@ -28,16 +28,16 @@
 </aside>
 
 <div class="home-cards">
-    <div class="home-card find">
+    <a href="/reservations/find/" class="home-card find">
         <h2>Find a Medicine</h2>
         <img src="{% static 'core/images/home-find-medicine.png' %}" alt="">
         <p>Check if your pharmacy has the medicine you need.</p>
-    </div>
-    <div class="home-card reserve">
+    </a>
+    <a href="/reservations/find/" class="home-card reserve">
         <h2>Reserve Medicine</h2>
         <img src="{% static 'core/images/home-reserve-medicine.png' %}" alt="">
         <p>Reserve available medicine before visiting the pharmacy.</p>
-    </div>
+    </a>
     <a href="{% url 'my_prescriptions' %}" class="home-card track">
         <h2>Track Prescription</h2>
         <img src="{% static 'core/images/home-track-prescription.png' %}" alt="">

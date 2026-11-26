@@ -22,6 +22,14 @@
         <h2>{{ row.medicine }}</h2>
         <p>{{ row.medicine.drug_class }}<span>|</span>In stock: {{ row.available }}</p>
     </div>
+    {% if can_reserve and row.status == "available" %}
+    <form method="post" action="/reservations/reserve/" class="availability-reserve">
+        {% csrf_token %}
+        <input type="hidden" name="medicine" value="{{ row.medicine.pk }}">
+        <input type="hidden" name="quantity" value="{{ quantity }}">
+        <button type="submit">Reserve Medicine</button>
+    </form>
+    {% endif %}
     <div class="availability-status {{ row.status }}">
         {% if row.status == "available" %}
         <span class="availability-check">

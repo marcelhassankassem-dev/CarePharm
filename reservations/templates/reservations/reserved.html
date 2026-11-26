@@ -1,0 +1,54 @@
+{% extends "core/patient.html" %}
+{% load static %}
+
+{% block title %}Medicine Reserved - CarePharm{% endblock %}
+
+{% block page_class %}reserved-page{% endblock %}
+
+{% block main_class %}reserved-content{% endblock %}
+
+{% block patient_content %}
+<div class="reserved-heading">
+    <span class="reserved-tick">
+        <img src="{% static 'core/images/reserved-ring.svg' %}" alt="" class="reserved-ring">
+        <img src="{% static 'core/images/reserved-circle.svg' %}" alt="" class="reserved-circle">
+        <img src="{% static 'core/images/reserved-check.svg' %}" alt="" class="reserved-check">
+    </span>
+    <h1>Medicine Reserved!</h1>
+    <p>Your medicine has been successfully reserved.</p>
+</div>
+
+<dl class="reserved-table">
+    <div>
+        <dt><img src="{% static 'core/images/reserved-medicine.png' %}" alt="">Medicine</dt>
+        <dd>{{ reservation.medicine.name }}<small>{{ reservation.medicine.strength }}</small></dd>
+    </div>
+    <div>
+        <dt><img src="{% static 'core/images/reserved-quantity.png' %}" alt="">Quantity</dt>
+        <dd>{{ reservation.quantity }} unit{{ reservation.quantity|pluralize }}</dd>
+    </div>
+    <div>
+        <dt><img src="{% static 'core/images/reserved-pharmacy.png' %}" alt="">Pickup pharmacy</dt>
+        <dd>{{ pharmacy.name }} Pharmacy<small>{{ pharmacy.address }}</small></dd>
+    </div>
+    <div>
+        <dt><img src="{% static 'core/images/reserved-deadline.png' %}" alt="">Pickup deadline</dt>
+        <dd>Before {{ deadline|date:"H:i" }}{% if row.time_left %}<small>{{ row.time_left }}</small>{% endif %}</dd>
+    </div>
+    <div>
+        <dt><img src="{% static 'core/images/reserved-status.png' %}" alt="">Reservation status</dt>
+        <dd><span class="reserved-status {{ reservation.status }}">{{ reservation.get_status_display }}</span></dd>
+    </div>
+</dl>
+
+{% if reservation.status == "active" %}
+<p class="reserved-warning">
+    <img src="{% static 'core/images/reserved-warning.png' %}" alt="">
+    <span>Please pick up your medicine <strong>within 2 hours</strong>, otherwise the reservation will expire.</span>
+</p>
+{% endif %}
+
+<div class="reserved-actions">
+    <a href="/home/" class="reserved-home"><img src="{% static 'core/images/reserved-home.png' %}" alt="">Return Home</a>
+</div>
+{% endblock %}
