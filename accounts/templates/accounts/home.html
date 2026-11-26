@@ -92,10 +92,10 @@
         <img src="{% static 'core/images/home-request-refill.png' %}" alt="">
         <p>Ask for a refill before your medicine runs out.</p>
     </a>
-    <div class="home-card assistant">
+    <a href="{% url 'assistant_chat' %}" class="home-card assistant">
         <h2>AI Pharmacy Assistant</h2>
         <img src="{% static 'core/images/home-assistant.png' %}" alt="">
         <p>Get quick help with medicine availability, prescriptions, and pharmacy services.</p>
-    </div>
+    </a>
 </div>
 {% endblock %}

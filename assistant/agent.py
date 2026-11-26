@@ -8,6 +8,7 @@ from assistant.tools import TOOL_DECLARATIONS, TOOL_FUNCTIONS
 MODEL = "gemini-3.5-flash-lite"
 THINKING_LEVEL = "minimal"
 MAX_STEPS = 5
+TIMEOUT_MILLISECONDS = 30000
 STUCK_MESSAGE = "I got stuck working on that. Please try rephrasing."
 
 
@@ -25,7 +26,7 @@ Rules:
 
 
 def gemini_client():
-    return genai.Client(api_key=settings.GEMINI_API_KEY)
+    return genai.Client(api_key=settings.GEMINI_API_KEY, http_options={"timeout": TIMEOUT_MILLISECONDS})
 
 
 def ask_gemini(client, user_input, previous_interaction_id):
