@@ -38,3 +38,11 @@ def notify_patient(patient, text, link):
 
 def notifications_for(user):
     return Notification.objects.filter(user=user).order_by("read", "-id")
+
+
+def unread_count(user):
+    return Notification.objects.filter(user=user, read=False).count()
+
+
+def mark_all_read(user):
+    Notification.objects.filter(user=user, read=False).update(read=True)

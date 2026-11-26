@@ -6,6 +6,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from core.models import ActivityLog
+from core.services import mark_all_read
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, Patient
 from prescriptions.models import Prescription, PrescriptionItem
@@ -218,6 +219,8 @@ def collect_in_the_past(rana, prescription, ready_days, collected_days):
     )
     sale = Sale.objects.filter(source="prescription").latest("id")
     Sale.objects.filter(pk=sale.pk).update(time=collected_at)
+    if prescription.patient.user:
+        mark_all_read(prescription.patient.user)
 
 
 def create_prescriptions():

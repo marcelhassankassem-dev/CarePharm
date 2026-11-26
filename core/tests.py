@@ -385,7 +385,7 @@ class SeedDemoRefillTests(TestCase):
 
     def test_11_4_omars_father_was_told_about_the_delay(self):
         delayed = RefillRequest.objects.get(status="delayed")
-        notification = Notification.objects.get(user__username="omars_father")
+        notification = Notification.objects.get(user__username="omars_father", text__startswith="Refill delayed")
         self.assertEqual(
             notification.text,
             f"Refill delayed: Metformin 850 mg, expected {delayed.expected_on:%d %b %Y}.",

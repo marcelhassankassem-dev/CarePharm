@@ -3,6 +3,7 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 
 from accounts.services import create_patient_login
+from core.services import unread_count
 from passport.models import Allergy, CurrentMedicine, Patient
 
 
@@ -52,6 +53,10 @@ def patient_name_for(user):
     if patient:
         return patient.name
     return user.get_full_name() or user.username
+
+
+def patient_header(user):
+    return {"patient_name": patient_name_for(user), "unread_count": unread_count(user)}
 
 
 def allergies_of(patient):
