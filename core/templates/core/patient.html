@@ -1,0 +1,38 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="console-page patient-page {% block page_class %}{% endblock %}">
+    <header class="console-nav">
+        <img src="{% static 'core/images/logo.png' %}" alt="CarePharm" width="164" height="58">
+
+        <nav class="console-menu patient-menu">
+            <a href="{% url 'patient_home' %}" class="{% if request.path == '/home/' %}active{% endif %}"><img src="{% static 'core/images/patient-nav-home.svg' %}" alt="">Home</a>
+            <span><img src="{% static 'core/images/patient-nav-search.svg' %}" alt="">Find Medicine</span>
+            <span><img src="{% static 'core/images/patient-nav-passport.svg' %}" alt="">Medication Passport</span>
+            <span><img src="{% static 'core/images/patient-nav-assistant.svg' %}" alt="">AI Assistant</span>
+            <span><img src="{% static 'core/images/patient-nav-family.svg' %}" alt="">Family Access</span>
+        </nav>
+
+        <div class="console-profile">
+            <img class="patient-bell" src="{% static 'core/images/patient-bell.svg' %}" alt="Notifications">
+            {% with words=patient_name.split %}
+            <span class="profile-initials">{{ words.0|first|upper }}{{ words.1|first|upper }}</span>
+            {% endwith %}
+            <span class="profile-name">{{ patient_name }}</span>
+            <form method="post" action="/logout/">
+                {% csrf_token %}
+                <button type="submit" class="sign-out-button">Sign out</button>
+            </form>
+        </div>
+    </header>
+
+    <main class="{% block main_class %}console-content{% endblock %}">
+        {% for message in messages %}
+        <p class="console-message {{ message.tags }}">{{ message }}</p>
+        {% endfor %}
+
+        {% block patient_content %}{% endblock %}
+    </main>
+</div>
+{% endblock %}
