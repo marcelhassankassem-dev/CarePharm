@@ -1,13 +1,14 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db.models import ProtectedError
 from django.test import TestCase
 from django.utils import timezone
 
-from core.models import ActivityLog
+from core.models import ActivityLog, Notification
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import CurrentMedicine, Patient
 from prescriptions.models import Prescription, PrescriptionItem
@@ -20,10 +21,12 @@ from prescriptions.services import (
     mark_collected,
     mark_ready,
     mark_returned,
+    prescriptions_of,
     ready_count,
     ready_rows,
     remove_item,
     start_preparing,
+    status_steps,
     uncollected_count,
     uncollected_rows,
 )
@@ -253,6 +256,81 @@ class MarkReadyTests(PrescriptionTestData):
         with self.assertRaisesMessage(ValidationError, "Only a Preparing prescription can be marked Ready."):
             mark_ready(self.rana, self.prescription)
         self.assertEqual(self.quantity_of(self.first), 29)
+
+
+class ReadyNotificationTests(PrescriptionTestData):
+    def setUp(self):
+        make_batch(self.amoxicillin, "AMX-001")
+        self.metformin_batch = make_batch(self.metformin, "MET-001")
+        self.samira_user = make_user("samira", "patient")
+        self.samira.user = self.samira_user
+        self.samira.save()
+        self.prescription = self.prescription_with_items()
+        start_preparing(self.prescription)
+
+    def test_9_2_marking_ready_notifies_the_patient(self):
+        mark_ready(self.rana, self.prescription)
+        notification = Notification.objects.get()
+        self.assertEqual(notification.user, self.samira_user)
+        self.assertEqual(
+            notification.text,
+            f"Samira's prescription is ready for pickup at {settings.PHARMACY_NAME}: "
+            "Amoxicillin 500 mg, Metformin 500 mg.",
+        )
+        self.assertEqual(notification.link, "/prescriptions/mine/")
+        self.assertFalse(notification.read)
+
+    def test_9_2_a_patient_with_no_login_is_not_notified(self):
+        self.samira.user = None
+        self.samira.save()
+        mark_ready(self.rana, self.prescription)
+        self.assertFalse(Notification.objects.exists())
+
+    def test_9_2_nobody_is_notified_if_the_stock_cannot_be_taken(self):
+        self.metformin_batch.quantity = 10
+        self.metformin_batch.save()
+        with self.assertRaises(ValidationError):
+            mark_ready(self.rana, self.prescription)
+        self.assertFalse(Notification.objects.exists())
+
+    def test_9_2_only_becoming_ready_sends_a_notification(self):
+        mark_ready(self.rana, self.prescription)
+        mark_collected(self.rana, self.prescription, "cash")
+        self.assertEqual(Notification.objects.count(), 1)
+
+
+class PatientPrescriptionsTests(PrescriptionTestData):
+    def steps_of(self, status):
+        return [(step["label"], step["state"]) for step in status_steps(Prescription(status=status))]
+
+    def test_9_2_a_patient_sees_their_own_prescriptions_newest_first(self):
+        older = create_prescription(self.samira)
+        newer = create_prescription(self.samira)
+        Prescription.objects.filter(pk=older.pk).update(created_at=timezone.now() - timedelta(days=3))
+        maya = Patient.objects.create(name="Maya", date_of_birth=date(1990, 6, 2))
+        create_prescription(maya)
+        self.assertEqual(list(prescriptions_of(self.samira)), [newer, older])
+
+    def test_9_2_a_received_prescription_is_at_the_first_step(self):
+        self.assertEqual(
+            self.steps_of("received"),
+            [("Received", "current"), ("Preparing", "next"), ("Ready", "next"), ("Collected", "next")],
+        )
+
+    def test_9_2_a_ready_prescription_has_two_steps_done(self):
+        self.assertEqual(
+            self.steps_of("ready"),
+            [("Received", "done"), ("Preparing", "done"), ("Ready", "current"), ("Collected", "next")],
+        )
+
+    def test_9_2_a_collected_prescription_is_at_the_last_step(self):
+        self.assertEqual(
+            self.steps_of("collected"),
+            [("Received", "done"), ("Preparing", "done"), ("Ready", "done"), ("Collected", "current")],
+        )
+
+    def test_9_2_a_returned_prescription_has_no_steps(self):
+        self.assertEqual(self.steps_of("returned"), [])
 
 
 class MarkCollectedTests(PrescriptionTestData):
@@ -765,6 +843,55 @@ class PrescriptionPageTests(PrescriptionPagesTestData):
         response = self.client.get(self.address)
         self.assertNotContains(response, "Mark Collected")
         self.assertNotContains(response, "Return to Stock")
+
+
+class TrackPrescriptionPageTests(PrescriptionPagesTestData):
+    def setUp(self):
+        self.maya_record = Patient.objects.create(name="Maya", date_of_birth=date(1990, 6, 2), user=self.maya)
+        self.prescription = create_prescription(self.maya_record)
+        add_item(self.prescription, self.amoxicillin, 21, 7)
+        start_preparing(self.prescription)
+        samiras = create_prescription(self.samira)
+        add_item(samiras, self.metformin, 60, 30)
+        self.client.force_login(self.maya)
+
+    def test_9_2_signed_out_visitors_go_to_the_patient_sign_in(self):
+        self.client.logout()
+        self.assertRedirects(self.client.get("/prescriptions/mine/"), "/login/?next=/prescriptions/mine/")
+
+    def test_9_2_staff_cannot_open_the_patients_page(self):
+        self.client.force_login(self.rana)
+        self.assertEqual(self.client.get("/prescriptions/mine/").status_code, 403)
+
+    def test_9_2_the_page_lists_the_patients_prescription_and_its_medicines(self):
+        response = self.client.get("/prescriptions/mine/")
+        self.assertContains(response, "Track Prescription")
+        self.assertContains(response, "Amoxicillin 500 mg")
+
+    def test_9_2_other_patients_prescriptions_are_not_shown(self):
+        self.assertNotContains(self.client.get("/prescriptions/mine/"), "Metformin 500 mg")
+
+    def test_9_2_the_page_shows_when_it_was_received(self):
+        received = timezone.localtime(self.prescription.created_at).strftime("%d %b %Y")
+        self.assertContains(self.client.get("/prescriptions/mine/"), f"Received {received}")
+
+    def test_9_2_the_tracker_marks_the_current_step(self):
+        response = self.client.get("/prescriptions/mine/")
+        self.assertContains(response, '<li class="step done">Received</li>', html=True)
+        self.assertContains(response, '<li class="step current">Preparing</li>', html=True)
+        self.assertContains(response, '<li class="step next">Ready</li>', html=True)
+
+    def test_9_2_a_returned_prescription_says_so(self):
+        Prescription.objects.filter(pk=self.prescription.pk).update(status="returned")
+        self.assertContains(self.client.get("/prescriptions/mine/"), "Returned to stock")
+
+    def test_9_2_a_patient_with_no_prescriptions_is_told_so(self):
+        Prescription.objects.filter(patient=self.maya_record).delete()
+        self.assertContains(self.client.get("/prescriptions/mine/"), "No prescriptions yet.")
+
+    def test_9_2_a_caregiver_with_no_patient_record_sees_no_prescriptions(self):
+        self.client.force_login(make_user("omar", "patient"))
+        self.assertContains(self.client.get("/prescriptions/mine/"), "No prescriptions yet.")
 
 
 class ReadyOrdersTestData(PrescriptionPagesTestData):

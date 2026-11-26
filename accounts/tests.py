@@ -10,7 +10,7 @@ from django.utils import timezone
 from accounts.permissions import can_act_as_pharmacist, can_add_medicines, is_owner, is_pharmacy_staff
 from accounts.services import create_patient_login
 from core.models import ActivityLog
-from core.services import log_action
+from core.services import log_action, notify
 from passport.models import Patient
 
 NEW_STAFF = {
@@ -219,6 +219,21 @@ class PatientHomePageTests(TestCase):
         response = self.home_page_for(self.omar)
         self.assertContains(response, ">ON<")
         self.assertContains(response, 'action="/logout/"')
+
+    def test_9_2_the_track_prescription_card_opens_the_patients_prescriptions(self):
+        self.assertContains(self.home_page_for(self.samira), 'href="/prescriptions/mine/"')
+
+    def test_9_2_the_bell_opens_the_notifications(self):
+        self.assertContains(self.home_page_for(self.samira), 'href="/notifications/"')
+
+    def test_9_2_the_bell_has_a_dot_when_something_is_unread(self):
+        notify(self.samira, "Ready", "/prescriptions/mine/")
+        self.assertContains(self.home_page_for(self.samira), 'class="patient-bell unread"')
+
+    def test_9_2_the_bell_has_no_dot_when_everything_is_read(self):
+        response = self.home_page_for(self.samira)
+        self.assertContains(response, 'class="patient-bell"')
+        self.assertNotContains(response, "patient-bell unread")
 
 
 class PatientLoginTests(TestCase):

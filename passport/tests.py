@@ -11,10 +11,12 @@ from django.utils import timezone
 from inventory.models import DrugClass, Medicine
 from passport.forms import PatientChoiceForm
 from passport.models import Allergy, CurrentMedicine, Patient
+from core.services import notify
 from passport.services import (
     add_current_medicine,
     create_patient,
     find_patients,
+    patient_header,
     patient_name_for,
     patient_of,
 )
@@ -226,6 +228,10 @@ class PatientOfUserTests(TestCase):
 
     def test_p1_a_user_with_no_name_is_shown_by_their_username(self):
         self.assertEqual(patient_name_for(make_user("guest", "patient")), "guest")
+
+    def test_9_2_every_patient_page_gets_the_name_and_the_unread_count(self):
+        notify(self.samira_user, "Ready", "/prescriptions/mine/")
+        self.assertEqual(patient_header(self.samira_user), {"patient_name": "Samira Khalil", "unread_count": 1})
 
 
 class PatientChoiceFormTests(TestCase):

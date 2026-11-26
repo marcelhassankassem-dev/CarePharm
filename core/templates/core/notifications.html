@@ -1,0 +1,25 @@
+{% extends "core/patient.html" %}
+{% load static %}
+
+{% block title %}Notifications - CarePharm{% endblock %}
+
+{% block patient_content %}
+<div class="page-heading">
+    <div>
+        <h1>Notifications</h1>
+        <p class="page-intro">Updates from your pharmacy, newest unread first.</p>
+    </div>
+</div>
+
+<div class="notification-list">
+    {% for notification in notifications %}
+    <a href="{{ notification.link }}" class="notification{% if not notification.read %} unread{% endif %}">
+        <span class="notification-icon"><img src="{% static 'core/images/notification-bell.svg' %}" alt=""></span>
+        <span class="notification-text">{{ notification.text }}</span>
+        <img class="notification-arrow" src="{% static 'core/images/notification-arrow.svg' %}" alt="">
+    </a>
+    {% empty %}
+    <p class="card patient-empty">No notifications yet.</p>
+    {% endfor %}
+</div>
+{% endblock %}
