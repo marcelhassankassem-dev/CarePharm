@@ -93,3 +93,5 @@ PHARMACY_NAME = "CarePharm"
 PHARMACY_ADDRESS = "Bliss Street, Beirut"
 PHARMACY_PHONE = "01 234 567"
 PHARMACY_HOURS = "Mon to Sat, 8:00 to 22:00"
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
