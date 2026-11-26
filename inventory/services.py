@@ -8,6 +8,7 @@ from core.services import log_action
 from inventory.models import Batch, Medicine
 
 NEAR_EXPIRY_DAYS = 90
+MEDICINES_PER_PAGE = 50
 
 
 def available_stock(medicine):
@@ -129,6 +130,21 @@ def find_medicines(search=""):
     return medicines
 
 
+def batch_line(batch, days):
+    days_left = (batch.expiry_date - timezone.localdate()).days
+    return {
+        "batch": batch,
+        "days_left": days_left,
+        "expired": days_left < 0,
+        "near_expiry": 0 <= days_left <= days,
+    }
+
+
+def batch_rows(medicine, days):
+    batches = medicine.batch_set.filter(quantity__gt=0).order_by("expiry_date", "id")
+    return [batch_line(batch, days) for batch in batches]
+
+
 def stock_row(medicine, days):
     batch = next_batch(medicine)
     days_left = None
@@ -141,11 +157,19 @@ def stock_row(medicine, days):
         "last_received": medicine.batch_set.aggregate(Max("received_at"))["received_at__max"],
         "days_left": days_left,
         "near_expiry": days_left is not None and days_left <= days,
+        "batches": batch_rows(medicine, days),
     }
 
 
-def stock_rows(search="", days=NEAR_EXPIRY_DAYS):
-    return [stock_row(medicine, days) for medicine in find_medicines(search)]
+def stock_rows(search="", days=NEAR_EXPIRY_DAYS, limit=None):
+    medicines = find_medicines(search)
+    if limit:
+        medicines = medicines[:limit]
+    return [stock_row(medicine, days) for medicine in medicines]
+
+
+def matching_medicine_count(search=""):
+    return find_medicines(search).count()
 
 
 def is_low(row):
