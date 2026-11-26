@@ -1,6 +1,8 @@
 from django import forms
 from django.utils import timezone
 
+from inventory.models import Medicine
+
 QUANTITY_CHOICES = [(number, number) for number in range(1, 11)]
 
 
@@ -11,6 +13,11 @@ class FindMedicineForm(forms.Form):
         widget=forms.TextInput(attrs={"placeholder": "Paracetamol syrup"}),
     )
     quantity = forms.TypedChoiceField(choices=QUANTITY_CHOICES, coerce=int, initial=1)
+
+
+class ReserveForm(forms.Form):
+    medicine = forms.ModelChoiceField(queryset=Medicine.objects.all())
+    quantity = forms.TypedChoiceField(choices=QUANTITY_CHOICES, coerce=int)
 
 
 class DelayRefillForm(forms.Form):
