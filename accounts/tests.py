@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.template.defaultfilters import date
@@ -10,6 +11,7 @@ from accounts.permissions import can_act_as_pharmacist, can_add_medicines, is_ow
 from accounts.services import create_patient_login
 from core.models import ActivityLog
 from core.services import log_action
+from passport.models import Patient
 
 NEW_STAFF = {
     "first_name": "Hala",
@@ -96,7 +98,7 @@ class SignInTests(TestCase):
 
     def test_8_1_patient_signs_in_on_the_patient_page(self):
         response = self.client.post("/login/", {"username": "samira", "password": "pass"})
-        self.assertRedirects(response, "/login/")
+        self.assertRedirects(response, "/home/")
         self.assert_signed_in_as(self.samira)
 
     def test_8_1_pharmacist_signs_in_on_the_staff_page(self):
@@ -140,6 +142,83 @@ class SignInTests(TestCase):
 
     def test_8_1_a_signed_out_visitor_sees_no_confirmation(self):
         self.assertNotContains(self.client.get("/login/"), "You are signed in as")
+
+
+class PatientHomePageTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.samira = User.objects.create_user(username="samira", password="pass", role="patient")
+        Patient.objects.create(name="Samira Khalil", date_of_birth="1958-03-14", user=cls.samira)
+        maya = User.objects.create_user(username="maya", password="pass", role="patient")
+        Patient.objects.create(name="Maya Farah", date_of_birth="1990-06-02", user=maya)
+        cls.omar = User.objects.create_user(
+            username="omar", password="pass", role="patient", first_name="Omar", last_name="Nassar"
+        )
+        cls.rana = User.objects.create_user(username="rana", password="pass", role="pharmacist")
+
+    def home_page_for(self, user):
+        self.client.force_login(user)
+        return self.client.get("/home/")
+
+    def test_p1_a_caregiver_also_lands_on_the_home_page(self):
+        response = self.client.post("/login/", {"username": "omar", "password": "pass"})
+        self.assertRedirects(response, "/home/")
+
+    def test_p1_signed_out_visitors_go_to_the_patient_sign_in(self):
+        self.assertRedirects(self.client.get("/home/"), "/login/?next=/home/")
+
+    def test_p1_staff_cannot_open_the_patient_home(self):
+        self.assertEqual(self.home_page_for(self.rana).status_code, 403)
+
+    def test_p1_the_site_still_opens_on_the_sign_in_page(self):
+        self.assertRedirects(self.client.get("/"), "/login/")
+
+    def test_p1_the_home_page_greets_the_patient_by_name(self):
+        self.assertContains(self.home_page_for(self.samira), "Welcome, Samira Khalil")
+
+    def test_p1_a_caregiver_with_no_patient_record_is_greeted_by_name(self):
+        self.assertContains(self.home_page_for(self.omar), "Welcome, Omar Nassar")
+
+    def test_p1_no_other_patient_appears(self):
+        self.assertNotContains(self.home_page_for(self.samira), "Maya Farah")
+
+    def test_p1_the_home_page_shows_the_pharmacy_details(self):
+        response = self.home_page_for(self.samira)
+        self.assertContains(response, "Your pharmacy")
+        for detail in [settings.PHARMACY_NAME, settings.PHARMACY_ADDRESS, settings.PHARMACY_PHONE, settings.PHARMACY_HOURS]:
+            self.assertContains(response, detail)
+
+    def test_p1_the_home_page_uses_the_figma_wording(self):
+        response = self.home_page_for(self.samira)
+        self.assertContains(response, "Find Your Medicine. Stay Connected")
+        for card in [
+            "Find a Medicine",
+            "Reserve Medicine",
+            "Track Prescription",
+            "Medication Passport",
+            "Request a Refill",
+            "AI Pharmacy Assistant",
+        ]:
+            self.assertContains(response, card)
+
+    def test_p1_the_patient_menu_lists_the_patient_sections(self):
+        response = self.home_page_for(self.samira)
+        for section in ["Home", "Find Medicine", "Medication Passport", "AI Assistant", "Family Access"]:
+            self.assertContains(response, section)
+
+    def test_p1_home_is_the_selected_menu_link(self):
+        self.assertContains(self.home_page_for(self.samira), 'href="/home/" class="active"')
+
+    def test_p1_the_staff_menu_is_not_shown(self):
+        response = self.home_page_for(self.samira)
+        self.assertNotContains(response, 'href="/inventory/"')
+        self.assertNotContains(response, 'href="/dashboard/"')
+
+    def test_p1_the_page_shows_the_users_initials_and_a_sign_out_button(self):
+        response = self.home_page_for(self.omar)
+        self.assertContains(response, ">ON<")
+        self.assertContains(response, 'action="/logout/"')
 
 
 class PatientLoginTests(TestCase):

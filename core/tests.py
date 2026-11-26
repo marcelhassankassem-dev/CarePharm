@@ -7,7 +7,7 @@ from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
 from core.models import ActivityLog, Notification
-from core.services import activity_log, log_action, notifications_for, notify, notify_patient
+from core.services import activity_log, log_action, notifications_for, notify, notify_patient, pharmacy_details
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, Patient
 from prescriptions.models import Prescription, PrescriptionItem
@@ -63,6 +63,17 @@ class ProjectSettingsTests(SimpleTestCase):
         self.assertTrue(settings.PHARMACY_ADDRESS)
         self.assertTrue(settings.PHARMACY_PHONE)
         self.assertTrue(settings.PHARMACY_HOURS)
+
+    def test_p1_pharmacy_details_come_from_the_settings(self):
+        self.assertEqual(
+            pharmacy_details(),
+            {
+                "name": settings.PHARMACY_NAME,
+                "address": settings.PHARMACY_ADDRESS,
+                "phone": settings.PHARMACY_PHONE,
+                "hours": settings.PHARMACY_HOURS,
+            },
+        )
 
 
 class SeedDemoPeopleTests(TestCase):

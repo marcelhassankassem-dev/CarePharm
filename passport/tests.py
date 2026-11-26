@@ -11,7 +11,13 @@ from django.utils import timezone
 from inventory.models import DrugClass, Medicine
 from passport.forms import PatientChoiceForm
 from passport.models import Allergy, CurrentMedicine, Patient
-from passport.services import add_current_medicine, create_patient, find_patients
+from passport.services import (
+    add_current_medicine,
+    create_patient,
+    find_patients,
+    patient_name_for,
+    patient_of,
+)
 
 STAFF_PAGES = ["/patients/", "/patients/new/", "/patients/logins/new/"]
 
@@ -194,6 +200,32 @@ class FindPatientsTests(TestCase):
         maya, samira = find_patients()
         self.assertEqual(maya.allergy_count, 0)
         self.assertEqual(samira.allergy_count, 1)
+
+
+class PatientOfUserTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.samira_user = make_user("samira", "patient")
+        cls.samira = Patient.objects.create(name="Samira Khalil", date_of_birth=date(1958, 3, 14), user=cls.samira_user)
+        Patient.objects.create(name="Maya Farah", date_of_birth=date(1990, 6, 2), user=make_user("maya", "patient"))
+        cls.omar = get_user_model().objects.create(
+            username="omar", role="patient", first_name="Omar", last_name="Nassar"
+        )
+
+    def test_p1_a_patient_side_user_has_their_own_patient_record(self):
+        self.assertEqual(patient_of(self.samira_user), self.samira)
+
+    def test_p1_a_caregiver_with_no_record_has_no_patient(self):
+        self.assertIsNone(patient_of(self.omar))
+
+    def test_p1_the_name_shown_is_the_patients_name(self):
+        self.assertEqual(patient_name_for(self.samira_user), "Samira Khalil")
+
+    def test_p1_a_caregiver_is_shown_by_their_full_name(self):
+        self.assertEqual(patient_name_for(self.omar), "Omar Nassar")
+
+    def test_p1_a_user_with_no_name_is_shown_by_their_username(self):
+        self.assertEqual(patient_name_for(make_user("guest", "patient")), "guest")
 
 
 class PatientChoiceFormTests(TestCase):
