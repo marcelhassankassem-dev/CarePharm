@@ -17,7 +17,7 @@ from prescriptions.services import (
     start_preparing,
 )
 from reservations.models import RefillRequest, Reservation
-from reservations.services import request_refill, reserve_medicine
+from reservations.services import delay_refill, request_refill, reserve_medicine
 from sales.models import Sale
 from sales.services import complete_sale
 
@@ -304,12 +304,14 @@ def demo_refill_request(patient_name, medicine_name, strength, hours):
     )
     refill_request = request_refill(patient.user, item)
     RefillRequest.objects.filter(pk=refill_request.pk).update(created_at=timezone.now() - timedelta(hours=hours))
+    return refill_request
 
 
 def create_refill_requests():
     if RefillRequest.objects.exists():
         return
-    demo_refill_request("Omar's Father", "Metformin", "850 mg", 20)
+    out_of_stock = demo_refill_request("Omar's Father", "Metformin", "850 mg", 20)
+    delay_refill(out_of_stock, timezone.localdate() + timedelta(days=7))
     demo_refill_request("Omar's Father", "Losartan", "50 mg", 2)
 
 
