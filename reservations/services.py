@@ -62,6 +62,14 @@ def collect_reservation(staff, reservation, payment_method):
     return sale
 
 
+def pickup_deadline(reservation):
+    return reservation.created_at + HOLD_TIME
+
+
+def patient_reservation(user, reservation_id):
+    return get_object_or_404(Reservation.objects.select_related("medicine"), pk=reservation_id, patient__user=user)
+
+
 def get_reservation(reservation_id):
     return get_object_or_404(Reservation.objects.select_related("patient", "medicine"), pk=reservation_id)
 

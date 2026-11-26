@@ -3617,7 +3617,7 @@ body {
 .availability-card {
     display: flex;
     align-items: center;
-    gap: 88px;
+    gap: 24px;
     min-height: 180px;
     margin-bottom: 20px;
     padding: 18px 40px 18px 23px;
@@ -3636,6 +3636,7 @@ body {
 
 .availability-name {
     flex: 1;
+    margin-left: 64px;
 }
 
 .availability-name h2 {
@@ -3989,4 +3990,207 @@ a.home-card {
 
 .notification-text {
     flex: 1;
+}
+
+.availability-reserve button {
+    height: 52px;
+    padding: 0 28px;
+    border: 0;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    color: white;
+    background: linear-gradient(to right, #145566, #0b3b49);
+    cursor: pointer;
+}
+
+.console-page.reserved-page {
+    background: url("images/reserved-background.jpg") center / cover no-repeat, #e9f4f1;
+}
+
+.reserved-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 52px 100px 40px 24px;
+}
+
+.reserved-heading {
+    text-align: center;
+}
+
+.reserved-tick {
+    position: relative;
+    display: block;
+    width: 150px;
+    height: 150px;
+    margin: 0 auto 26px;
+}
+
+.reserved-tick img {
+    position: absolute;
+}
+
+.reserved-ring {
+    inset: 0;
+    width: 150px;
+    height: 150px;
+}
+
+.reserved-circle {
+    top: 7px;
+    left: -1px;
+}
+
+.reserved-check {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.reserved-heading h1 {
+    margin: 0;
+    font-size: 48px;
+    color: #0f2233;
+}
+
+.reserved-heading p {
+    margin: 5px 0 0;
+    font-size: 25px;
+    font-weight: 500;
+    color: #7c8a96;
+}
+
+.reserved-table {
+    width: 921px;
+    margin: 47px 0 0;
+    padding: 6px 29px 8px;
+    border-radius: 30px;
+    background: white;
+}
+
+.reserved-table div {
+    display: grid;
+    grid-template-columns: 488px 1fr;
+    align-items: center;
+    min-height: 66px;
+    border-bottom: 1px solid #d6dedd;
+}
+
+.reserved-table div:last-child {
+    border-bottom: 0;
+}
+
+.reserved-table dt {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 25px;
+    font-weight: 600;
+    color: #4f6070;
+}
+
+.reserved-table dt img {
+    width: 44px;
+    height: 44px;
+}
+
+.reserved-table dd {
+    margin: 0;
+    font-size: 25px;
+    font-weight: 700;
+    color: #0f2233;
+}
+
+.reserved-table dd small {
+    display: block;
+    font-size: 15px;
+    font-weight: 400;
+    color: #7c8a96;
+}
+
+.reserved-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    height: 43px;
+    padding: 0 22px 0 14px;
+    border-radius: 25px;
+    font-size: 22px;
+    font-weight: 800;
+    color: #4f6070;
+    background: #eef1f3;
+}
+
+.reserved-status::before {
+    content: "";
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #7c8a96;
+}
+
+.reserved-status.active {
+    color: #14756f;
+    background: #e0f9f0;
+}
+
+.reserved-status.active::before {
+    background: #22b573;
+}
+
+.reserved-warning {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 1004px;
+    height: 66px;
+    margin: 16px 0 0 -1px;
+    padding-left: 124px;
+    border-radius: 30px;
+    font-size: 22px;
+    font-weight: 500;
+    color: #0f2233;
+    background: #fef3d1;
+}
+
+.reserved-warning img {
+    position: absolute;
+    top: -23px;
+    left: -13px;
+    width: 111px;
+    height: 111px;
+}
+
+.reserved-warning strong {
+    font-weight: 800;
+}
+
+.reserved-actions {
+    margin-top: 30px;
+}
+
+.reserved-home {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 311px;
+    height: 60px;
+    padding-left: 60px;
+    border-radius: 20px;
+    font-size: 22px;
+    font-weight: 800;
+    color: #0f2233;
+    background: #fefefe;
+    text-decoration: none;
+}
+
+.reserved-home img {
+    position: absolute;
+    top: -15px;
+    left: 0;
+    width: 83px;
+    height: 83px;
 }

@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.http import Http404
 from django.test import TestCase
 from django.utils import timezone
 
@@ -23,6 +24,8 @@ from reservations.services import (
     minutes_left,
     new_refill_count,
     open_refill_count,
+    patient_reservation,
+    pickup_deadline,
     refill_rows,
     request_refill,
     reservation_rows,
@@ -999,3 +1002,160 @@ class FindMedicinePageTests(FindMedicineTestData):
     def test_10_1_signed_out_visitors_go_to_the_patient_login(self):
         self.client.logout()
         self.assertRedirects(self.client.get("/reservations/find/"), "/login/?next=/reservations/find/")
+
+class ReserveTestData(FindMedicineTestData):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        User = get_user_model()
+        cls.samira_user = User.objects.create(username="samira", role="patient")
+        cls.samira = Patient.objects.create(name="Samira", date_of_birth=date(1958, 3, 14), user=cls.samira_user)
+
+
+class PatientReservationTests(ReserveTestData):
+    def test_10_2_the_pickup_deadline_is_2_hours_after_reserving(self):
+        reservation = reserve_medicine(self.maya_user, self.maya, self.syrup, 1)
+        self.assertEqual(pickup_deadline(reservation), reservation.created_at + timedelta(hours=2))
+
+    def test_10_2_a_patient_finds_their_own_reservation(self):
+        reservation = reserve_medicine(self.maya_user, self.maya, self.syrup, 1)
+        self.assertEqual(patient_reservation(self.maya_user, reservation.pk), reservation)
+
+    def test_10_2_another_patients_reservation_is_not_found(self):
+        reservation = reserve_medicine(self.maya_user, self.maya, self.syrup, 1)
+        with self.assertRaises(Http404):
+            patient_reservation(self.samira_user, reservation.pk)
+
+
+class ReserveMedicinePageTests(ReserveTestData):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.maya_user)
+
+    def reserve(self, medicine, quantity=2, follow=False):
+        return self.client.post("/reservations/reserve/", {"medicine": medicine.pk, "quantity": quantity}, follow=follow)
+
+    def results(self, name, quantity=1):
+        return self.client.get("/reservations/find/results/", {"name": name, "quantity": quantity})
+
+    def shown_messages(self, response):
+        return [str(message) for message in response.context["messages"]]
+
+    def test_10_2_an_available_medicine_can_be_reserved_from_the_results(self):
+        response = self.results("syrup", 2)
+        self.assertContains(response, 'action="/reservations/reserve/"')
+        self.assertContains(response, f'<input type="hidden" name="medicine" value="{self.syrup.pk}">', html=True)
+        self.assertContains(response, '<input type="hidden" name="quantity" value="2">', html=True)
+        self.assertContains(response, "Reserve Medicine")
+
+    def test_10_2_a_medicine_that_is_not_available_cannot_be_reserved(self):
+        response = self.results("cetirizine", 5)
+        self.assertNotContains(response, 'action="/reservations/reserve/"')
+        response = self.results("paracetamol", 1)
+        self.assertContains(response, 'action="/reservations/reserve/"', count=1)
+
+    def test_10_2_a_caregiver_with_no_patient_record_sees_no_reserve_button(self):
+        self.client.force_login(self.omar)
+        self.assertNotContains(self.results("syrup"), 'action="/reservations/reserve/"')
+
+    def test_10_2_reserving_takes_the_stock_and_opens_the_reservation(self):
+        response = self.reserve(self.syrup, 2)
+        reservation = Reservation.objects.get()
+        self.assertRedirects(response, f"/reservations/{reservation.pk}/")
+        self.assertEqual((reservation.patient, reservation.medicine, reservation.quantity), (self.maya, self.syrup, 2))
+        self.assertEqual(reservation.status, "active")
+        self.syrup_batch.refresh_from_db()
+        self.assertEqual(self.syrup_batch.quantity, 32)
+
+    def test_10_2_the_reservation_page_uses_the_figma_wording(self):
+        response = self.reserve(self.syrup, 2, follow=True)
+        reservation = Reservation.objects.get()
+        deadline = timezone.localtime(reservation.created_at + timedelta(hours=2))
+        for words in [
+            "Medicine Reserved!",
+            "Your medicine has been successfully reserved.",
+            "Paracetamol syrup<small>500 mg</small>",
+            "2 units",
+            f"{settings.PHARMACY_NAME} Pharmacy",
+            settings.PHARMACY_ADDRESS,
+            f"Before {deadline:%H:%M}",
+            "within 2 hours",
+            "otherwise the reservation will expire.",
+            "Return Home",
+        ]:
+            self.assertContains(response, words)
+        self.assertContains(response, '<span class="reserved-status active">Active</span>', html=True)
+        self.assertContains(response, 'href="/home/"')
+
+    def test_10_2_the_pharmacy_sees_the_reservation(self):
+        self.reserve(self.syrup, 2)
+        self.client.force_login(self.karim)
+        response = self.client.get("/prescriptions/", {"show": "reservations"})
+        self.assertContains(response, "Maya")
+        self.assertContains(response, "Paracetamol syrup 500 mg · 2 units")
+
+    def test_10_2_more_than_one_batch_holds_is_refused_and_nothing_changes(self):
+        second_batch = make_batch(self.cetirizine, "CET-002", 3)
+        response = self.reserve(self.cetirizine, 4, follow=True)
+        self.assertRedirects(response, "/reservations/find/results/?name=Cetirizine&quantity=4")
+        self.assertEqual(
+            self.shown_messages(response),
+            ["Sorry, Cetirizine 500 mg cannot be reserved in that quantity right now. Please ask the pharmacy."],
+        )
+        self.assertFalse(Reservation.objects.exists())
+        second_batch.refresh_from_db()
+        self.assertEqual(second_batch.quantity, 3)
+
+    def test_10_2_an_out_of_stock_medicine_is_refused(self):
+        response = self.reserve(self.tablets, 1, follow=True)
+        self.assertContains(response, "cannot be reserved in that quantity right now")
+        self.assertFalse(Reservation.objects.exists())
+
+    def test_10_2_a_caregiver_with_no_patient_record_cannot_reserve(self):
+        self.client.force_login(self.omar)
+        response = self.reserve(self.syrup, 1, follow=True)
+        self.assertEqual(
+            self.shown_messages(response),
+            ["Reservations are made for your own patient record. Please ask the pharmacy to set it up."],
+        )
+        self.assertFalse(Reservation.objects.exists())
+
+    def test_10_2_a_bad_medicine_or_quantity_reserves_nothing(self):
+        self.client.post("/reservations/reserve/", {"medicine": 9999, "quantity": 1})
+        self.client.post("/reservations/reserve/", {"medicine": self.syrup.pk, "quantity": 11})
+        self.assertFalse(Reservation.objects.exists())
+
+    def test_10_2_opening_the_reserve_address_reserves_nothing(self):
+        self.assertRedirects(self.client.get("/reservations/reserve/"), "/reservations/find/")
+        self.assertFalse(Reservation.objects.exists())
+
+    def test_10_2_someone_elses_reservation_is_not_found(self):
+        reservation = reserve_medicine(self.samira_user, self.samira, self.syrup, 1)
+        self.assertEqual(self.client.get(f"/reservations/{reservation.pk}/").status_code, 404)
+
+    def test_t7_a_reservation_past_its_2_hours_shows_as_expired(self):
+        reservation = reserved_minutes_ago(reserve_medicine(self.maya_user, self.maya, self.syrup, 1), 121)
+        response = self.client.get(f"/reservations/{reservation.pk}/")
+        self.assertContains(response, '<span class="reserved-status expired">Expired</span>', html=True)
+        self.assertNotContains(response, "otherwise the reservation will expire.")
+
+    def test_10_2_a_collected_reservation_says_so(self):
+        reservation = reserve_medicine(self.maya_user, self.maya, self.syrup, 1)
+        collect_reservation(self.karim, reservation, "cash")
+        response = self.client.get(f"/reservations/{reservation.pk}/")
+        self.assertContains(response, '<span class="reserved-status collected">Collected</span>', html=True)
+
+    def test_10_2_the_home_cards_lead_to_find_a_medicine(self):
+        response = self.client.get("/home/")
+        self.assertContains(response, '<a href="/reservations/find/" class="home-card find">')
+        self.assertContains(response, '<a href="/reservations/find/" class="home-card reserve">')
+
+    def test_10_2_staff_cannot_use_the_patient_pages(self):
+        reservation = reserve_medicine(self.maya_user, self.maya, self.syrup, 1)
+        self.client.force_login(self.karim)
+        self.assertEqual(self.reserve(self.syrup, 1).status_code, 403)
+        self.assertEqual(self.client.get(f"/reservations/{reservation.pk}/").status_code, 403)
+
+    def test_10_2_signed_out_visitors_go_to_the_patient_login(self):
+        self.client.logout()
+        self.assertRedirects(self.client.get("/reservations/1/"), "/login/?next=/reservations/1/")
