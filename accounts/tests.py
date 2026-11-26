@@ -1,17 +1,29 @@
-from datetime import timedelta
+from datetime import datetime, time, timedelta
+from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.http import Http404
 from django.template.defaultfilters import date
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 from django.utils import timezone
 
-from accounts.permissions import can_act_as_pharmacist, can_add_medicines, is_owner, is_pharmacy_staff
-from accounts.services import create_patient_login
+from accounts.models import CaregiverLink
+from accounts.permissions import (
+    can_act_as_pharmacist,
+    can_add_medicines,
+    is_owner,
+    is_pharmacy_staff,
+    selected_patient,
+)
+from accounts.services import add_caregiver, caregiver_links_of, create_patient_login, revoke_caregiver
 from core.models import ActivityLog
 from core.services import log_action, notify
+from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Patient
+from prescriptions.models import Prescription, PrescriptionItem
+from reservations.models import RefillRequest, Reservation
 
 NEW_STAFF = {
     "first_name": "Hala",
@@ -250,6 +262,364 @@ class PatientLoginTests(TestCase):
         with self.assertRaisesMessage(ValidationError, "That username is already taken."):
             create_patient_login("omar", "temporary2")
         self.assertEqual(get_user_model().objects.filter(username="omar").count(), 1)
+
+
+class FamilyTestData(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.samira_user = User.objects.create_user(
+            username="samira", password="pass", role="patient", first_name="Samira", last_name="Khalil"
+        )
+        cls.samira = Patient.objects.create(name="Samira Khalil", date_of_birth="1958-03-14", user=cls.samira_user)
+        cls.maya_user = User.objects.create_user(username="maya", password="pass", role="patient")
+        cls.maya = Patient.objects.create(name="Maya Farah", date_of_birth="1990-06-02", user=cls.maya_user)
+        cls.omar = User.objects.create_user(
+            username="omar", password="pass", role="patient", first_name="Omar", last_name="Nassar"
+        )
+        cls.father = Patient.objects.create(name="Khalil Nassar", date_of_birth="1949-11-05")
+        cls.rana = User.objects.create_user(username="rana", password="pass", role="pharmacist")
+
+
+class CaregiverLinkTests(FamilyTestData):
+    def test_12_1_a_new_link_is_active(self):
+        link = CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        self.assertTrue(link.active)
+
+    def test_12_1_a_patient_gives_a_family_member_access_by_username(self):
+        link = add_caregiver(self.samira, "omar")
+        self.assertEqual((link.patient, link.caregiver, link.active), (self.samira, self.omar, True))
+
+    def test_12_1_an_unknown_username_is_refused(self):
+        with self.assertRaisesMessage(ValidationError, "No patient account has the username nobody."):
+            add_caregiver(self.samira, "nobody")
+        self.assertFalse(CaregiverLink.objects.exists())
+
+    def test_12_1_a_staff_username_is_refused(self):
+        with self.assertRaisesMessage(ValidationError, "No patient account has the username rana."):
+            add_caregiver(self.samira, "rana")
+        self.assertFalse(CaregiverLink.objects.exists())
+
+    def test_12_1_a_patient_cannot_add_themselves(self):
+        with self.assertRaisesMessage(ValidationError, "You cannot add yourself."):
+            add_caregiver(self.samira, "samira")
+        self.assertFalse(CaregiverLink.objects.exists())
+
+    def test_12_1_a_family_member_who_has_access_is_not_added_twice(self):
+        add_caregiver(self.samira, "omar")
+        with self.assertRaisesMessage(ValidationError, "omar can already manage your medicines."):
+            add_caregiver(self.samira, "omar")
+        self.assertEqual(CaregiverLink.objects.count(), 1)
+
+    def test_12_1_removing_access_ends_the_link(self):
+        link = add_caregiver(self.samira, "omar")
+        revoke_caregiver(self.samira, link.pk)
+        link.refresh_from_db()
+        self.assertFalse(link.active)
+
+    def test_12_1_adding_someone_again_after_removing_them_reuses_their_link(self):
+        link = add_caregiver(self.samira, "omar")
+        revoke_caregiver(self.samira, link.pk)
+        self.assertEqual(add_caregiver(self.samira, "omar"), link)
+        link.refresh_from_db()
+        self.assertTrue(link.active)
+        self.assertEqual(CaregiverLink.objects.count(), 1)
+
+    def test_12_1_only_family_members_with_access_are_listed(self):
+        omar_link = add_caregiver(self.samira, "omar")
+        maya_link = add_caregiver(self.samira, "maya")
+        revoke_caregiver(self.samira, maya_link.pk)
+        self.assertEqual(list(caregiver_links_of(self.samira)), [omar_link])
+
+    def test_12_1_a_patient_cannot_remove_another_patients_family_member(self):
+        link = CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        with self.assertRaises(Http404):
+            revoke_caregiver(self.samira, link.pk)
+        link.refresh_from_db()
+        self.assertTrue(link.active)
+
+
+class SelectedPatientTests(FamilyTestData):
+    def request_for(self, user, chosen_patient=None):
+        request = RequestFactory().get("/home/")
+        request.user = user
+        request.session = {}
+        if chosen_patient:
+            request.session["viewing_patient_id"] = chosen_patient.pk
+        return request
+
+    def test_12_1_a_patient_views_their_own_record_by_default(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.maya_user)
+        self.assertEqual(selected_patient(self.request_for(self.maya_user)), self.maya)
+
+    def test_12_1_a_caregiver_with_no_record_views_the_patient_they_care_for(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        self.assertEqual(selected_patient(self.request_for(self.omar)), self.father)
+
+    def test_12_1_the_chosen_patient_is_viewed(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.maya_user)
+        self.assertEqual(selected_patient(self.request_for(self.maya_user, self.father)), self.father)
+
+    def test_12_1_a_patient_the_user_does_not_care_for_cannot_be_chosen(self):
+        self.assertEqual(selected_patient(self.request_for(self.maya_user, self.samira)), self.maya)
+
+    def test_12_1_after_access_is_removed_the_patient_is_no_longer_viewed(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.maya_user, active=False)
+        self.assertEqual(selected_patient(self.request_for(self.maya_user, self.father)), self.maya)
+
+    def test_12_1_a_user_with_no_record_and_no_links_views_nobody(self):
+        self.assertIsNone(selected_patient(self.request_for(self.omar)))
+
+
+class FamilyAccessPageTests(FamilyTestData):
+    def page_for(self, user, address="/family/"):
+        self.client.force_login(user)
+        return self.client.get(address)
+
+    def shown_messages(self, response):
+        return [str(message) for message in response.context["messages"]]
+
+    def test_12_1_signed_out_visitors_go_to_the_patient_sign_in(self):
+        self.assertRedirects(self.client.get("/family/"), "/login/?next=/family/")
+
+    def test_12_1_staff_cannot_open_family_access(self):
+        self.assertEqual(self.page_for(self.rana).status_code, 403)
+
+    def test_12_1_the_menu_links_to_family_access(self):
+        self.assertContains(self.page_for(self.samira_user, "/home/"), 'href="/family/"')
+        self.assertContains(self.page_for(self.samira_user), 'href="/family/" class="active"')
+
+    def test_12_1_the_page_uses_the_figma_wording(self):
+        response = self.page_for(self.samira_user)
+        self.assertContains(response, "Family care")
+        self.assertContains(response, "Caregiver Access")
+        self.assertContains(response, "Manage a family member’s medicines, reminders, and pickup status from your account.")
+        self.assertContains(response, "Linked Family Profiles")
+        self.assertContains(response, "Permission &amp; Access")
+        for permission in ["View and manage medicines", "Manage reminders", "View pickup status", "Access pharmacy details"]:
+            self.assertContains(response, permission)
+
+    def test_12_1_a_patient_with_no_family_member_is_told_so(self):
+        self.assertContains(self.page_for(self.samira_user), "No family member has access yet.")
+
+    def test_12_1_a_patient_sees_who_has_access_with_a_remove_button(self):
+        link = add_caregiver(self.samira, "omar")
+        response = self.page_for(self.samira_user)
+        self.assertContains(response, "Omar Nassar")
+        self.assertContains(response, f'action="/family/{link.pk}/remove/"')
+        self.assertContains(response, "Remove Access")
+
+    def test_12_1_a_caregiver_sees_the_patient_they_care_for(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        response = self.page_for(self.omar)
+        self.assertContains(response, "Khalil Nassar")
+        self.assertContains(response, "Managed by you")
+        self.assertContains(response, "Managing 1 family member")
+
+    def test_12_1_a_caregiver_sees_that_their_access_is_active(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        response = self.page_for(self.omar)
+        self.assertContains(response, "Authorized caregiver access active")
+        self.assertContains(
+            response, "You can manage Khalil Nassar’s medicines, reminders, and pickup status from your account."
+        )
+
+    def test_12_1_patients_with_a_record_see_add_family_member(self):
+        self.assertContains(self.page_for(self.samira_user), 'href="/family/add/"')
+
+    def test_12_1_a_caregiver_with_no_record_has_nothing_to_share(self):
+        self.assertNotContains(self.page_for(self.omar), 'href="/family/add/"')
+        self.assertEqual(self.page_for(self.omar, "/family/add/").status_code, 403)
+
+    def test_12_1_the_add_popup_has_its_wording(self):
+        response = self.page_for(self.samira_user, "/family/add/")
+        self.assertContains(response, "<dialog open")
+        self.assertContains(response, "Add Family Member")
+        self.assertContains(response, "Their CarePharm username")
+        self.assertContains(response, "Give Access")
+        self.assertContains(response, "Caregiver Access")
+
+    def test_12_1_giving_access_links_the_family_member(self):
+        self.client.force_login(self.samira_user)
+        response = self.client.post("/family/add/", {"username": "omar"}, follow=True)
+        self.assertRedirects(response, "/family/")
+        self.assertTrue(CaregiverLink.objects.filter(patient=self.samira, caregiver=self.omar, active=True).exists())
+        self.assertEqual(self.shown_messages(response), ["Omar Nassar can now manage your medicines."])
+
+    def test_12_1_an_unknown_username_keeps_the_popup_open_with_the_reason(self):
+        self.client.force_login(self.samira_user)
+        response = self.client.post("/family/add/", {"username": "nobody"})
+        self.assertContains(response, "<dialog open")
+        self.assertContains(response, "No patient account has the username nobody.")
+        self.assertFalse(CaregiverLink.objects.exists())
+
+    def test_12_1_a_username_is_required(self):
+        self.client.force_login(self.samira_user)
+        response = self.client.post("/family/add/", {"username": ""})
+        self.assertContains(response, "<dialog open")
+        self.assertFalse(CaregiverLink.objects.exists())
+
+    def test_12_1_removing_access_ends_it_at_once(self):
+        link = add_caregiver(self.samira, "omar")
+        self.client.force_login(self.samira_user)
+        response = self.client.post(f"/family/{link.pk}/remove/", follow=True)
+        self.assertRedirects(response, "/family/")
+        link.refresh_from_db()
+        self.assertFalse(link.active)
+        self.assertEqual(self.shown_messages(response), ["Omar Nassar can no longer manage your medicines."])
+
+    def test_12_1_opening_the_remove_address_removes_nothing(self):
+        link = add_caregiver(self.samira, "omar")
+        self.assertRedirects(self.page_for(self.samira_user, f"/family/{link.pk}/remove/"), "/family/")
+        link.refresh_from_db()
+        self.assertTrue(link.active)
+
+    def test_12_1_a_caregiver_cannot_remove_their_own_access_to_someone_else(self):
+        link = CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        self.client.force_login(self.samira_user)
+        self.assertEqual(self.client.post(f"/family/{link.pk}/remove/").status_code, 404)
+        link.refresh_from_db()
+        self.assertTrue(link.active)
+
+
+def collected_days_ago(patient, medicine, days):
+    collected_on = timezone.localdate() - timedelta(days=days)
+    prescription = Prescription.objects.create(
+        patient=patient,
+        status="collected",
+        collected_at=timezone.make_aware(datetime.combine(collected_on, time(12, 0))),
+    )
+    return PrescriptionItem.objects.create(
+        prescription=prescription, medicine=medicine, quantity=60, days_of_supply=30, long_term=True
+    )
+
+
+class ViewingAsTests(FamilyTestData):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        drug_class = DrugClass.objects.create(name="Biguanides")
+        cls.metformin = Medicine.objects.create(
+            name="Metformin",
+            strength="500 mg",
+            barcode="1000000000004",
+            drug_class=drug_class,
+            price=Decimal("6.00"),
+            minimum_quantity=5,
+        )
+        cls.due_item = collected_days_ago(cls.father, cls.metformin, 27)
+        cls.ready = Prescription.objects.create(patient=cls.father, status="ready", ready_at=timezone.now())
+        PrescriptionItem.objects.create(prescription=cls.ready, medicine=cls.metformin, quantity=30, days_of_supply=30)
+
+    def setUp(self):
+        self.omar_link = CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        Batch.objects.create(
+            medicine=self.metformin,
+            batch_number="MET-001",
+            expiry_date=timezone.localdate() + timedelta(days=300),
+            quantity=50,
+            unit_cost=Decimal("3.00"),
+            supplier="Cedar Medical Supplies",
+        )
+
+    def view_as(self, user, patient, next_address="/home/"):
+        self.client.force_login(user)
+        return self.client.post(f"/family/view/{patient.pk}/", {"next": next_address})
+
+    def refill_address(self):
+        return f"/reservations/refills/request/{self.due_item.pk}/"
+
+    def test_12_1_a_user_with_family_links_gets_a_switcher(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.maya_user)
+        self.client.force_login(self.maya_user)
+        response = self.client.get("/home/")
+        self.assertContains(response, "Maya Farah (me)")
+        self.assertContains(response, f'action="/family/view/{self.maya.pk}/"')
+        self.assertContains(response, f'action="/family/view/{self.father.pk}/"')
+
+    def test_12_1_a_user_with_no_family_links_gets_no_switcher(self):
+        self.client.force_login(self.samira_user)
+        self.assertNotContains(self.client.get("/home/"), 'action="/family/view/')
+
+    def test_12_1_the_viewed_patient_is_marked_in_the_switcher(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.maya_user)
+        self.view_as(self.maya_user, self.father)
+        response = self.client.get("/home/")
+        self.assertEqual(response.context["viewing"], self.father)
+        self.assertContains(response, "profile-pill selected")
+
+    def test_12_1_switching_returns_to_the_same_page(self):
+        response = self.view_as(self.omar, self.father, "/prescriptions/mine/")
+        self.assertRedirects(response, "/prescriptions/mine/")
+        self.assertEqual(self.client.session["viewing_patient_id"], self.father.pk)
+
+    def test_12_1_switching_never_leaves_the_site(self):
+        self.assertRedirects(self.view_as(self.omar, self.father, "https://example.com/"), "/home/")
+
+    def test_12_1_a_patient_the_user_does_not_care_for_cannot_be_viewed(self):
+        response = self.view_as(self.omar, self.samira)
+        self.assertEqual(response.status_code, 404)
+        self.assertNotIn("viewing_patient_id", self.client.session)
+
+    def test_12_1_opening_the_switch_address_changes_nothing(self):
+        self.client.force_login(self.omar)
+        self.assertRedirects(self.client.get(f"/family/view/{self.father.pk}/"), "/home/")
+        self.assertNotIn("viewing_patient_id", self.client.session)
+
+    def test_12_1_staff_cannot_switch(self):
+        self.assertEqual(self.view_as(self.rana, self.father).status_code, 403)
+
+    def test_12_1_the_home_page_shows_the_viewed_patients_refill_reminders(self):
+        self.client.force_login(self.omar)
+        response = self.client.get("/home/")
+        self.assertContains(response, "Metformin 500 mg will run out in 3 days.")
+        self.assertContains(response, f'action="{self.refill_address()}"')
+
+    def test_12_1_a_patient_sees_their_own_reminders_until_they_switch(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.maya_user)
+        self.client.force_login(self.maya_user)
+        self.assertNotContains(self.client.get("/home/"), f'action="{self.refill_address()}"')
+        self.view_as(self.maya_user, self.father)
+        self.assertContains(self.client.get("/home/"), f'action="{self.refill_address()}"')
+
+    def test_12_1_a_caregiver_requests_a_refill_for_the_viewed_patient(self):
+        self.client.force_login(self.omar)
+        self.client.post(self.refill_address())
+        refill_request = RefillRequest.objects.get()
+        self.assertEqual((refill_request.prescription_item, refill_request.requested_by), (self.due_item, self.omar))
+
+    def test_12_1_a_caregiver_tracks_the_viewed_patients_prescriptions(self):
+        self.client.force_login(self.omar)
+        response = self.client.get("/prescriptions/mine/")
+        self.assertIn(self.ready, [row["prescription"] for row in response.context["rows"]])
+
+    def test_12_1_a_caregiver_can_reserve_for_the_viewed_patient(self):
+        self.client.force_login(self.omar)
+        results = self.client.get("/reservations/find/results/", {"name": "Metformin", "quantity": 1})
+        self.assertTrue(results.context["can_reserve"])
+        response = self.client.post("/reservations/reserve/", {"medicine": self.metformin.pk, "quantity": 1})
+        reservation = Reservation.objects.get()
+        self.assertEqual((reservation.patient, reservation.medicine), (self.father, self.metformin))
+        self.assertRedirects(response, f"/reservations/{reservation.pk}/")
+
+    def test_12_1_the_viewed_patients_reservation_page_opens(self):
+        self.client.force_login(self.omar)
+        self.client.post("/reservations/reserve/", {"medicine": self.metformin.pk, "quantity": 1})
+        reservation = Reservation.objects.get()
+        self.assertEqual(self.client.get(f"/reservations/{reservation.pk}/").status_code, 200)
+
+    def test_12_1_after_access_is_removed_the_caregiver_sees_nothing_of_the_patient(self):
+        revoke_caregiver(self.father, self.omar_link.pk)
+        self.client.force_login(self.omar)
+        self.assertNotContains(self.client.get("/home/"), f'action="{self.refill_address()}"')
+        self.assertEqual(self.client.post(self.refill_address()).status_code, 404)
+        self.assertEqual(self.view_as(self.omar, self.father).status_code, 404)
+
+    def test_12_1_the_header_still_shows_the_signed_in_user(self):
+        self.client.force_login(self.omar)
+        response = self.client.get("/home/")
+        self.assertContains(response, "Welcome, Omar Nassar")
+        self.assertContains(response, ">ON<")
 
 
 class RolePermissionTests(TestCase):

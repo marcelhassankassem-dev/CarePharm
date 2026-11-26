@@ -1025,12 +1025,12 @@ class PatientReservationTests(ReserveTestData):
 
     def test_10_2_a_patient_finds_their_own_reservation(self):
         reservation = reserve_medicine(self.maya_user, self.maya, self.syrup, 1)
-        self.assertEqual(patient_reservation(self.maya_user, reservation.pk), reservation)
+        self.assertEqual(patient_reservation(self.maya, reservation.pk), reservation)
 
     def test_10_2_another_patients_reservation_is_not_found(self):
         reservation = reserve_medicine(self.maya_user, self.maya, self.syrup, 1)
         with self.assertRaises(Http404):
-            patient_reservation(self.samira_user, reservation.pk)
+            patient_reservation(self.samira, reservation.pk)
 
 
 class ReserveMedicinePageTests(ReserveTestData):
