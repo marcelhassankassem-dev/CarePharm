@@ -126,7 +126,10 @@ def prescription_add_item(request, prescription_id):
             if added:
                 messages.success(request, f"No safety alerts. {data['medicine']} added.")
         else:
-            messages.error(request, "Check the medicine, quantity and days of supply.")
+            reasons = ["Check the medicine, quantity and days of supply."]
+            for field_errors in form.errors.values():
+                reasons.extend(field_errors)
+            messages.error(request, " ".join(reasons))
     return redirect("prescription_detail", prescription.pk)
 
 
