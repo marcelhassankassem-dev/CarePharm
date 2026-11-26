@@ -92,6 +92,18 @@ def prescriptions_of(patient):
     return Prescription.objects.filter(patient=patient).order_by("-created_at", "-id")
 
 
+def collected_long_term_items(patient):
+    return (
+        PrescriptionItem.objects.filter(prescription__patient=patient, prescription__status="collected", long_term=True)
+        .select_related("medicine", "prescription")
+        .order_by("-prescription__collected_at", "-id")
+    )
+
+
+def patient_long_term_item(patient, item_id):
+    return get_object_or_404(collected_long_term_items(patient), pk=item_id)
+
+
 def status_steps(prescription):
     statuses = [status for status, label in TRACKER_STEPS]
     if prescription.status not in statuses:
