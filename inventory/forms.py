@@ -4,7 +4,7 @@ from django import forms
 from django.utils import timezone
 
 from inventory.models import Batch, DrugClass, Medicine
-from inventory.services import adjustable_batches
+from inventory.services import adjustable_batches, batch_number_used
 
 
 class DeliveryForm(forms.ModelForm):
@@ -25,6 +25,14 @@ class DeliveryForm(forms.ModelForm):
         if expiry_date <= timezone.localdate():
             raise forms.ValidationError("The expiry date must be in the future.")
         return expiry_date
+
+    def clean(self):
+        cleaned_data = super().clean()
+        medicine = cleaned_data.get("medicine")
+        batch_number = cleaned_data.get("batch_number")
+        if medicine and batch_number and batch_number_used(medicine, batch_number):
+            self.add_error("batch_number", f"Batch {batch_number} is already recorded for {medicine}.")
+        return cleaned_data
 
 
 class MedicineForm(forms.ModelForm):

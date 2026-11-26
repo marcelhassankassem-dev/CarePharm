@@ -107,6 +107,10 @@ def next_batch(medicine):
     return batches.order_by("expiry_date", "id").first()
 
 
+def batch_number_used(medicine, batch_number):
+    return medicine.batch_set.filter(batch_number__iexact=batch_number).exists()
+
+
 def adjustable_batches(medicine):
     return medicine.batch_set.filter(expiry_date__gte=timezone.localdate()).order_by("expiry_date", "id")
 
