@@ -574,3 +574,6 @@ class ToolDeclarationTests(SimpleTestCase):
         prompt = system_prompt().lower()
         self.assertIn("before reserving a medicine or requesting a refill", prompt)
         self.assertIn("ask the patient to confirm", prompt)
+
+    def test_9_1b_the_prompt_asks_for_plain_text_because_the_chat_shows_no_markdown(self):
+        self.assertIn("plain text only, without markdown", system_prompt().lower())
