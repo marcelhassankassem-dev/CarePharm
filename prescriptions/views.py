@@ -4,7 +4,7 @@ from django.shortcuts import redirect, render
 
 from accounts.permissions import can_act_as_pharmacist, patient_required, pharmacist_required, staff_required
 from passport.forms import PatientChoiceForm
-from passport.services import patient_header, patient_of
+from passport.views import patient_page_data, selected_patient
 from prescriptions.forms import ItemForm
 from prescriptions.services import (
     add_item,
@@ -195,6 +195,6 @@ def tracked_prescriptions(patient):
 
 @patient_required
 def my_prescriptions(request):
-    context = patient_header(request.user)
-    context["rows"] = tracked_prescriptions(patient_of(request.user))
+    context = patient_page_data(request)
+    context["rows"] = tracked_prescriptions(selected_patient(request))
     return render(request, "prescriptions/mine.html", context)

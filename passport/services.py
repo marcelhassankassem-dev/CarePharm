@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.db.models import Count, Q
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 
 from accounts.services import create_patient_login
@@ -59,6 +60,13 @@ def viewable_patients(user):
     if own_record:
         return [own_record] + cared_for
     return cared_for
+
+
+def viewable_patient(user, patient_id):
+    for patient in viewable_patients(user):
+        if patient.pk == patient_id:
+            return patient
+    raise Http404
 
 
 def chosen_patient(user, patient_id):

@@ -4302,3 +4302,283 @@ a.home-card {
     width: 83px;
     height: 83px;
 }
+
+.profile-switch {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    gap: 8px;
+    margin: 0 0 18px 14px;
+}
+
+.home-content .profile-switch {
+    position: absolute;
+    top: 80px;
+    left: 21px;
+}
+
+.profile-switch form {
+    margin: 0;
+}
+
+.profile-pill {
+    height: 34px;
+    padding: 0 16px;
+    border: 1px solid #d6e3e0;
+    border-radius: 17px;
+    font: inherit;
+    font-size: 13px;
+    color: #0f2233;
+    background: white;
+    cursor: pointer;
+}
+
+.profile-pill.selected {
+    border-color: #14756f;
+    font-weight: 700;
+    color: white;
+    background: #14756f;
+}
+
+.family-layout {
+    position: relative;
+    display: grid;
+    grid-template-columns: 909px 452px;
+    gap: 18px;
+    align-items: start;
+    padding-left: 3px;
+}
+
+.family-main {
+    display: grid;
+    gap: 16px;
+}
+
+.family-card {
+    padding: 17px 17px 17px 15px;
+}
+
+.family-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.family-card-header h2 {
+    margin: 4px 0 0;
+    font-size: 20px;
+}
+
+.family-card-header p {
+    margin: 5px 0 0;
+    font-size: 13px;
+    color: #4f6070;
+}
+
+.family-header-icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #e3f4f0;
+}
+
+.family-add-button {
+    flex: none;
+    height: 40px;
+    margin-left: auto;
+    padding: 0 18px;
+    border-radius: 10px;
+    font-size: 13px;
+}
+
+.family-profiles {
+    display: grid;
+    grid-template-columns: 430px 428px;
+    gap: 17px;
+    padding-left: 2px;
+}
+
+.family-profiles form {
+    margin: 0;
+}
+
+.family-profile {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    width: 100%;
+    height: 105px;
+    padding: 0 20px;
+    box-sizing: border-box;
+    border: 1px solid #e1e9e8;
+    border-radius: 10px;
+    font: inherit;
+    text-align: left;
+    color: inherit;
+    background: white;
+}
+
+button.family-profile {
+    cursor: pointer;
+}
+
+.family-profile.selected {
+    border: 1.5px solid #14756f;
+    background: #f6fcfa;
+}
+
+.family-profile strong {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    font-size: 16px;
+    color: #0f2233;
+}
+
+.family-profile small {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 8px;
+    font-size: 13px;
+    color: #4f6070;
+}
+
+.family-avatar {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    font-size: 22px;
+    color: #14756f;
+    background: #cdebe3;
+}
+
+.family-avatar.small {
+    width: 44px;
+    height: 44px;
+    font-size: 16px;
+}
+
+.family-pill {
+    padding: 4px 11px;
+    border-radius: 12px;
+    font-size: 12.5px;
+    font-weight: 400;
+    color: #14756f;
+    background: #d9f2ea;
+}
+
+.family-member {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 4px;
+    border-top: 1px solid #e1e9e8;
+}
+
+.family-member div {
+    flex: 1;
+}
+
+.family-member strong {
+    display: block;
+    font-size: 15px;
+    color: #0f2233;
+}
+
+.family-member small {
+    font-size: 13px;
+    color: #4f6070;
+}
+
+.family-member form {
+    margin: 0;
+}
+
+.family-empty {
+    margin: 0;
+    padding: 0 4px 4px;
+    font-size: 14px;
+    color: #4f6070;
+}
+
+.family-permissions .family-card-header {
+    margin-bottom: 15px;
+}
+
+.family-permission-box {
+    padding: 14px 16px 16px;
+    border-radius: 10px;
+    background: #eef8f5;
+}
+
+.family-status {
+    display: flex;
+    gap: 16px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid #d6e8e3;
+}
+
+.family-status-icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #1b8a7f 15px, #cdebe3 15.5px);
+}
+
+.family-status strong {
+    display: block;
+    font-size: 15px;
+    color: #0f2233;
+}
+
+.family-status p {
+    margin: 4px 0 0;
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: #4f6070;
+}
+
+.family-permission-list {
+    margin: 0;
+    padding: 1px 0 0 3px;
+    list-style: none;
+}
+
+.family-permission-list li {
+    display: flex;
+    align-items: center;
+    height: 37px;
+    font-size: 13.5px;
+    color: #4f6070;
+}
+
+.family-permission-icon {
+    display: flex;
+    flex: none;
+    width: 33px;
+}
+
+.family-allowed {
+    margin-left: auto;
+    color: #14756f;
+}
+
+.family-popup-note {
+    margin: 0 0 4px;
+    font-size: 13px;
+    color: #4f6070;
+}

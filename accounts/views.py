@@ -1,8 +1,11 @@
+from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 
-from accounts.forms import EditStaffForm, NewStaffForm
+from accounts.forms import EditStaffForm, FamilyMemberForm, NewStaffForm
 from accounts.permissions import (
     ROLE_PERMISSIONS,
     is_owner,
@@ -12,14 +15,18 @@ from accounts.permissions import (
 )
 from accounts.services import (
     active_staff_count,
+    add_caregiver,
+    caregiver_links_of,
     create_staff_member,
     editable_staff_member,
+    revoke_caregiver,
     sign_in_problem,
     staff_members,
     update_staff_member,
 )
 from core.services import activity_log, pharmacy_details
-from passport.services import patient_header, patient_of
+from passport.services import patient_name_for, patient_of, patients_cared_for, viewable_patient
+from passport.views import VIEWING_PATIENT, patient_page_data, selected_patient
 from reservations.services import patient_refill_requests, refill_reminders
 
 
@@ -56,12 +63,68 @@ def login_page(request, side):
 
 @patient_required
 def patient_home(request):
-    patient = patient_of(request.user)
-    context = patient_header(request.user)
+    patient = selected_patient(request)
+    context = patient_page_data(request)
     context["pharmacy"] = pharmacy_details()
     context["refill_reminders"] = refill_reminders(patient)
     context["refill_requests"] = patient_refill_requests(patient)
     return render(request, "accounts/home.html", context)
+
+
+def family_page_data(request):
+    own_record = patient_of(request.user)
+    family_members = [
+        {"link": link, "name": patient_name_for(link.caregiver)} for link in caregiver_links_of(own_record)
+    ]
+    return {
+        **patient_page_data(request),
+        "own_record": own_record,
+        "family_members": family_members,
+        "cared_for": patients_cared_for(request.user),
+    }
+
+
+@patient_required
+def family_access(request):
+    return render(request, "accounts/family.html", family_page_data(request))
+
+
+@patient_required
+def family_add(request):
+    own_record = patient_of(request.user)
+    if own_record is None:
+        raise PermissionDenied
+    form = FamilyMemberForm(request.POST) if request.method == "POST" else FamilyMemberForm()
+    if form.is_valid():
+        try:
+            link = add_caregiver(own_record, form.cleaned_data["username"])
+        except ValidationError as problem:
+            form.add_error("username", problem)
+        else:
+            messages.success(request, f"{patient_name_for(link.caregiver)} can now manage your medicines.")
+            return redirect("family_access")
+    return render(request, "accounts/family_add.html", {**family_page_data(request), "form": form})
+
+
+@patient_required
+def family_remove(request, link_id):
+    if request.method != "POST":
+        return redirect("family_access")
+    link = revoke_caregiver(patient_of(request.user), link_id)
+    messages.success(request, f"{patient_name_for(link.caregiver)} can no longer manage your medicines.")
+    return redirect("family_access")
+
+
+@patient_required
+def view_patient(request, patient_id):
+    if request.method != "POST":
+        return redirect("patient_home")
+    patient = viewable_patient(request.user, patient_id)
+    request.session[VIEWING_PATIENT] = patient.pk
+    next_address = request.POST.get("next", "")
+    if not url_has_allowed_host_and_scheme(next_address, allowed_hosts={request.get_host()}):
+        next_address = "/home/"
+    return redirect(next_address)
 
 
 def sign_out(request):

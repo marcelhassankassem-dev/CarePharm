@@ -1,0 +1,37 @@
+{% extends "accounts/family.html" %}
+{% load static %}
+
+{% block title %}Add Family Member - CarePharm{% endblock %}
+
+{% block popup %}
+<div class="popup-overlay">
+    <dialog open class="popup">
+        <div class="popup-header">
+            <span class="stat-bubble"><img src="{% static 'core/images/family-users.svg' %}" alt=""></span>
+            <div>
+                <h2>Add Family Member</h2>
+                <p>They can then manage your medicines, reminders and pickup status from their own CarePharm account.</p>
+            </div>
+            <a href="/family/" class="popup-close" aria-label="Close"><img src="{% static 'core/images/icon-close.svg' %}" alt=""></a>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="popup-fields">
+                {% for field in form %}
+                <div class="form-field full-width">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {{ field.errors }}
+                </div>
+                {% endfor %}
+            </div>
+            <p class="family-popup-note">You can remove their access at any time on this page.</p>
+            <div class="popup-actions">
+                <a href="/family/" class="secondary-button">Cancel</a>
+                <button type="submit" class="primary-button">Give Access</button>
+            </div>
+        </form>
+    </dialog>
+</div>
+{% endblock %}

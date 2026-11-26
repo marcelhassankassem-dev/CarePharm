@@ -11,7 +11,7 @@
             <a href="/reservations/find/" class="{% if '/reservations/find/' in request.path %}active{% endif %}"><img src="{% static 'core/images/patient-nav-search.svg' %}" alt="">Find Medicine</a>
             <span><img src="{% static 'core/images/patient-nav-passport.svg' %}" alt="">Medication Passport</span>
             <span><img src="{% static 'core/images/patient-nav-assistant.svg' %}" alt="">AI Assistant</span>
-            <span><img src="{% static 'core/images/patient-nav-family.svg' %}" alt="">Family Access</span>
+            <a href="/family/" class="{% if '/family/' in request.path %}active{% endif %}"><img src="{% static 'core/images/patient-nav-family.svg' %}" alt="">Family Access</a>
         </nav>
 
         <div class="console-profile">
@@ -28,6 +28,20 @@
     </header>
 
     <main class="{% block main_class %}console-content{% endblock %}">
+        {% block profile_switch %}
+        {% if viewable_patients|length > 1 or viewing and viewing.user_id != user.id %}
+        <nav class="profile-switch" aria-label="Viewing as">
+            {% for patient in viewable_patients %}
+            <form method="post" action="/family/view/{{ patient.pk }}/">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="profile-pill{% if patient == viewing %} selected{% endif %}">{{ patient.name }}{% if patient.user_id == user.id %} (me){% endif %}</button>
+            </form>
+            {% endfor %}
+        </nav>
+        {% endif %}
+        {% endblock %}
+
         {% for message in messages %}
         <p class="console-message {{ message.tags }}">{{ message }}</p>
         {% endfor %}
