@@ -2774,6 +2774,10 @@ body {
     background: #ffe3cc;
 }
 
+.dashboard-card.blue .dashboard-bubble {
+    background: #dbe7f8;
+}
+
 .dashboard-card-top strong {
     font-size: 30px;
     color: #0f2233;
@@ -2805,6 +2809,11 @@ body {
 .dashboard-card.orange .dashboard-tag {
     color: #8f4400;
     background: #ffd8b5;
+}
+
+.dashboard-card.blue .dashboard-tag {
+    color: #1e5aa8;
+    background: #dbe7f8;
 }
 
 .dashboard-layout {
