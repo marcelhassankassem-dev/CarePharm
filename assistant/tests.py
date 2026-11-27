@@ -878,7 +878,7 @@ class MessagesPageTests(QuestionTestCase):
 
     def test_9_4_a_pharmacists_reply_answers_the_question(self):
         response = self.reply(self.grapefruit, GRAPEFRUIT_ANSWER)
-        self.assertRedirects(response, f"/assistant/messages/{self.grapefruit.pk}/")
+        self.assertRedirects(response, f"/assistant/messages/{self.grapefruit.pk}/", fetch_redirect_response=False)
         self.assertEqual(self.status_of(self.grapefruit), "answered")
         self.assertContains(self.client.get(response.url), "Reply sent to Samira Haddad.")
 

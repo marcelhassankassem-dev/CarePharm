@@ -1,0 +1,116 @@
+{% extends "core/console.html" %}
+{% load static %}
+
+{% block title %}Messages - CarePharm{% endblock %}
+
+{% block console_content %}
+<img class="inventory-leaves" src="{% static 'core/images/inventory-leaves.svg' %}" alt="">
+<p class="inventory-quote">Safer<br>medicines<br>healthier<br>tomorrows</p>
+
+<div class="page-heading">
+    <div>
+        <p class="page-eyebrow">Pharmacist console</p>
+        <h1>Messages</h1>
+        <p class="page-intro">Questions the AI assistant passed to you. Your reply reaches the patient as a notification.</p>
+    </div>
+</div>
+
+<div class="messages-layout">
+    <section class="card messages-list">
+        <h2>Handovers</h2>
+        <p class="messages-subtitle">Passed to you by the AI assistant</p>
+        <nav class="prescription-tabs">
+            <a href="{% url 'messages_page' %}" class="{% if show != 'answered' %}selected{% endif %}">Waiting {{ waiting_count }}</a>
+            <a href="{% url 'messages_page' %}?show=answered" class="{% if show == 'answered' %}selected{% endif %}">Answered {{ answered_count }}</a>
+        </nav>
+
+        {% for item in questions %}
+        <a href="{% url 'message_question' item.pk %}?show={{ show }}" class="messages-item{% if item == question %} selected{% endif %}">
+            {% with words=item.patient.name.split %}
+            <span class="messages-initials">{{ words.0|first|upper }}{{ words.1|first|upper }}</span>
+            {% endwith %}
+            <span class="messages-item-text">
+                <span class="messages-item-top">
+                    <strong>{{ item.patient.name }}</strong>
+                    <small>{{ item.asked_at|timesince }} ago</small>
+                </span>
+                <span class="messages-item-question">{{ item.question }}</span>
+                <span class="messages-status {{ item.status }}">{{ item.get_status_display }}</span>
+            </span>
+        </a>
+        {% empty %}
+        <p class="dashboard-empty">{% if show == 'answered' %}No answered questions yet.{% else %}No questions waiting.{% endif %}</p>
+        {% endfor %}
+    </section>
+
+    <section class="card messages-conversation">
+        {% if question %}
+        <header class="messages-conversation-header">
+            {% with words=question.patient.name.split %}
+            <span class="messages-initials large">{{ words.0|first|upper }}{{ words.1|first|upper }}</span>
+            {% endwith %}
+            <div>
+                <h2>{{ question.patient.name }}</h2>
+                <p>Passed to you by the AI assistant on {{ question.asked_at|date:"j M Y, H:i" }}</p>
+            </div>
+        </header>
+
+        <div class="messages-thread">
+            <p class="messages-sender">{{ question.patient.name }}</p>
+            <p class="messages-bubble patient">{{ question.question|linebreaksbr }}</p>
+
+            {% if question.status == "answered" %}
+            <p class="messages-sender pharmacist">Pharmacist · {{ question.answered_at|date:"j M Y, H:i" }}</p>
+            <p class="messages-bubble pharmacist">{{ question.answer|linebreaksbr }}</p>
+            <p class="messages-notice answered">Answered · The patient was notified</p>
+            {% else %}
+            <p class="messages-notice">Passed to you · Waiting for your reply</p>
+            {% endif %}
+        </div>
+
+        {% if question.status == "waiting" %}
+        {% if can_reply %}
+        <form method="post" action="{% url 'message_reply' question.pk %}" class="messages-reply">
+            {% csrf_token %}
+            <label for="reply-answer">Your reply</label>
+            <textarea id="reply-answer" name="answer" rows="5" placeholder="Write your answer to the patient"></textarea>
+            <div class="messages-reply-bottom">
+                <p>The patient will get a notification and see your reply in CarePharm.</p>
+                <button type="submit" class="primary-button">Send Reply</button>
+            </div>
+        </form>
+        {% else %}
+        <p class="messages-hint">Only a pharmacist can reply to this question.</p>
+        {% endif %}
+        {% endif %}
+        {% else %}
+        <p class="dashboard-empty">Questions the AI assistant passes on will appear here.</p>
+        {% endif %}
+    </section>
+
+    {% if question %}
+    <section class="card messages-passport">
+        <h2>Medication Passport</h2>
+        <p class="messages-subtitle">{{ question.patient.name }}</p>
+
+        <h3>Allergies</h3>
+        <div class="messages-chips">
+            {% for allergy in allergies %}
+            <span class="messages-chip allergy">{{ allergy.drug_class.name }}</span>
+            {% empty %}
+            <span class="messages-chip">No known allergies</span>
+            {% endfor %}
+        </div>
+
+        <h3>Current medicines</h3>
+        {% for current in current_medicines %}
+        <p class="messages-medicine"><img src="{% static 'core/images/prescription-pill.svg' %}" alt="">{{ current.medicine }}</p>
+        {% empty %}
+        <p class="messages-hint">No current medicines.</p>
+        {% endfor %}
+
+        <a href="{% url 'patient_detail' question.patient.pk %}" class="secondary-button messages-open-passport">Open Medication Passport</a>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}
