@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from accounts.services import add_caregiver, caregiver_links_of
 from assistant.models import PharmacistQuestion
-from assistant.questions import pass_to_pharmacist
+from assistant.questions import answer_question, pass_to_pharmacist
 from core.models import ActivityLog
 from core.services import mark_all_read
 from inventory.models import Batch, DrugClass, Medicine
@@ -328,9 +328,26 @@ def create_refill_requests():
     demo_refill_request("Omar's Father", "Losartan", "50 mg", 2)
 
 
+def answered_yesterday(patient, question, answer):
+    asked = pass_to_pharmacist(patient.user, patient, question)
+    answer_question(asked, answer)
+    yesterday = timezone.now() - timedelta(days=1)
+    PharmacistQuestion.objects.filter(pk=asked.pk).update(
+        asked_at=yesterday - timedelta(hours=2),
+        answered_at=yesterday,
+    )
+
+
 def create_questions():
     if PharmacistQuestion.objects.exists():
         return
+    maya = Patient.objects.get(name="Maya")
+    answered_yesterday(
+        maya,
+        "Should I use my Salbutamol inhaler before I exercise?",
+        "Yes, many patients take their puffs about 15 minutes before exercise. "
+        "Please follow the dose your doctor wrote on the prescription, and ask us if anything changes.",
+    )
     samira = Patient.objects.get(name="Samira")
     pass_to_pharmacist(samira.user, samira, "Can I take my Amlodipine with grapefruit juice?")
 

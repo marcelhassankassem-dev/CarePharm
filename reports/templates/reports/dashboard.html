@@ -24,6 +24,14 @@
         <span class="dashboard-card-label">Pending prescriptions</span>
         <span class="dashboard-tag">{{ counts.ready }} ready to collect</span>
     </a>
+    <a href="{% url 'messages_page' %}" class="dashboard-card blue">
+        <span class="dashboard-card-top">
+            <span class="dashboard-bubble"><img src="{% static 'core/images/nav-messages.svg' %}" alt=""></span>
+            <strong>{{ waiting_question_count }}</strong>
+        </span>
+        <span class="dashboard-card-label">Handovers from AI</span>
+        <span class="dashboard-tag">Waiting for your reply</span>
+    </a>
     <a href="/inventory/?show=low_stock" class="dashboard-card red">
         <span class="dashboard-card-top">
             <span class="dashboard-bubble"><img src="{% static 'core/images/dash-package.svg' %}" alt=""></span>

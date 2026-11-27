@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
+from assistant.questions import pass_to_pharmacist
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Patient
 from prescriptions.models import Prescription
@@ -186,6 +187,23 @@ class DashboardPageTests(DashboardTestData):
     def test_6_1_an_assistant_sees_the_same_dashboard(self):
         self.client.force_login(self.karim)
         self.assertContains(self.client.get("/dashboard/"), "Today's Overview")
+
+
+class DashboardHandoverCardTests(DashboardTestData):
+    def setUp(self):
+        self.client.force_login(self.rana)
+        maya = Patient.objects.create(name="Maya", date_of_birth=date(1990, 6, 2), user=self.maya)
+        for question in ["Can I take it with food?", "Is it safe with my inhaler?", "Can I split the tablet?"]:
+            pass_to_pharmacist(self.maya, maya, question)
+
+    def test_9_4_the_dashboard_counts_the_handovers_waiting_for_a_reply(self):
+        response = self.client.get("/dashboard/")
+        self.assertContains(response, "Handovers from AI")
+        self.assertContains(response, "Waiting for your reply")
+        self.assertContains(response, "<strong>3</strong>")
+
+    def test_9_4_the_handover_card_opens_the_messages(self):
+        self.assertContains(self.client.get("/dashboard/"), 'href="/assistant/messages/" class="dashboard-card')
 
 
 class EmptyDashboardTests(TestCase):

@@ -1,0 +1,29 @@
+{% extends "core/patient.html" %}
+
+{% block title %}My questions - CarePharm{% endblock %}
+
+{% block patient_content %}
+<div class="page-heading">
+    <div>
+        <h1>My questions</h1>
+        <p class="page-intro">Questions the assistant passed to a pharmacist, newest first.</p>
+    </div>
+</div>
+
+<div class="question-list">
+    {% for question in questions %}
+    <article class="card question-card">
+        <p class="question-asked">Asked {{ question.asked_at|date:"j M Y, H:i" }}</p>
+        <p class="question-text">{{ question.question|linebreaksbr }}</p>
+        {% if question.status == "answered" %}
+        <p class="question-answer-label">Answer from the pharmacist · {{ question.answered_at|date:"j M Y, H:i" }}</p>
+        <p class="question-answer">{{ question.answer|linebreaksbr }}</p>
+        {% else %}
+        <p class="question-waiting">A pharmacist will reply during opening hours: {{ pharmacy_hours }}</p>
+        {% endif %}
+    </article>
+    {% empty %}
+    <p class="card patient-empty">No questions yet.</p>
+    {% endfor %}
+</div>
+{% endblock %}

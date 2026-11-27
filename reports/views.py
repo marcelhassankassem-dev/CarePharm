@@ -2,6 +2,7 @@ from django.shortcuts import render
 from django.utils import timezone
 
 from accounts.permissions import require_owner, staff_required
+from assistant.questions import waiting_question_count
 from inventory.services import NEAR_EXPIRY_DAYS, low_stock_count, near_expiry_count
 from reports.services import (
     best_day,
@@ -34,6 +35,7 @@ def dashboard(request):
             "near_expiry_count": near_expiry_count(),
             "near_expiry_days": NEAR_EXPIRY_DAYS,
             "alerts": stock_alerts(),
+            "waiting_question_count": waiting_question_count(),
         },
     )
 

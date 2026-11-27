@@ -6,6 +6,7 @@ from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
+from assistant.models import PharmacistQuestion
 from core.models import ActivityLog, Notification
 from core.services import (
     activity_log,
@@ -410,6 +411,28 @@ class SeedDemoRefillTests(TestCase):
         self.assertFalse(RefillRequest.objects.filter(prescription_item__prescription__patient__name="Samira").exists())
 
 
+class SeedDemoQuestionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo")
+
+    def test_9_4_samiras_demo_question_is_waiting_for_a_pharmacist(self):
+        waiting = PharmacistQuestion.objects.get(status="waiting")
+        self.assertEqual(waiting.patient.name, "Samira")
+
+    def test_9_4_mayas_demo_question_was_answered_yesterday(self):
+        answered = PharmacistQuestion.objects.get(status="answered")
+        self.assertEqual(answered.patient.name, "Maya")
+        self.assertNotEqual(answered.answer, "")
+        yesterday = timezone.localdate() - timedelta(days=1)
+        self.assertEqual(timezone.localtime(answered.answered_at).date(), yesterday)
+        self.assertLess(answered.asked_at, answered.answered_at)
+
+    def test_9_4_maya_was_told_her_question_was_answered(self):
+        notification = Notification.objects.get(user__username="maya", text__startswith="A pharmacist answered")
+        self.assertEqual(notification.link, "/assistant/questions/")
+
+
 class SeedDemoTwiceTests(TestCase):
     def test_t4_running_twice_creates_nothing_new(self):
         call_command("seed_demo")
@@ -424,6 +447,7 @@ class SeedDemoTwiceTests(TestCase):
         sales = Sale.objects.count()
         reservations = Reservation.objects.count()
         refill_requests = RefillRequest.objects.count()
+        questions = PharmacistQuestion.objects.count()
         quantities = list(Batch.objects.order_by("id").values_list("quantity", flat=True))
 
         call_command("seed_demo")
@@ -439,6 +463,7 @@ class SeedDemoTwiceTests(TestCase):
         self.assertEqual(Sale.objects.count(), sales)
         self.assertEqual(Reservation.objects.count(), reservations)
         self.assertEqual(RefillRequest.objects.count(), refill_requests)
+        self.assertEqual(PharmacistQuestion.objects.count(), questions)
         self.assertEqual(list(Batch.objects.order_by("id").values_list("quantity", flat=True)), quantities)
 
 
