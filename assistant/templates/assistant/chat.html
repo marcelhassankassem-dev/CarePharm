@@ -33,12 +33,16 @@
             {% endif %}
 
             {% for message in history %}
+            {% if message.role == "handover" %}
+            <p class="chat-handover">{{ message.text }}</p>
+            {% else %}
             <div class="chat-message {{ message.role }}">
                 {% if message.role == "assistant" %}
                 <img src="{% static 'core/images/chat-robot.png' %}" alt="" class="chat-avatar">
                 {% endif %}
                 <p>{{ message.text|linebreaksbr }}</p>
             </div>
+            {% endif %}
             {% endfor %}
         </div>
 
