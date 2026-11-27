@@ -26,7 +26,9 @@ from reservations.services import patient_refill_requests, refill_reminders
 
 
 def site_root(request):
-    return redirect("patient_login")
+    if request.user.is_authenticated:
+        return redirect(landing_page(request.user))
+    return render(request, "accounts/main.html", {"pharmacy": pharmacy_details()})
 
 
 def patient_login(request):
