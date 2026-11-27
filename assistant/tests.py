@@ -6,14 +6,20 @@ from unittest.mock import MagicMock, patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
+from accounts.models import CaregiverLink
 from assistant.agent import MAX_STEPS, MODEL, gemini_client, run_agent, system_prompt
+from assistant.models import PharmacistQuestion
+from assistant.questions import pass_to_pharmacist, questions_asked_count
 from assistant.services import ask_assistant, cannot_answer_message, unavailable_message
 from assistant.tools import (
+    NO_PATIENT_RECORD,
     TOOL_DECLARATIONS,
     TOOL_FUNCTIONS,
+    ask_pharmacist,
     check_stock,
     pharmacy_info,
     prescription_status,
@@ -28,6 +34,8 @@ from prescriptions.models import Prescription, PrescriptionItem
 from reservations.models import RefillRequest, Reservation
 
 HOURS_QUESTION = "What are your opening hours and where are you?"
+
+GRAPEFRUIT_QUESTION = "Can I take my Amlodipine with grapefruit juice?"
 
 STUCK_MESSAGE = "I got stuck working on that. Please try rephrasing."
 
@@ -44,6 +52,7 @@ def tool_call(name, arguments, call_id, interaction_id):
 class FakeGeminiTestCase(SimpleTestCase):
     def setUp(self):
         self.user = get_user_model()(username="maya", role="patient")
+        self.patient = Patient(name="Maya Khoury")
         self.gemini = MagicMock()
         patcher = patch("assistant.agent.gemini_client", return_value=self.gemini)
         patcher.start()
@@ -59,11 +68,11 @@ class FakeGeminiTestCase(SimpleTestCase):
 class RunAgentTests(FakeGeminiTestCase):
     def test_t5_a_plain_answer_comes_back_with_its_interaction_id(self):
         self.replies(answer("We open at 8:00.", "first"))
-        self.assertEqual(run_agent(self.user, "When do you open?"), ("We open at 8:00.", "first"))
+        self.assertEqual(run_agent(self.user, self.patient, "When do you open?"), ("We open at 8:00.", "first"))
 
     def test_t5_gemini_gets_the_message_the_rules_and_the_tools(self):
         self.replies(answer("We open at 8:00.", "first"))
-        run_agent(self.user, "When do you open?")
+        run_agent(self.user, self.patient, "When do you open?")
         request = self.sent(0)
         self.assertEqual(request["model"], MODEL)
         self.assertEqual(request["input"], "When do you open?")
@@ -73,12 +82,12 @@ class RunAgentTests(FakeGeminiTestCase):
 
     def test_t5_gemini_is_asked_to_think_as_little_as_possible(self):
         self.replies(answer("We open at 8:00.", "first"))
-        run_agent(self.user, "When do you open?")
+        run_agent(self.user, self.patient, "When do you open?")
         self.assertEqual(self.sent(0)["generation_config"], {"thinking_level": "minimal"})
 
     def test_t5_the_next_message_continues_the_conversation(self):
         self.replies(answer("We are closed on Sunday.", "second"))
-        run_agent(self.user, "And on Sunday?", "first")
+        run_agent(self.user, self.patient, "And on Sunday?", "first")
         self.assertEqual(self.sent(0)["previous_interaction_id"], "first")
 
     def test_t5_a_tool_call_is_run_and_its_result_sent_back(self):
@@ -87,7 +96,7 @@ class RunAgentTests(FakeGeminiTestCase):
             answer("We open Mon to Sat, 8:00 to 22:00.", "second"),
         )
         self.assertEqual(
-            run_agent(self.user, "When do you open?"),
+            run_agent(self.user, self.patient, "When do you open?"),
             ("We open Mon to Sat, 8:00 to 22:00.", "second"),
         )
         follow_up = self.sent(1)
@@ -105,16 +114,16 @@ class RunAgentTests(FakeGeminiTestCase):
         )
         self.assertEqual(follow_up["generation_config"], {"thinking_level": "minimal"})
 
-    def test_t5_each_tool_gets_the_signed_in_user_and_geminis_arguments(self):
+    def test_12_1_each_tool_gets_the_user_the_selected_patient_and_geminis_arguments(self):
         recorder = MagicMock(return_value={"done": True})
         self.replies(tool_call("pharmacy_info", {"topic": "hours"}, "call-1", "first"), answer("Done.", "second"))
         with patch.dict("assistant.agent.TOOL_FUNCTIONS", {"pharmacy_info": recorder}):
-            run_agent(self.user, "When do you open?")
-        recorder.assert_called_once_with(self.user, topic="hours")
+            run_agent(self.user, self.patient, "When do you open?")
+        recorder.assert_called_once_with(self.user, self.patient, topic="hours")
 
     def test_t5_a_gemini_that_keeps_calling_tools_is_stopped(self):
         self.replies(*[tool_call("pharmacy_info", {}, f"call-{step}", f"step-{step}") for step in range(MAX_STEPS + 1)])
-        reply, interaction_id = run_agent(self.user, "When do you open?")
+        reply, interaction_id = run_agent(self.user, self.patient, "When do you open?")
         self.assertEqual(reply, STUCK_MESSAGE)
         self.assertEqual(self.gemini.interactions.create.call_count, MAX_STEPS + 1)
 
@@ -122,7 +131,7 @@ class RunAgentTests(FakeGeminiTestCase):
 class ToolTests(SimpleTestCase):
     def test_t5_pharmacy_info_gives_the_pharmacys_details(self):
         self.assertEqual(
-            pharmacy_info(get_user_model()(username="maya")),
+            pharmacy_info(get_user_model()(username="maya"), None),
             {
                 "name": settings.PHARMACY_NAME,
                 "address": settings.PHARMACY_ADDRESS,
@@ -170,21 +179,26 @@ class GeminiClientTests(SimpleTestCase):
 class AskAssistantTests(SimpleTestCase):
     def setUp(self):
         self.user = get_user_model()(username="samira", role="patient")
+        self.patient = Patient(name="Samira Haddad")
         patcher = patch("assistant.services.run_agent", return_value=("We open at 8:00.", "first"))
         self.run_agent = patcher.start()
         self.addCleanup(patcher.stop)
 
     def test_9_1a_the_assistants_answer_and_interaction_id_come_back(self):
-        self.assertEqual(ask_assistant(self.user, "When do you open?", None), ("We open at 8:00.", "first"))
-        self.run_agent.assert_called_once_with(self.user, "When do you open?", None)
+        self.assertEqual(
+            ask_assistant(self.user, self.patient, "When do you open?", None), ("We open at 8:00.", "first")
+        )
+        self.run_agent.assert_called_once_with(self.user, self.patient, "When do you open?", None)
 
     def test_9_1a_the_conversation_continues_from_the_last_interaction(self):
-        ask_assistant(self.user, "And on Sunday?", "first")
-        self.run_agent.assert_called_once_with(self.user, "And on Sunday?", "first")
+        ask_assistant(self.user, self.patient, "And on Sunday?", "first")
+        self.run_agent.assert_called_once_with(self.user, self.patient, "And on Sunday?", "first")
 
     def test_9_1a_when_gemini_fails_the_patient_is_told_clearly(self):
         self.run_agent.side_effect = Exception("503 high demand")
-        self.assertEqual(ask_assistant(self.user, "When do you open?", "first"), (unavailable_message(), "first"))
+        self.assertEqual(
+            ask_assistant(self.user, self.patient, "When do you open?", "first"), (unavailable_message(), "first")
+        )
 
     def test_9_1a_the_unavailable_message_gives_the_pharmacys_phone(self):
         message = unavailable_message()
@@ -215,7 +229,7 @@ class ChatPageTests(TestCase):
     def setUpTestData(cls):
         User = get_user_model()
         cls.samira = User.objects.create_user(username="samira", password="pass", role="patient")
-        Patient.objects.create(name="Samira Haddad", date_of_birth="1958-03-14", user=cls.samira)
+        cls.samira_patient = Patient.objects.create(name="Samira Haddad", date_of_birth="1958-03-14", user=cls.samira)
         cls.rana = User.objects.create_user(username="rana", password="pass", role="pharmacist")
 
     def setUp(self):
@@ -250,7 +264,7 @@ class ChatPageTests(TestCase):
     def test_9_1a_sending_asks_the_assistant_and_comes_back_to_the_chat(self):
         response = self.send(HOURS_QUESTION)
         self.assertRedirects(response, "/assistant/")
-        self.run_agent.assert_called_once_with(self.samira, HOURS_QUESTION, None)
+        self.run_agent.assert_called_once_with(self.samira, self.samira_patient, HOURS_QUESTION, None)
 
     def test_9_1a_the_question_and_the_answer_are_shown_in_order(self):
         page = self.client.get(self.send(HOURS_QUESTION).url).content.decode()
@@ -267,7 +281,7 @@ class ChatPageTests(TestCase):
         self.send(HOURS_QUESTION)
         self.run_agent.return_value = ("We are closed on Sunday.", "second")
         self.send("And on Sunday?")
-        self.assertEqual(self.run_agent.call_args.args, (self.samira, "And on Sunday?", "first"))
+        self.assertEqual(self.run_agent.call_args.args, (self.samira, self.samira_patient, "And on Sunday?", "first"))
         page = self.client.get("/assistant/").content.decode()
         self.assertLess(page.index("We open at 8:00."), page.index("We are closed on Sunday."))
 
@@ -297,7 +311,7 @@ class ChatPageTests(TestCase):
         self.send(HOURS_QUESTION)
         self.client.get("/assistant/start-over/")
         self.send("When do you open?")
-        self.assertIsNone(self.run_agent.call_args.args[2])
+        self.assertIsNone(self.run_agent.call_args.args[3])
 
     def test_9_1a_the_close_button_goes_back_home(self):
         self.assertContains(self.client.get("/assistant/"), 'href="/home/" class="chat-close"')
@@ -312,6 +326,39 @@ class ChatPageTests(TestCase):
         self.run_agent.return_value = ("", "first")
         self.send("What is the weather today?")
         self.assertContains(self.client.get("/assistant/"), "Sorry, I can&#x27;t answer that.")
+
+    def hand_over(self, user, patient, message, interaction_id):
+        PharmacistQuestion.objects.create(patient=patient, asked_by=user, question=message)
+        return ("That is a medical question, so I passed it to a pharmacist.", "first")
+
+    def test_9_3_a_passed_on_question_shows_when_to_expect_an_answer(self):
+        self.run_agent.side_effect = self.hand_over
+        self.send(GRAPEFRUIT_QUESTION)
+        page = self.client.get("/assistant/").content.decode()
+        self.assertIn("Passed to a pharmacist", page)
+        self.assertIn(f"Reply expected during opening hours: {settings.PHARMACY_HOURS}", page)
+        self.assertLess(page.index("so I passed it to a pharmacist."), page.index("Passed to a pharmacist"))
+
+    def test_9_3_an_ordinary_answer_shows_no_notice(self):
+        self.send(HOURS_QUESTION)
+        self.assertNotContains(self.client.get("/assistant/"), "Passed to a pharmacist")
+
+    def test_9_3_the_notice_stays_where_the_question_was_passed_on(self):
+        self.run_agent.side_effect = self.hand_over
+        self.send(GRAPEFRUIT_QUESTION)
+        self.run_agent.side_effect = None
+        self.send(HOURS_QUESTION)
+        page = self.client.get("/assistant/").content.decode()
+        self.assertEqual(page.count("Passed to a pharmacist"), 1)
+        self.assertLess(page.index("Passed to a pharmacist"), page.index("We open at 8:00."))
+
+    def test_12_1_the_chat_acts_for_the_selected_patient(self):
+        omar = get_user_model().objects.create_user(username="omar", password="pass", role="patient")
+        father = Patient.objects.create(name="Khalil Nassar", date_of_birth="1949-11-05")
+        CaregiverLink.objects.create(patient=father, caregiver=omar)
+        self.client.force_login(omar)
+        self.send(HOURS_QUESTION)
+        self.assertEqual(self.run_agent.call_args.args[:2], (omar, father))
 
 
 def make_medicine(name, strength, barcode, class_name, price):
@@ -390,7 +437,7 @@ class PharmacyDataTestCase(TestCase):
 class CheckStockToolTests(PharmacyDataTestCase):
     def test_9_1b_check_stock_gives_the_price_and_how_many_are_in_stock(self):
         self.assertEqual(
-            check_stock(self.samira_user, "Metformin 500 mg"),
+            check_stock(self.samira_user, self.samira, "Metformin 500 mg"),
             {
                 "found": True,
                 "medicines": [
@@ -400,19 +447,19 @@ class CheckStockToolTests(PharmacyDataTestCase):
         )
 
     def test_9_1b_check_stock_says_when_there_are_not_enough(self):
-        line = check_stock(self.samira_user, "Metformin 850 mg", 8)["medicines"][0]
+        line = check_stock(self.samira_user, self.samira, "Metformin 850 mg", 8)["medicines"][0]
         self.assertEqual((line["in_stock"], line["status"]), (5, "Only 5 left"))
 
     def test_9_1b_check_stock_says_when_a_medicine_is_out_of_stock(self):
-        line = check_stock(self.samira_user, "ibuprofen")["medicines"][0]
+        line = check_stock(self.samira_user, self.samira, "ibuprofen")["medicines"][0]
         self.assertEqual((line["in_stock"], line["status"]), (0, "Out of stock"))
 
     def test_9_1b_without_a_strength_every_strength_is_given(self):
-        lines = check_stock(self.samira_user, "metformin")["medicines"]
+        lines = check_stock(self.samira_user, self.samira, "metformin")["medicines"]
         self.assertEqual([line["medicine"] for line in lines], ["Metformin 500 mg", "Metformin 850 mg"])
 
     def test_9_1b_check_stock_says_when_the_pharmacy_does_not_have_the_medicine(self):
-        result = check_stock(self.samira_user, "Aspirin")
+        result = check_stock(self.samira_user, self.samira, "Aspirin")
         self.assertFalse(result["found"])
         self.assertIn("Aspirin", result["message"])
 
@@ -423,12 +470,12 @@ class CheckStockToolTests(PharmacyDataTestCase):
         self.metformin_500_batch.quantity = 15
         self.metformin_500_batch.save()
         Reservation.objects.filter(pk=reservation.pk).update(created_at=timezone.now() - timedelta(hours=3))
-        self.assertEqual(check_stock(self.samira_user, "Metformin 500 mg")["medicines"][0]["in_stock"], 20)
+        self.assertEqual(check_stock(self.samira_user, self.samira, "Metformin 500 mg")["medicines"][0]["in_stock"], 20)
 
 
 class ReserveMedicineToolTests(PharmacyDataTestCase):
     def test_9_1b_reserving_takes_the_stock_and_gives_the_pickup_time(self):
-        result = reserve_medicine(self.samira_user, "Metformin 500 mg", 2)
+        result = reserve_medicine(self.samira_user, self.samira, "Metformin 500 mg", 2)
         reservation = Reservation.objects.get()
         self.assertEqual(reservation.patient, self.samira)
         self.assertEqual(self.quantity_of(self.metformin_500_batch), 18)
@@ -439,29 +486,29 @@ class ReserveMedicineToolTests(PharmacyDataTestCase):
         )
 
     def test_9_1b_quantities_from_gemini_may_come_as_decimals(self):
-        self.assertEqual(reserve_medicine(self.samira_user, "Metformin 500 mg", 2.0)["quantity"], 2)
+        self.assertEqual(reserve_medicine(self.samira_user, self.samira, "Metformin 500 mg", 2.0)["quantity"], 2)
         self.assertEqual(self.quantity_of(self.metformin_500_batch), 18)
 
     def test_9_1b_reserving_needs_one_exact_medicine(self):
-        result = reserve_medicine(self.samira_user, "metformin", 2)
+        result = reserve_medicine(self.samira_user, self.samira, "metformin", 2)
         self.assertFalse(result["reserved"])
         self.assertEqual(result["choices"], ["Metformin 500 mg", "Metformin 850 mg"])
         self.assertFalse(Reservation.objects.exists())
 
     def test_9_1b_reserving_a_medicine_the_pharmacy_does_not_have_is_refused(self):
-        result = reserve_medicine(self.samira_user, "Aspirin", 1)
+        result = reserve_medicine(self.samira_user, self.samira, "Aspirin", 1)
         self.assertFalse(result["reserved"])
         self.assertIn("Aspirin", result["message"])
 
     def test_9_1b_reserving_more_than_one_batch_has_is_refused(self):
-        result = reserve_medicine(self.samira_user, "Metformin 850 mg", 8)
+        result = reserve_medicine(self.samira_user, self.samira, "Metformin 850 mg", 8)
         self.assertFalse(result["reserved"])
         self.assertIn("No single batch", result["message"])
         self.assertEqual(self.quantity_of(self.metformin_850_batch), 5)
         self.assertFalse(Reservation.objects.exists())
 
     def test_9_1b_a_login_without_a_patient_record_cannot_reserve(self):
-        self.assertFalse(reserve_medicine(self.omar, "Metformin 500 mg", 2)["reserved"])
+        self.assertFalse(reserve_medicine(self.omar, None, "Metformin 500 mg", 2)["reserved"])
         self.assertFalse(Reservation.objects.exists())
 
 
@@ -473,7 +520,7 @@ class PrescriptionStatusToolTests(PharmacyDataTestCase):
         )
         ready = make_prescription(self.samira, self.metformin_850, "ready", ready_at=now)
         self.assertEqual(
-            prescription_status(self.samira_user),
+            prescription_status(self.samira_user, self.samira),
             {
                 "prescriptions": [
                     {
@@ -499,14 +546,14 @@ class PrescriptionStatusToolTests(PharmacyDataTestCase):
     def test_9_1b_only_the_five_newest_prescriptions_are_given(self):
         for _ in range(6):
             make_prescription(self.samira, self.metformin_500, "received")
-        self.assertEqual(len(prescription_status(self.samira_user)["prescriptions"]), 5)
+        self.assertEqual(len(prescription_status(self.samira_user, self.samira)["prescriptions"]), 5)
 
     def test_9_1b_only_the_signed_in_patients_prescriptions_are_given(self):
         make_prescription(self.maya, self.metformin_500, "received")
-        self.assertEqual(prescription_status(self.samira_user), {"prescriptions": []})
+        self.assertEqual(prescription_status(self.samira_user, self.samira), {"prescriptions": []})
 
     def test_9_1b_a_login_without_a_patient_record_has_no_prescriptions(self):
-        self.assertEqual(prescription_status(self.omar), {"prescriptions": []})
+        self.assertEqual(prescription_status(self.omar, None), {"prescriptions": []})
 
 
 class RequestRefillToolTests(PharmacyDataTestCase):
@@ -518,7 +565,7 @@ class RequestRefillToolTests(PharmacyDataTestCase):
         self.due_refills = [{"medicine": "Metformin 500 mg", "runs_out_on": runs_out_on.strftime("%d %b %Y")}]
 
     def test_9_1b_a_due_refill_is_requested(self):
-        result = request_refill(self.samira_user, "Metformin 500 mg")
+        result = request_refill(self.samira_user, self.samira, "Metformin 500 mg")
         self.assertEqual(
             result,
             {"requested": True, "medicine": "Metformin 500 mg", "status": "Waiting for the pharmacist"},
@@ -528,26 +575,26 @@ class RequestRefillToolTests(PharmacyDataTestCase):
         self.assertEqual(refill_request.requested_by, self.samira_user)
 
     def test_9_1b_without_a_medicine_the_due_refills_are_listed(self):
-        result = request_refill(self.samira_user)
+        result = request_refill(self.samira_user, self.samira)
         self.assertFalse(result["requested"])
         self.assertEqual(result["due_refills"], self.due_refills)
         self.assertFalse(RefillRequest.objects.exists())
 
     def test_9_1b_a_refill_that_is_not_due_is_refused(self):
-        result = request_refill(self.samira_user, "Metformin 850 mg")
+        result = request_refill(self.samira_user, self.samira, "Metformin 850 mg")
         self.assertFalse(result["requested"])
         self.assertEqual(result["due_refills"], self.due_refills)
         self.assertFalse(RefillRequest.objects.exists())
 
     def test_9_1b_a_refill_is_not_requested_twice(self):
-        request_refill(self.samira_user, "Metformin 500 mg")
-        result = request_refill(self.samira_user, "Metformin 500 mg")
+        request_refill(self.samira_user, self.samira, "Metformin 500 mg")
+        result = request_refill(self.samira_user, self.samira, "Metformin 500 mg")
         self.assertFalse(result["requested"])
         self.assertEqual(result["due_refills"], [])
         self.assertEqual(RefillRequest.objects.count(), 1)
 
     def test_9_1b_a_login_without_a_patient_record_cannot_request_a_refill(self):
-        self.assertFalse(request_refill(self.omar, "Metformin 500 mg")["requested"])
+        self.assertFalse(request_refill(self.omar, None, "Metformin 500 mg")["requested"])
         self.assertFalse(RefillRequest.objects.exists())
 
 
@@ -556,24 +603,106 @@ class ToolPrivacyTests(PharmacyDataTestCase):
         collected_long_term_item(self.samira, self.metformin_500, days_of_supply=2)
         make_prescription(self.samira, self.metformin_850, "ready", ready_at=timezone.now())
         results = [
-            pharmacy_info(self.samira_user),
-            check_stock(self.samira_user, "metformin"),
-            reserve_medicine(self.samira_user, "Metformin 850 mg", 1),
-            prescription_status(self.samira_user),
-            request_refill(self.samira_user),
-            request_refill(self.samira_user, "Metformin 500 mg"),
+            pharmacy_info(self.samira_user, self.samira),
+            check_stock(self.samira_user, self.samira, "metformin"),
+            reserve_medicine(self.samira_user, self.samira, "Metformin 850 mg", 1),
+            prescription_status(self.samira_user, self.samira),
+            request_refill(self.samira_user, self.samira),
+            request_refill(self.samira_user, self.samira, "Metformin 500 mg"),
+            ask_pharmacist(self.samira_user, self.samira, GRAPEFRUIT_QUESTION),
         ]
         sent_to_gemini = json.dumps(results)
         for private in ["Samira", "Haddad", "03 100 001", "1958", "Penicillins"]:
             self.assertNotIn(private, sent_to_gemini)
 
 
+class SelectedPatientToolTests(PharmacyDataTestCase):
+    def test_12_1_the_tools_act_for_the_patient_they_are_given(self):
+        make_prescription(self.maya, self.metformin_500, "ready", ready_at=timezone.now())
+        self.assertEqual(len(prescription_status(self.omar, self.maya)["prescriptions"]), 1)
+
+    def test_12_1_a_caregiver_reserves_for_the_patient_they_care_for(self):
+        self.assertTrue(reserve_medicine(self.omar, self.maya, "Metformin 500 mg", 1)["reserved"])
+        self.assertEqual(Reservation.objects.get().patient, self.maya)
+
+    def test_12_1_a_caregiver_requests_a_refill_for_the_patient_they_care_for(self):
+        item = collected_long_term_item(self.maya, self.metformin_500, days_of_supply=2)
+        self.assertTrue(request_refill(self.omar, self.maya, "Metformin 500 mg")["requested"])
+        refill_request = RefillRequest.objects.get()
+        self.assertEqual((refill_request.prescription_item, refill_request.requested_by), (item, self.omar))
+
+
+class PharmacistQuestionTests(PharmacyDataTestCase):
+    def test_9_3_a_question_is_saved_as_waiting_for_a_pharmacist(self):
+        question = pass_to_pharmacist(self.samira_user, self.samira, GRAPEFRUIT_QUESTION)
+        self.assertEqual(
+            (question.patient, question.asked_by, question.question, question.status, question.answer),
+            (self.samira, self.samira_user, GRAPEFRUIT_QUESTION, "waiting", ""),
+        )
+        self.assertIsNotNone(question.asked_at)
+        self.assertIsNone(question.answered_at)
+
+    def test_9_3_a_blank_question_is_refused(self):
+        with self.assertRaises(ValidationError):
+            pass_to_pharmacist(self.samira_user, self.samira, "   ")
+        self.assertFalse(PharmacistQuestion.objects.exists())
+
+    def test_9_3_questions_are_counted_for_the_user_who_asked(self):
+        pass_to_pharmacist(self.samira_user, self.samira, GRAPEFRUIT_QUESTION)
+        self.assertEqual(questions_asked_count(self.samira_user), 1)
+        self.assertEqual(questions_asked_count(self.maya_user), 0)
+
+
+class AskPharmacistToolTests(PharmacyDataTestCase):
+    def test_9_3_a_medical_question_is_passed_to_a_pharmacist(self):
+        result = ask_pharmacist(self.samira_user, self.samira, GRAPEFRUIT_QUESTION)
+        self.assertEqual(
+            result,
+            {
+                "passed_to_pharmacist": True,
+                "reply_expected": f"During opening hours: {settings.PHARMACY_HOURS}",
+                "reply_arrives": "As a notification in CarePharm.",
+            },
+        )
+        question = PharmacistQuestion.objects.get()
+        self.assertEqual((question.patient, question.question), (self.samira, GRAPEFRUIT_QUESTION))
+
+    def test_9_3_a_caregiver_asks_for_the_patient_they_care_for(self):
+        ask_pharmacist(self.omar, self.maya, GRAPEFRUIT_QUESTION)
+        question = PharmacistQuestion.objects.get()
+        self.assertEqual((question.patient, question.asked_by), (self.maya, self.omar))
+
+    def test_9_3_without_a_patient_nothing_is_passed_on(self):
+        self.assertEqual(
+            ask_pharmacist(self.omar, None, GRAPEFRUIT_QUESTION),
+            {"passed_to_pharmacist": False, "message": NO_PATIENT_RECORD},
+        )
+        self.assertFalse(PharmacistQuestion.objects.exists())
+
+    def test_9_3_an_empty_question_is_not_passed_on(self):
+        self.assertFalse(ask_pharmacist(self.samira_user, self.samira, "  ")["passed_to_pharmacist"])
+        self.assertFalse(PharmacistQuestion.objects.exists())
+
+
 class ToolDeclarationTests(SimpleTestCase):
     def test_9_1b_gemini_is_told_about_the_pharmacy_data_tools(self):
         self.assertEqual(
             [declaration["name"] for declaration in TOOL_DECLARATIONS],
-            ["pharmacy_info", "check_stock", "reserve_medicine", "prescription_status", "request_refill"],
+            [
+                "pharmacy_info",
+                "check_stock",
+                "reserve_medicine",
+                "prescription_status",
+                "request_refill",
+                "ask_pharmacist",
+            ],
         )
+
+    def test_9_3_the_prompt_says_to_pass_medical_questions_to_a_pharmacist(self):
+        prompt = system_prompt()
+        self.assertIn("call ask_pharmacist", prompt)
+        self.assertIn(settings.PHARMACY_HOURS, prompt)
+        self.assertIn("notification", prompt)
 
     def test_9_1b_the_prompt_asks_to_confirm_before_reserving_or_requesting_a_refill(self):
         prompt = system_prompt().lower()
@@ -593,19 +722,19 @@ class CannotAnswerTests(SimpleTestCase):
 
     def test_9_1c_a_blank_answer_becomes_the_cannot_answer_message(self):
         self.run_agent.return_value = ("", "first")
-        self.assertEqual(ask_assistant(self.user, "What is the weather?", None), (cannot_answer_message(), "first"))
+        self.assertEqual(ask_assistant(self.user, None, "What is the weather?", None), (cannot_answer_message(), "first"))
 
     def test_9_1c_an_answer_of_only_spaces_counts_as_blank(self):
         self.run_agent.return_value = ("  \n ", "first")
-        self.assertEqual(ask_assistant(self.user, "What is the weather?", None)[0], cannot_answer_message())
+        self.assertEqual(ask_assistant(self.user, None, "What is the weather?", None)[0], cannot_answer_message())
 
     def test_9_1c_no_answer_at_all_counts_as_blank(self):
         self.run_agent.return_value = (None, "first")
-        self.assertEqual(ask_assistant(self.user, "What is the weather?", None)[0], cannot_answer_message())
+        self.assertEqual(ask_assistant(self.user, None, "What is the weather?", None)[0], cannot_answer_message())
 
     def test_9_1c_a_real_answer_is_kept(self):
         self.run_agent.return_value = ("We open at 8:00.", "first")
-        self.assertEqual(ask_assistant(self.user, "When do you open?", None)[0], "We open at 8:00.")
+        self.assertEqual(ask_assistant(self.user, None, "When do you open?", None)[0], "We open at 8:00.")
 
     def test_9_1c_the_cannot_answer_message_says_so_and_gives_the_phone_and_hours(self):
         message = cannot_answer_message()

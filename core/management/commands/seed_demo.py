@@ -6,6 +6,8 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from accounts.services import add_caregiver, caregiver_links_of
+from assistant.models import PharmacistQuestion
+from assistant.questions import pass_to_pharmacist
 from core.models import ActivityLog
 from core.services import mark_all_read
 from inventory.models import Batch, DrugClass, Medicine
@@ -326,6 +328,13 @@ def create_refill_requests():
     demo_refill_request("Omar's Father", "Losartan", "50 mg", 2)
 
 
+def create_questions():
+    if PharmacistQuestion.objects.exists():
+        return
+    samira = Patient.objects.get(name="Samira")
+    pass_to_pharmacist(samira.user, samira, "Can I take my Amlodipine with grapefruit juice?")
+
+
 class Command(BaseCommand):
     def handle(self, *args, **options):
         create_staff()
@@ -337,3 +346,4 @@ class Command(BaseCommand):
         create_counter_sales()
         create_reservations()
         create_refill_requests()
+        create_questions()
