@@ -1,0 +1,42 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}CarePharm - Find Your Medicine. Stay Connected{% endblock %}
+
+{% block content %}
+<div class="console-page patient-page home-page">
+    <header class="console-nav">
+        <img src="{% static 'core/images/logo.png' %}" alt="CarePharm" width="164" height="58">
+
+        <nav class="console-menu patient-menu">
+            <a href="/" class="active"><img src="{% static 'core/images/patient-nav-home.svg' %}" alt="">Home</a>
+            <a href="/reservations/find/"><img src="{% static 'core/images/patient-nav-search.svg' %}" alt="">Find Medicine</a>
+            <span><img src="{% static 'core/images/patient-nav-passport.svg' %}" alt="">Medication Passport</span>
+            <a href="{% url 'assistant_chat' %}"><img src="{% static 'core/images/patient-nav-assistant.svg' %}" alt="">AI Assistant</a>
+        </nav>
+
+        <div class="console-profile">
+            <a href="/login/" class="secondary-button main-login">Login</a>
+        </div>
+    </header>
+
+    <main class="home-content main-content">
+        <div class="home-intro">
+            <h1>Find Your Medicine. Stay Connected</h1>
+            <p class="home-lead">Search for medicines, reserve them, track your prescriptions, request refills, and stay connected with your pharmacy, all in one place.</p>
+        </div>
+
+        {% include "accounts/pharmacy_card.html" %}
+
+        <form method="get" action="/reservations/find/results/" class="main-search">
+            <input type="search" name="name" placeholder="Search for a medicine" aria-label="Search for a medicine" required>
+            <input type="hidden" name="quantity" value="1">
+            <button type="submit"><img src="{% static 'core/images/main-search.png' %}" alt="">Search</button>
+        </form>
+
+        <div class="home-cards main-cards">
+            {% include "accounts/home_cards.html" with refill_address="/home/#refill-reminders" %}
+        </div>
+    </main>
+</div>
+{% endblock %}

@@ -1,5 +1,6 @@
 from datetime import datetime, time, timedelta
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -11,7 +12,13 @@ from django.utils import timezone
 
 from accounts.models import CaregiverLink
 from accounts.permissions import can_act_as_pharmacist, can_add_medicines, is_owner, is_pharmacy_staff
-from accounts.services import add_caregiver, caregiver_links_of, create_patient_login, revoke_caregiver
+from accounts.services import (
+    add_caregiver,
+    caregiver_links_of,
+    create_patient_login,
+    landing_page,
+    revoke_caregiver,
+)
 from core.models import ActivityLog
 from core.services import log_action, notify
 from inventory.models import Batch, DrugClass, Medicine
@@ -70,9 +77,6 @@ class PharmacyStaffTests(TestCase):
 
 
 class SignInPageTests(TestCase):
-    def test_8_1_the_site_opens_on_the_patient_login(self):
-        self.assertRedirects(self.client.get("/"), "/login/")
-
     def test_8_1_patient_login_page_has_its_own_wording(self):
         response = self.client.get("/login/")
         self.assertContains(response, "For patients and families")
@@ -150,6 +154,124 @@ class SignInTests(TestCase):
     def test_8_1_a_signed_out_visitor_sees_no_confirmation(self):
         self.assertNotContains(self.client.get("/login/"), "You are signed in as")
 
+    def test_p2_each_role_has_its_landing_page(self):
+        User = get_user_model()
+        self.assertEqual(landing_page(User(role="owner")), "/staff/")
+        self.assertEqual(landing_page(User(role="pharmacist")), "/dashboard/")
+        self.assertEqual(landing_page(User(role="assistant")), "/dashboard/")
+        self.assertEqual(landing_page(User(role="patient")), "/home/")
+
+    def test_p2_signing_in_returns_to_the_page_the_visitor_was_going_to(self):
+        response = self.client.post("/login/?next=/reservations/find/", {"username": "samira", "password": "pass"})
+        self.assertRedirects(response, "/reservations/find/")
+
+    def test_p2_a_search_survives_signing_in(self):
+        address = "/reservations/find/results/?name=Metformin&quantity=1"
+        response = self.client.post(
+            "/login/?" + urlencode({"next": address}), {"username": "samira", "password": "pass"}
+        )
+        self.assertRedirects(response, address)
+
+    def test_p2_staff_return_to_the_page_they_were_going_to(self):
+        response = self.client.post("/login/staff/?next=/inventory/", {"username": "rana", "password": "pass"})
+        self.assertRedirects(response, "/inventory/")
+
+    def test_p2_an_address_on_another_site_is_ignored(self):
+        response = self.client.post(
+            "/login/?next=https://example.com/", {"username": "samira", "password": "pass"}
+        )
+        self.assertRedirects(response, "/home/")
+
+    def test_p2_a_refused_sign_in_keeps_the_address_to_return_to(self):
+        response = self.client.post("/login/?next=/reservations/find/", {"username": "samira", "password": "wrong"})
+        self.assertContains(response, "Wrong username or password.")
+        self.assert_nobody_is_signed_in()
+
+
+class MainPageTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.samira = User.objects.create_user(username="samira", password="pass", role="patient")
+        cls.rana = User.objects.create_user(username="rana", password="pass", role="pharmacist")
+        cls.karim = User.objects.create_user(username="karim", password="pass", role="assistant")
+        cls.nadim = User.objects.create_user(username="nadim", password="pass", role="owner")
+
+    def test_p2_the_site_opens_on_the_main_page(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "accounts/main.html")
+
+    def test_p2_the_main_page_uses_the_figma_wording(self):
+        response = self.client.get("/")
+        self.assertContains(response, "Find Your Medicine. Stay Connected")
+        self.assertContains(
+            response,
+            "Search for medicines, reserve them, track your prescriptions, request refills, "
+            "and stay connected with your pharmacy, all in one place.",
+        )
+        for card in [
+            "Find a Medicine",
+            "Reserve Medicine",
+            "Track Prescription",
+            "Medication Passport",
+            "Request a Refill",
+            "AI Pharmacy Assistant",
+        ]:
+            self.assertContains(response, card)
+
+    def test_p2_the_main_page_shows_the_pharmacy_details(self):
+        response = self.client.get("/")
+        self.assertContains(response, "Your pharmacy")
+        for detail in [settings.PHARMACY_NAME, settings.PHARMACY_ADDRESS, settings.PHARMACY_PHONE, settings.PHARMACY_HOURS]:
+            self.assertContains(response, detail)
+
+    def test_p2_the_login_button_opens_the_patient_sign_in(self):
+        self.assertContains(self.client.get("/"), '<a href="/login/" class="secondary-button main-login">Login</a>', html=True)
+
+    def test_p2_sign_up_and_request_a_demo_are_left_out(self):
+        response = self.client.get("/")
+        self.assertNotContains(response, "Sign up")
+        self.assertNotContains(response, "Request a Demo")
+
+    def test_p2_the_menu_shows_the_public_sections(self):
+        response = self.client.get("/")
+        self.assertContains(response, 'href="/" class="active"')
+        self.assertContains(response, 'href="/reservations/find/"')
+        self.assertContains(response, 'href="/assistant/"')
+        self.assertContains(response, "Medication Passport")
+        self.assertNotContains(response, "Family Access")
+
+    def test_p2_nothing_personal_is_shown_to_a_visitor(self):
+        response = self.client.get("/")
+        self.assertNotContains(response, "Welcome,")
+        self.assertNotContains(response, 'action="/logout/"')
+        self.assertNotContains(response, 'href="/notifications/"')
+        self.assertNotContains(response, 'id="refill-reminders"')
+
+    def test_p2_the_search_box_searches_the_pharmacys_stock(self):
+        response = self.client.get("/")
+        self.assertContains(response, 'action="/reservations/find/results/"')
+        self.assertContains(response, 'placeholder="Search for a medicine"')
+        self.assertContains(response, '<input type="hidden" name="quantity" value="1">', html=True)
+
+    def test_p2_the_cards_lead_to_the_patient_pages(self):
+        response = self.client.get("/")
+        self.assertContains(response, 'href="/reservations/find/" class="home-card find"')
+        self.assertContains(response, 'href="/prescriptions/mine/" class="home-card track"')
+        self.assertContains(response, 'href="/home/#refill-reminders" class="home-card refill"')
+        self.assertContains(response, 'href="/assistant/" class="home-card assistant"')
+
+    def test_p2_a_visitor_who_searches_is_asked_to_sign_in_first(self):
+        address = "/reservations/find/results/?name=Metformin&quantity=1"
+        response = self.client.get(address)
+        self.assertRedirects(response, "/login/?" + urlencode({"next": address}, safe="/"))
+
+    def test_p2_signed_in_users_go_to_their_own_page(self):
+        for user, page in [(self.samira, "/home/"), (self.rana, "/dashboard/"), (self.karim, "/dashboard/"), (self.nadim, "/staff/")]:
+            self.client.force_login(user)
+            self.assertRedirects(self.client.get("/"), page)
+
 
 class PatientHomePageTests(TestCase):
     @classmethod
@@ -177,9 +299,6 @@ class PatientHomePageTests(TestCase):
 
     def test_p1_staff_cannot_open_the_patient_home(self):
         self.assertEqual(self.home_page_for(self.rana).status_code, 403)
-
-    def test_p1_the_site_still_opens_on_the_sign_in_page(self):
-        self.assertRedirects(self.client.get("/"), "/login/")
 
     def test_p1_the_home_page_greets_the_patient_by_name(self):
         self.assertContains(self.home_page_for(self.samira), "Welcome, Samira Khalil")

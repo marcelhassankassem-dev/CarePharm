@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
 
 from accounts.models import CaregiverLink
-from accounts.permissions import ASSIGNABLE_STAFF_ROLES, STAFF_ROLES, is_pharmacy_staff
+from accounts.permissions import ASSIGNABLE_STAFF_ROLES, STAFF_ROLES, is_owner, is_pharmacy_staff
 
 
 def sign_in_problem(user, side):
@@ -14,6 +14,14 @@ def sign_in_problem(user, side):
     if side == "patient" and is_pharmacy_staff(user):
         return "This is not a patient account."
     return ""
+
+
+def landing_page(user):
+    if is_owner(user):
+        return "/staff/"
+    if is_pharmacy_staff(user):
+        return "/dashboard/"
+    return "/home/"
 
 
 def create_patient_login(username, password):

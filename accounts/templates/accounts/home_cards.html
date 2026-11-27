@@ -1,0 +1,31 @@
+{% load static %}
+<a href="/reservations/find/" class="home-card find">
+    <h2>Find a Medicine</h2>
+    <img src="{% static 'core/images/home-find-medicine.png' %}" alt="">
+    <p>Check if your pharmacy has the medicine you need.</p>
+</a>
+<a href="/reservations/find/" class="home-card reserve">
+    <h2>Reserve Medicine</h2>
+    <img src="{% static 'core/images/home-reserve-medicine.png' %}" alt="">
+    <p>Reserve available medicine before visiting the pharmacy.</p>
+</a>
+<a href="{% url 'my_prescriptions' %}" class="home-card track">
+    <h2>Track Prescription</h2>
+    <img src="{% static 'core/images/home-track-prescription.png' %}" alt="">
+    <p>Follow your prescription from processing to pickup.</p>
+</a>
+<div class="home-card passport">
+    <h2>Medication Passport</h2>
+    <img src="{% static 'core/images/home-medication-passport.png' %}" alt="">
+    <p>Your allergies, medicines and history in one record you can share with any pharmacy.</p>
+</div>
+<a href="{{ refill_address }}" class="home-card refill">
+    <h2>Request a Refill</h2>
+    <img src="{% static 'core/images/home-request-refill.png' %}" alt="">
+    <p>Ask for a refill before your medicine runs out.</p>
+</a>
+<a href="{% url 'assistant_chat' %}" class="home-card assistant">
+    <h2>AI Pharmacy Assistant</h2>
+    <img src="{% static 'core/images/home-assistant.png' %}" alt="">
+    <p>Get quick help with medicine availability, prescriptions, and pharmacy services.</p>
+</a>

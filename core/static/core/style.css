@@ -4583,6 +4583,68 @@ button.family-profile {
     color: #4f6070;
 }
 
+.main-login {
+    height: 36px;
+    padding: 0 16px;
+    border-color: #b9c8c8;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #0e4a5a;
+}
+
+.main-content {
+    padding-top: 182px;
+}
+
+.main-search {
+    display: flex;
+    gap: 23px;
+    margin-top: 76px;
+}
+
+.main-search input {
+    width: 426px;
+    height: 54px;
+    padding: 0 20px;
+    box-sizing: border-box;
+    border: 1.5px solid #d6e3e0;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 18px;
+    color: #0f2233;
+    background: white;
+}
+
+.main-search input::placeholder {
+    color: #7c8a96;
+}
+
+.main-search button {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 129px;
+    height: 54px;
+    padding: 0 0 0 8px;
+    border: 0;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 20px;
+    font-weight: 800;
+    color: white;
+    background: linear-gradient(to right, #145566, #0b3b49);
+    cursor: pointer;
+}
+
+.main-search img {
+    width: 39px;
+    height: 39px;
+}
+
+.main-cards {
+    margin-top: 51px;
+}
+
 .chat-page {
     min-height: 100vh;
     background: url("images/chat-background.jpg") center / cover no-repeat;

@@ -6,19 +6,14 @@ from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from accounts.forms import EditStaffForm, FamilyMemberForm, NewStaffForm
-from accounts.permissions import (
-    ROLE_PERMISSIONS,
-    is_owner,
-    is_pharmacy_staff,
-    patient_required,
-    require_owner,
-)
+from accounts.permissions import ROLE_PERMISSIONS, patient_required, require_owner
 from accounts.services import (
     active_staff_count,
     add_caregiver,
     caregiver_links_of,
     create_staff_member,
     editable_staff_member,
+    landing_page,
     revoke_caregiver,
     sign_in_problem,
     staff_members,
@@ -31,7 +26,9 @@ from reservations.services import patient_refill_requests, refill_reminders
 
 
 def site_root(request):
-    return redirect("patient_login")
+    if request.user.is_authenticated:
+        return redirect(landing_page(request.user))
+    return render(request, "accounts/main.html", {"pharmacy": pharmacy_details()})
 
 
 def patient_login(request):
@@ -40,6 +37,12 @@ def patient_login(request):
 
 def staff_login(request):
     return login_page(request, "staff")
+
+
+def address_on_this_site(request, address, fallback):
+    if url_has_allowed_host_and_scheme(address, allowed_hosts={request.get_host()}):
+        return address
+    return fallback
 
 
 def login_page(request, side):
@@ -53,11 +56,7 @@ def login_page(request, side):
         problem = sign_in_problem(user, side)
         if not problem:
             login(request, user)
-            if is_owner(user):
-                return redirect("staff_list")
-            if is_pharmacy_staff(user):
-                return redirect("dashboard")
-            return redirect("patient_home")
+            return redirect(address_on_this_site(request, request.GET.get("next", ""), landing_page(user)))
     return render(request, "accounts/login.html", {"side": side, "problem": problem})
 
 
@@ -121,10 +120,7 @@ def view_patient(request, patient_id):
         return redirect("patient_home")
     patient = viewable_patient(request.user, patient_id)
     request.session[VIEWING_PATIENT] = patient.pk
-    next_address = request.POST.get("next", "")
-    if not url_has_allowed_host_and_scheme(next_address, allowed_hosts={request.get_host()}):
-        next_address = "/home/"
-    return redirect(next_address)
+    return redirect(address_on_this_site(request, request.POST.get("next", ""), "/home/"))
 
 
 def sign_out(request):
