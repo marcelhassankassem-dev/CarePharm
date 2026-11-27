@@ -13,7 +13,16 @@ from django.utils import timezone
 from accounts.models import CaregiverLink
 from assistant.agent import MAX_STEPS, MODEL, gemini_client, run_agent, system_prompt
 from assistant.models import PharmacistQuestion
-from assistant.questions import pass_to_pharmacist, questions_asked_count
+from assistant.questions import (
+    answer_question,
+    answered_question_count,
+    answered_questions,
+    pass_to_pharmacist,
+    questions_asked_count,
+    questions_of,
+    waiting_question_count,
+    waiting_questions,
+)
 from assistant.services import ask_assistant, cannot_answer_message, unavailable_message
 from assistant.tools import (
     NO_PATIENT_RECORD,
@@ -27,6 +36,7 @@ from assistant.tools import (
     reserve_medicine,
 )
 from assistant.views import QUICK_OPTIONS
+from core.models import Notification
 from core.services import pharmacy_details
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Allergy, Patient
@@ -747,3 +757,209 @@ class CannotAnswerTests(SimpleTestCase):
 
     def test_9_1c_the_prompt_gives_the_phone_number_for_refusals(self):
         self.assertIn(settings.PHARMACY_PHONE, system_prompt())
+
+
+SHAKY_QUESTION = "Is it normal to feel shaky after using my inhaler?"
+GRAPEFRUIT_ANSWER = "It is better to avoid grapefruit juice with Amlodipine. Orange or apple juice are fine."
+
+
+class QuestionTestCase(PharmacyDataTestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        User = get_user_model()
+        cls.rana = User.objects.create(username="rana", role="pharmacist")
+        cls.karim = User.objects.create(username="karim", role="assistant")
+
+    def ask(self, patient, question, minutes_ago):
+        asked = pass_to_pharmacist(patient.user, patient, question)
+        asked_at = timezone.now() - timedelta(minutes=minutes_ago)
+        PharmacistQuestion.objects.filter(pk=asked.pk).update(asked_at=asked_at)
+        asked.refresh_from_db()
+        return asked
+
+    def status_of(self, question):
+        question.refresh_from_db()
+        return question.status
+
+
+class AnswerQuestionTests(QuestionTestCase):
+    def test_9_4_waiting_questions_come_oldest_first(self):
+        newer = self.ask(self.maya, SHAKY_QUESTION, minutes_ago=5)
+        older = self.ask(self.samira, GRAPEFRUIT_QUESTION, minutes_ago=60)
+        self.assertEqual(list(waiting_questions()), [older, newer])
+
+    def test_9_4_answered_questions_come_newest_answer_first(self):
+        first = self.ask(self.samira, GRAPEFRUIT_QUESTION, minutes_ago=60)
+        second = self.ask(self.maya, SHAKY_QUESTION, minutes_ago=5)
+        answer_question(first, GRAPEFRUIT_ANSWER)
+        answer_question(second, "Yes, a little shakiness is common.")
+        self.assertEqual(list(answered_questions()), [second, first])
+        self.assertEqual(list(waiting_questions()), [])
+
+    def test_9_4_waiting_and_answered_questions_are_counted(self):
+        answer_question(self.ask(self.samira, GRAPEFRUIT_QUESTION, minutes_ago=60), GRAPEFRUIT_ANSWER)
+        self.ask(self.maya, SHAKY_QUESTION, minutes_ago=5)
+        self.assertEqual((waiting_question_count(), answered_question_count()), (1, 1))
+
+    def test_9_4_answering_saves_the_answer_and_the_time(self):
+        question = self.ask(self.samira, GRAPEFRUIT_QUESTION, minutes_ago=60)
+        answer_question(question, f"  {GRAPEFRUIT_ANSWER}  ")
+        question.refresh_from_db()
+        self.assertEqual((question.status, question.answer), ("answered", GRAPEFRUIT_ANSWER))
+        self.assertIsNotNone(question.answered_at)
+
+    def test_9_4_answering_tells_the_patient(self):
+        answer_question(self.ask(self.samira, GRAPEFRUIT_QUESTION, minutes_ago=60), GRAPEFRUIT_ANSWER)
+        notification = Notification.objects.get(user=self.samira_user)
+        self.assertEqual(notification.text, "A pharmacist answered Samira Haddad's question.")
+        self.assertEqual(notification.link, "/assistant/questions/")
+
+    def test_9_4_a_blank_answer_is_refused(self):
+        question = self.ask(self.samira, GRAPEFRUIT_QUESTION, minutes_ago=60)
+        with self.assertRaises(ValidationError):
+            answer_question(question, "   ")
+        self.assertEqual(self.status_of(question), "waiting")
+        self.assertFalse(Notification.objects.exists())
+
+    def test_9_4_a_question_is_answered_only_once(self):
+        question = self.ask(self.samira, GRAPEFRUIT_QUESTION, minutes_ago=60)
+        answer_question(question, GRAPEFRUIT_ANSWER)
+        with self.assertRaises(ValidationError):
+            answer_question(question, "A second answer.")
+        question.refresh_from_db()
+        self.assertEqual(question.answer, GRAPEFRUIT_ANSWER)
+        self.assertEqual(Notification.objects.count(), 1)
+
+    def test_9_4_a_patients_questions_come_newest_first(self):
+        older = self.ask(self.samira, GRAPEFRUIT_QUESTION, minutes_ago=60)
+        newer = self.ask(self.samira, SHAKY_QUESTION, minutes_ago=5)
+        self.ask(self.maya, SHAKY_QUESTION, minutes_ago=1)
+        self.assertEqual(list(questions_of(self.samira)), [newer, older])
+
+
+class MessagesPageTests(QuestionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.grapefruit = self.ask(self.samira, GRAPEFRUIT_QUESTION, minutes_ago=60)
+        self.shaky = self.ask(self.maya, SHAKY_QUESTION, minutes_ago=5)
+        self.client.force_login(self.rana)
+
+    def reply(self, question, text):
+        return self.client.post(f"/assistant/messages/{question.pk}/reply/", {"answer": text})
+
+    def test_9_4_signed_out_visitors_go_to_the_staff_sign_in(self):
+        self.client.logout()
+        self.assertRedirects(self.client.get("/assistant/messages/"), "/login/staff/?next=/assistant/messages/")
+
+    def test_9_4_patients_cannot_open_the_messages(self):
+        self.client.force_login(self.samira_user)
+        self.assertEqual(self.client.get("/assistant/messages/").status_code, 403)
+
+    def test_9_4_the_page_lists_the_waiting_questions_with_their_counts(self):
+        response = self.client.get("/assistant/messages/")
+        for text in ["Handovers", "Samira Haddad", GRAPEFRUIT_QUESTION, "Maya Khoury", SHAKY_QUESTION]:
+            self.assertContains(response, text)
+        self.assertContains(response, "Waiting 2")
+        self.assertContains(response, "Answered 0")
+
+    def test_9_4_the_longest_waiting_question_is_open_first(self):
+        response = self.client.get("/assistant/messages/")
+        self.assertContains(response, f'action="/assistant/messages/{self.grapefruit.pk}/reply/"')
+
+    def test_9_4_a_chosen_question_opens(self):
+        response = self.client.get(f"/assistant/messages/{self.shaky.pk}/")
+        self.assertContains(response, f'action="/assistant/messages/{self.shaky.pk}/reply/"')
+
+    def test_9_4_the_open_question_shows_the_patients_allergies_and_a_link_to_their_record(self):
+        response = self.client.get("/assistant/messages/")
+        self.assertContains(response, "Penicillins")
+        self.assertContains(response, f'href="/patients/{self.samira.pk}/"')
+
+    def test_9_4_a_pharmacists_reply_answers_the_question(self):
+        response = self.reply(self.grapefruit, GRAPEFRUIT_ANSWER)
+        self.assertRedirects(response, f"/assistant/messages/{self.grapefruit.pk}/")
+        self.assertEqual(self.status_of(self.grapefruit), "answered")
+        self.assertContains(self.client.get(response.url), "Reply sent to Samira Haddad.")
+
+    def test_9_4_a_blank_reply_is_refused_with_a_message(self):
+        response = self.reply(self.grapefruit, "   ")
+        self.assertEqual(self.status_of(self.grapefruit), "waiting")
+        self.assertContains(self.client.get(response.url), "Write a reply before sending.")
+
+    def test_9_4_the_answered_pill_lists_the_answered_questions(self):
+        answer_question(self.grapefruit, GRAPEFRUIT_ANSWER)
+        response = self.client.get("/assistant/messages/?show=answered")
+        self.assertContains(response, "Answered 1")
+        self.assertContains(response, GRAPEFRUIT_ANSWER)
+        self.assertNotContains(response, SHAKY_QUESTION)
+
+    def test_9_4_an_answered_question_shows_its_answer_and_no_reply_box(self):
+        answer_question(self.grapefruit, GRAPEFRUIT_ANSWER)
+        response = self.client.get(f"/assistant/messages/{self.grapefruit.pk}/")
+        self.assertContains(response, GRAPEFRUIT_ANSWER)
+        self.assertNotContains(response, "Send Reply")
+
+    def test_9_4_an_assistant_can_read_the_questions_but_not_reply(self):
+        self.client.force_login(self.karim)
+        response = self.client.get("/assistant/messages/")
+        self.assertContains(response, GRAPEFRUIT_QUESTION)
+        self.assertNotContains(response, "Send Reply")
+        self.assertEqual(self.reply(self.grapefruit, GRAPEFRUIT_ANSWER).status_code, 403)
+        self.assertEqual(self.status_of(self.grapefruit), "waiting")
+
+    def test_9_4_with_no_waiting_questions_the_page_says_so(self):
+        PharmacistQuestion.objects.all().delete()
+        self.assertContains(self.client.get("/assistant/messages/"), "No questions waiting.")
+
+    def test_9_4_the_console_menu_links_to_the_messages(self):
+        self.assertContains(self.client.get("/dashboard/"), 'href="/assistant/messages/"')
+
+
+class MyQuestionsPageTests(QuestionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.samira_user)
+
+    def test_9_4_signed_out_visitors_go_to_the_patient_sign_in(self):
+        self.client.logout()
+        self.assertRedirects(self.client.get("/assistant/questions/"), "/login/?next=/assistant/questions/")
+
+    def test_9_4_staff_cannot_open_a_patients_questions(self):
+        self.client.force_login(self.rana)
+        self.assertEqual(self.client.get("/assistant/questions/").status_code, 403)
+
+    def test_9_4_the_patient_reads_the_pharmacists_answer(self):
+        answer_question(self.ask(self.samira, GRAPEFRUIT_QUESTION, minutes_ago=60), GRAPEFRUIT_ANSWER)
+        response = self.client.get("/assistant/questions/")
+        self.assertContains(response, GRAPEFRUIT_QUESTION)
+        self.assertContains(response, "Answer from the pharmacist")
+        self.assertContains(response, GRAPEFRUIT_ANSWER)
+
+    def test_9_4_a_waiting_question_says_when_to_expect_a_reply(self):
+        self.ask(self.samira, GRAPEFRUIT_QUESTION, minutes_ago=60)
+        response = self.client.get("/assistant/questions/")
+        self.assertContains(response, f"A pharmacist will reply during opening hours: {settings.PHARMACY_HOURS}")
+
+    def test_9_4_only_the_selected_patients_questions_are_shown(self):
+        self.ask(self.maya, SHAKY_QUESTION, minutes_ago=5)
+        self.assertNotContains(self.client.get("/assistant/questions/"), SHAKY_QUESTION)
+
+    def test_9_4_a_caregiver_sees_the_questions_of_the_patient_they_care_for(self):
+        CaregiverLink.objects.create(patient=self.maya, caregiver=self.omar)
+        self.ask(self.maya, SHAKY_QUESTION, minutes_ago=5)
+        self.client.force_login(self.omar)
+        self.assertContains(self.client.get("/assistant/questions/"), SHAKY_QUESTION)
+
+    def test_9_4_with_no_questions_the_page_says_so(self):
+        self.assertContains(self.client.get("/assistant/questions/"), "No questions yet.")
+
+    def test_9_4_the_chats_handover_notice_links_to_my_questions(self):
+        session = self.client.session
+        session["assistant_history"] = [
+            {"role": "patient", "text": GRAPEFRUIT_QUESTION},
+            {"role": "assistant", "text": "I passed it to a pharmacist."},
+            {"role": "handover", "text": "Passed to a pharmacist"},
+        ]
+        session.save()
+        self.assertContains(self.client.get("/assistant/"), 'href="/assistant/questions/"')
