@@ -34,7 +34,7 @@
 
             {% for message in history %}
             {% if message.role == "handover" %}
-            <p class="chat-handover">{{ message.text }}</p>
+            <a href="{% url 'my_questions' %}" class="chat-handover">{{ message.text }}</a>
             {% else %}
             <div class="chat-message {{ message.role }}">
                 {% if message.role == "assistant" %}

@@ -4734,7 +4734,9 @@ button.family-profile {
 }
 
 .chat-handover {
+    display: block;
     width: fit-content;
+    text-decoration: none;
     margin: -4px auto 20px;
     padding: 7px 16px 8px;
     border-radius: 18px;
@@ -5089,4 +5091,56 @@ button.family-profile {
 
 .messages-open-passport {
     margin-top: auto;
+}
+
+.question-list {
+    display: grid;
+    gap: 16px;
+    max-width: 720px;
+    padding-left: 14px;
+}
+
+.question-asked {
+    margin: 0;
+    font-size: 13px;
+    color: #7c8a96;
+}
+
+.question-text {
+    width: fit-content;
+    margin: 8px 0 0;
+    padding: 14px 16px;
+    border-radius: 18px;
+    font-size: 16px;
+    line-height: 1.4;
+    color: white;
+    background: #00887a;
+}
+
+.question-answer-label {
+    margin: 18px 0 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: #14756f;
+}
+
+.question-answer {
+    margin: 8px 0 0;
+    padding: 14px 16px;
+    border: 1.5px solid #14756f;
+    border-radius: 18px;
+    font-size: 16px;
+    line-height: 1.4;
+    color: #0f2233;
+}
+
+.question-waiting {
+    width: fit-content;
+    margin: 16px 0 0;
+    padding: 8px 16px;
+    border-radius: 16px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e5aa8;
+    background: #dbe7f8;
 }

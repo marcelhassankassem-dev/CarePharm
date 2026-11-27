@@ -10,12 +10,13 @@ from assistant.questions import (
     answered_questions,
     get_question,
     questions_asked_count,
+    questions_of,
     waiting_question_count,
     waiting_questions,
 )
 from assistant.services import ask_assistant
 from passport.services import allergies_of, current_medicines_of
-from passport.views import selected_patient
+from passport.views import patient_page_data, selected_patient
 
 HISTORY = "assistant_history"
 INTERACTION_ID = "assistant_interaction_id"
@@ -72,6 +73,14 @@ def start_over(request):
     request.session.pop(HISTORY, None)
     request.session.pop(INTERACTION_ID, None)
     return redirect("assistant_chat")
+
+
+@patient_required
+def my_questions(request):
+    context = patient_page_data(request)
+    context["questions"] = questions_of(selected_patient(request))
+    context["pharmacy_hours"] = settings.PHARMACY_HOURS
+    return render(request, "assistant/questions.html", context)
 
 
 def open_question_data(question):
