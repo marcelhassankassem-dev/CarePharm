@@ -13,13 +13,8 @@ from django.utils import timezone
 from accounts.models import CaregiverLink
 from assistant.agent import MAX_STEPS, MODEL, gemini_client, run_agent, system_prompt
 from assistant.models import PharmacistQuestion
-from assistant.services import (
-    ask_assistant,
-    cannot_answer_message,
-    pass_to_pharmacist,
-    questions_asked_count,
-    unavailable_message,
-)
+from assistant.questions import pass_to_pharmacist, questions_asked_count
+from assistant.services import ask_assistant, cannot_answer_message, unavailable_message
 from assistant.tools import (
     NO_PATIENT_RECORD,
     TOOL_DECLARATIONS,

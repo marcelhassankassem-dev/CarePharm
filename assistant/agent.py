@@ -20,7 +20,7 @@ Rules:
 - Always use a tool to answer questions about the pharmacy. Never guess.
 - Before reserving a medicine or requesting a refill, say what you will do and ask the patient to confirm.
 - Never diagnose a condition and never recommend a medicine, a dose or a treatment.
-- For any medical question, say that only a pharmacist can answer it, and that the pharmacy is open {settings.PHARMACY_HOURS}.
+- For any medical question, call ask_pharmacist with the patient's question. Then say that it is a medical question only a pharmacist can answer, that you passed it to a pharmacist, that they will reply during opening hours ({settings.PHARMACY_HOURS}), and that the answer will arrive as a notification.
 - If you cannot answer, or you are not sure, say clearly that you cannot answer: start with "Sorry, I can't answer that.", say why in one short sentence, and give the pharmacy's phone number, {settings.PHARMACY_PHONE}.
 - Keep your answers short and friendly.
 - Write plain text only, without Markdown: no asterisks, no bold, no headings.
@@ -42,8 +42,8 @@ def ask_gemini(client, user_input, previous_interaction_id):
     )
 
 
-def run_tool(user, call):
-    output = TOOL_FUNCTIONS[call.name](user, **call.arguments)
+def run_tool(user, patient, call):
+    output = TOOL_FUNCTIONS[call.name](user, patient, **call.arguments)
     return {
         "type": "function_result",
         "name": call.name,
@@ -52,13 +52,13 @@ def run_tool(user, call):
     }
 
 
-def run_agent(user, message, previous_interaction_id=None):
+def run_agent(user, patient, message, previous_interaction_id=None):
     client = gemini_client()
     interaction = ask_gemini(client, message, previous_interaction_id)
     for _ in range(MAX_STEPS):
         calls = [step for step in interaction.steps if step.type == "function_call"]
         if not calls:
             return interaction.output_text, interaction.id
-        results = [run_tool(user, call) for call in calls]
+        results = [run_tool(user, patient, call) for call in calls]
         interaction = ask_gemini(client, results, interaction.id)
     return STUCK_MESSAGE, interaction.id

@@ -2,6 +2,7 @@ from django.shortcuts import redirect, render
 
 from accounts.permissions import patient_required
 from assistant.services import ask_assistant
+from passport.services import patient_of
 
 HISTORY = "assistant_history"
 INTERACTION_ID = "assistant_interaction_id"
@@ -24,7 +25,7 @@ QUICK_OPTIONS = [
 
 
 def send_message(session, user, message):
-    answer, interaction_id = ask_assistant(user, message, session.get(INTERACTION_ID))
+    answer, interaction_id = ask_assistant(user, patient_of(user), message, session.get(INTERACTION_ID))
     session[HISTORY] = session.get(HISTORY, []) + [
         {"role": "patient", "text": message},
         {"role": "assistant", "text": answer},

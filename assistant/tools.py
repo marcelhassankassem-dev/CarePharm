@@ -1,9 +1,10 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
+from assistant.questions import pass_to_pharmacist
 from core.services import pharmacy_details
 from inventory.services import find_medicines
-from passport.services import patient_of
 from prescriptions.services import items_of, prescriptions_of
 from reservations import services as reservations
 
@@ -33,7 +34,7 @@ def not_stocked(medicine):
     return f"The pharmacy does not stock a medicine called {medicine}."
 
 
-def pharmacy_info(user):
+def pharmacy_info(user, patient):
     return pharmacy_details()
 
 
@@ -47,7 +48,7 @@ def stock_line(medicine, quantity):
     }
 
 
-def check_stock(user, medicine, quantity=1):
+def check_stock(user, patient, medicine, quantity=1):
     reservations.expire_reservations()
     medicines = medicines_named_in(medicine)
     if not medicines:
@@ -55,8 +56,7 @@ def check_stock(user, medicine, quantity=1):
     return {"found": True, "medicines": [stock_line(match, int(quantity)) for match in medicines]}
 
 
-def reserve_medicine(user, medicine, quantity):
-    patient = patient_of(user)
+def reserve_medicine(user, patient, medicine, quantity):
     if patient is None:
         return {"reserved": False, "message": NO_PATIENT_RECORD}
     medicines = medicines_named_in(medicine)
@@ -89,8 +89,7 @@ def prescription_line(prescription):
     }
 
 
-def prescription_status(user):
-    patient = patient_of(user)
+def prescription_status(user, patient):
     if patient is None:
         return {"prescriptions": []}
     newest = prescriptions_of(patient)[:PRESCRIPTIONS_SHOWN]
@@ -101,8 +100,7 @@ def due_refill_line(reminder):
     return {"medicine": str(reminder["item"].medicine), "runs_out_on": reminder["runs_out_on"].strftime("%d %b %Y")}
 
 
-def request_refill(user, medicine=""):
-    patient = patient_of(user)
+def request_refill(user, patient, medicine=""):
     if patient is None:
         return {"requested": False, "message": NO_PATIENT_RECORD}
     due = reservations.refill_reminders(patient)
@@ -113,6 +111,20 @@ def request_refill(user, medicine=""):
     item = chosen[0]["item"]
     reservations.request_refill(user, item)
     return {"requested": True, "medicine": str(item.medicine), "status": "Waiting for the pharmacist"}
+
+
+def ask_pharmacist(user, patient, question):
+    if patient is None:
+        return {"passed_to_pharmacist": False, "message": NO_PATIENT_RECORD}
+    try:
+        pass_to_pharmacist(user, patient, question)
+    except ValidationError as problem:
+        return {"passed_to_pharmacist": False, "message": " ".join(problem.messages)}
+    return {
+        "passed_to_pharmacist": True,
+        "reply_expected": f"During opening hours: {settings.PHARMACY_HOURS}",
+        "reply_arrives": "As a notification in CarePharm.",
+    }
 
 
 TOOL_DECLARATIONS = [
@@ -168,6 +180,18 @@ TOOL_DECLARATIONS = [
             },
         },
     },
+    {
+        "type": "function",
+        "name": "ask_pharmacist",
+        "description": "Pass a medical question to a pharmacist, who will answer it during opening hours. Use this for any question about symptoms, side effects, doses, taking medicines together, or anything else only a pharmacist can answer, and whenever you are unsure.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "question": {"type": "string", "description": "The patient's question, in their own words."},
+            },
+            "required": ["question"],
+        },
+    },
 ]
 
 TOOL_FUNCTIONS = {
@@ -176,4 +200,5 @@ TOOL_FUNCTIONS = {
     "reserve_medicine": reserve_medicine,
     "prescription_status": prescription_status,
     "request_refill": request_refill,
+    "ask_pharmacist": ask_pharmacist,
 }
