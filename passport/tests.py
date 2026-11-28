@@ -23,6 +23,7 @@ from passport.services import (
     patients_cared_for,
     viewable_patients,
 )
+from sales.models import Sale, SaleItem
 
 STAFF_PAGES = ["/patients/", "/patients/new/", "/patients/logins/new/"]
 
@@ -588,3 +589,101 @@ class AddLoginPageTests(TestCase):
 
     def test_f5_a_caregiver_password_like_the_username_is_refused(self):
         self.assert_login_refused("omarhaddad", "omarhaddad1", "The password is too similar to the username.")
+
+
+class MyMedicationPassportTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.maya_user = make_user("maya", "patient")
+        cls.maya = Patient.objects.create(
+            name="Maya Farah", date_of_birth=date(1990, 9, 21), user=cls.maya_user
+        )
+        cls.father = Patient.objects.create(name="Maya's Father", date_of_birth=date(1950, 1, 5))
+        cls.stranger = Patient.objects.create(name="Private Patient", date_of_birth=date(1980, 1, 1))
+        cls.omar_user = make_user("omar", "patient")
+        cls.staff = make_user("rana", "pharmacist")
+
+        cls.penicillins = DrugClass.objects.create(name="Penicillins")
+        cls.statins = DrugClass.objects.create(name="Statins")
+        cls.maya_medicine = make_medicine("Atorvastatin", "scrum54-1", cls.statins)
+        cls.father_medicine = make_medicine("Metformin", "scrum54-2", cls.statins)
+        cls.private_medicine = make_medicine("PrivateMedicine", "scrum54-3", cls.statins)
+
+        Allergy.objects.create(patient=cls.maya, drug_class=cls.penicillins)
+        CurrentMedicine.objects.create(patient=cls.maya, medicine=cls.maya_medicine)
+        CurrentMedicine.objects.create(patient=cls.father, medicine=cls.father_medicine)
+        CurrentMedicine.objects.create(patient=cls.stranger, medicine=cls.private_medicine)
+
+        maya_sale = Sale.objects.create(
+            staff=cls.staff, payment_method="cash", source="counter", patient=cls.maya
+        )
+        SaleItem.objects.create(
+            sale=maya_sale, medicine=cls.maya_medicine, quantity=3, unit_price=Decimal("5.00")
+        )
+        father_sale = Sale.objects.create(
+            staff=cls.staff, payment_method="cash", source="counter", patient=cls.father
+        )
+        SaleItem.objects.create(
+            sale=father_sale, medicine=cls.father_medicine, quantity=2, unit_price=Decimal("5.00")
+        )
+        CaregiverLink.objects.create(patient=cls.father, caregiver=cls.maya_user)
+        CaregiverLink.objects.create(patient=cls.father, caregiver=cls.omar_user)
+
+    def test_3_3_signed_out_visitors_are_redirected_to_patient_login(self):
+        self.assertRedirects(self.client.get("/patients/my/"), "/login/?next=/patients/my/")
+
+    def test_3_3_staff_cannot_open_a_patient_passport(self):
+        self.client.force_login(self.staff)
+        self.assertEqual(self.client.get("/patients/my/").status_code, 403)
+
+    def test_3_3_maya_sees_her_allergies_medicines_and_dispensing_history(self):
+        self.client.force_login(self.maya_user)
+        response = self.client.get("/patients/my/")
+        self.assertContains(response, "Maya Farah")
+        self.assertContains(response, "Penicillins")
+        self.assertContains(response, "Atorvastatin")
+        self.assertContains(response, "Dispensing History")
+        self.assertContains(response, "rana")
+        self.assertContains(response, "<td>3</td>", html=True)
+        self.assertNotContains(response, "PrivateMedicine")
+
+    def test_3_3_patient_navigation_links_to_passport(self):
+        self.client.force_login(self.maya_user)
+        self.assertContains(self.client.get("/home/"), 'href="/patients/my/"')
+
+    def test_3_3_maya_can_switch_to_her_fathers_passport(self):
+        self.client.force_login(self.maya_user)
+        response = self.client.post(
+            f"/family/view/{self.father.pk}/", {"next": "/patients/my/"}
+        )
+        self.assertRedirects(response, "/patients/my/")
+        response = self.client.get("/patients/my/")
+        self.assertContains(response, "Maya&#x27;s Father", html=False)
+        self.assertContains(response, "Metformin")
+        self.assertContains(response, "<td>2</td>", html=True)
+        self.assertNotContains(response, "Atorvastatin")
+
+    def test_3_3_caregiver_without_own_patient_record_can_view_authorized_patient(self):
+        self.client.force_login(self.omar_user)
+        response = self.client.get("/patients/my/")
+        self.assertContains(response, "Metformin")
+        self.assertNotContains(response, "Atorvastatin")
+
+    def test_3_3_maya_cannot_switch_to_unrelated_patient(self):
+        self.client.force_login(self.maya_user)
+        response = self.client.post(f"/family/view/{self.stranger.pk}/")
+        self.assertEqual(response.status_code, 404)
+        self.assertNotContains(self.client.get("/patients/my/"), "PrivateMedicine")
+
+    def test_3_3_revoked_caregiver_cannot_view_old_passport(self):
+        self.client.force_login(self.maya_user)
+        self.client.post(f"/family/view/{self.father.pk}/")
+        CaregiverLink.objects.filter(patient=self.father, caregiver=self.maya_user).update(active=False)
+        response = self.client.get("/patients/my/")
+        self.assertContains(response, "Atorvastatin")
+        self.assertNotContains(response, "Metformin")
+
+    def test_3_3_unlinked_user_sees_empty_state(self):
+        self.client.force_login(make_user("unlinked", "patient"))
+        response = self.client.get("/patients/my/")
+        self.assertContains(response, "No patient passport is linked to your account")

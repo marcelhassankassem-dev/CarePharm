@@ -9,7 +9,7 @@
         <nav class="console-menu patient-menu">
             <a href="{% url 'patient_home' %}" class="{% if request.path == '/home/' %}active{% endif %}"><img src="{% static 'core/images/patient-nav-home.svg' %}" alt="">Home</a>
             <a href="/reservations/find/" class="{% if '/reservations/find/' in request.path %}active{% endif %}"><img src="{% static 'core/images/patient-nav-search.svg' %}" alt="">Find Medicine</a>
-            <span><img src="{% static 'core/images/patient-nav-passport.svg' %}" alt="">Medication Passport</span>
+            <a href="{% url 'my_passport' %}" class="{% if request.resolver_match.url_name == 'my_passport' %}active{% endif %}"><img src="{% static 'core/images/patient-nav-passport.svg' %}" alt="">Medication Passport</a>
             <a href="{% url 'assistant_chat' %}"><img src="{% static 'core/images/patient-nav-assistant.svg' %}" alt="">AI Assistant</a>
             <a href="/family/" class="{% if '/family/' in request.path %}active{% endif %}"><img src="{% static 'core/images/patient-nav-family.svg' %}" alt="">Family Access</a>
         </nav>

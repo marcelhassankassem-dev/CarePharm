@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.shortcuts import redirect, render
 
-from accounts.permissions import staff_required
+from accounts.permissions import patient_required, staff_required
 from accounts.services import create_patient_login
 from passport.forms import PatientForm, PatientLoginForm
 from passport.services import (
@@ -30,6 +30,21 @@ def patient_page_data(request):
         "viewable_patients": viewable_patients(request.user),
         "viewing": selected_patient(request),
     }
+
+
+@patient_required
+def my_passport(request):
+    patient = selected_patient(request)
+    return render(
+        request,
+        "passport/my_passport.html",
+        {
+            **patient_page_data(request),
+            "allergies": allergies_of(patient) if patient else [],
+            "current_medicines": current_medicines_of(patient) if patient else [],
+            "history": dispensing_history(patient) if patient else [],
+        },
+    )
 
 
 @staff_required

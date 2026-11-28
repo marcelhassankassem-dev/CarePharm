@@ -984,6 +984,19 @@ body {
     margin: 0;
 }
 
+.patient-passport {
+    max-width: 1120px;
+}
+
+.passport-table-scroll {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.passport-table-scroll .data-table {
+    min-width: 630px;
+}
+
 .section-title {
     margin: 24px 0 12px;
     font-size: 18px;
