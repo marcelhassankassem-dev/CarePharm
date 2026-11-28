@@ -2,8 +2,10 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_POST
 
 from accounts.forms import EditStaffForm, FamilyMemberForm, NewStaffForm
 from accounts.permissions import ROLE_PERMISSIONS, patient_required, require_owner
@@ -23,6 +25,9 @@ from core.services import activity_log, latest_notifications, pharmacy_details
 from passport.services import patient_name_for, patient_of, patients_cared_for, viewable_patient
 from passport.views import VIEWING_PATIENT, patient_page_data, selected_patient
 from reservations.services import patient_refill_requests, refill_reminders
+
+PATIENT_TEXT_SIZE_COOKIE = "carepharm_patient_text_size"
+PATIENT_TEXT_SIZES = {"standard", "large", "extra_large"}
 
 
 def site_root(request):
@@ -68,6 +73,27 @@ def patient_home(request):
     context["refill_reminders"] = refill_reminders(patient)
     context["refill_requests"] = patient_refill_requests(patient)
     return render(request, "accounts/home.html", context)
+
+
+@patient_required
+@require_POST
+def patient_text_size(request):
+    """Keep a patient's readable text-size choice across pages and visits."""
+    size = request.POST.get("text_size", "")
+    if size not in PATIENT_TEXT_SIZES:
+        return HttpResponseBadRequest("Choose a valid text size.")
+
+    return_to = address_on_this_site(request, request.POST.get("next", ""), "/home/")
+    response = redirect(return_to)
+    response.set_cookie(
+        PATIENT_TEXT_SIZE_COOKIE,
+        size,
+        max_age=365 * 24 * 60 * 60,
+        httponly=True,
+        secure=request.is_secure(),
+        samesite="Lax",
+    )
+    return response
 
 
 def family_page_data(request):

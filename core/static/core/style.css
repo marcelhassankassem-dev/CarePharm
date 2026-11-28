@@ -3300,6 +3300,96 @@ body {
     margin-right: 20px;
 }
 
+/* SCRUM-68: Patient-controlled readable text sizing across every patient screen. */
+.patient-page.patient-text-large > main { zoom: 1.15; }
+.patient-page.patient-text-extra-large > main { zoom: 1.3; }
+.patient-page .console-nav { position: relative; z-index: 30; }
+.patient-page .patient-menu { gap: clamp(12px, 1.3vw, 24px); margin-left: clamp(15px, 3vw, 60px); }
+.patient-page.patient-text-large .patient-menu { font-size: 17px; }
+.patient-page.patient-text-extra-large .patient-menu { font-size: 19px; }
+.patient-page.patient-text-large .profile-name { font-size: 16px; }
+.patient-page.patient-text-extra-large .profile-name { font-size: 18px; }
+.patient-page.patient-text-large .sign-out-button { font-size: 15px; }
+.patient-page.patient-text-extra-large .sign-out-button { font-size: 17px; }
+.patient-text-settings { position: relative; flex: none; color: #173447; }
+.patient-text-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 40px;
+    padding: 0 9px;
+    border: 1px solid #cfe2de;
+    border-radius: 9px;
+    background: #fff;
+    color: #0c6662;
+    cursor: pointer;
+    list-style: none;
+}
+.patient-text-toggle::-webkit-details-marker { display: none; }
+.patient-text-toggle:hover,
+.patient-text-settings[open] .patient-text-toggle { background: #eaf6f2; border-color: #098477; }
+.patient-text-aa { font-size: 17px; font-weight: 800; letter-spacing: -.9px; }
+.patient-text-toggle-label { font-size: 12px; font-weight: 700; white-space: nowrap; }
+.patient-text-options {
+    position: absolute;
+    top: calc(100% + 11px);
+    right: 0;
+    z-index: 50;
+    box-sizing: border-box;
+    width: 280px;
+    max-width: calc(100vw - 32px);
+    padding: 17px;
+    border: 1px solid #d4e5e1;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 12px 32px rgba(13, 53, 54, .18);
+}
+.patient-text-options h2 { margin: 0 0 4px; font-size: 18px; }
+.patient-text-options > p { margin: 0 0 12px; font-size: 12px; line-height: 1.5; color: #556b75; }
+.patient-text-options form { display: grid; gap: 7px; margin: 0; }
+.patient-text-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 47px;
+    padding: 8px 12px;
+    border: 1px solid #dfebe8;
+    border-radius: 9px;
+    color: #18394c;
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 650;
+    text-align: left;
+    cursor: pointer;
+}
+.patient-text-option:hover { background: #f0f9f5; }
+.patient-text-option.selected { border-color: #058579; background: #edf8f4; }
+.patient-text-sample { display: inline-flex; align-items: center; justify-content: center; width: 27px; }
+.patient-text-sample.standard { font-size: 15px; }
+.patient-text-sample.large { font-size: 20px; }
+.patient-text-sample.extra-large { font-size: 25px; }
+.patient-text-choice-check { margin-left: auto; color: #088578; opacity: 0; }
+.patient-text-option.selected .patient-text-choice-check { opacity: 1; }
+.patient-text-options p.patient-text-note { margin: 12px 0 0; font-size: 11px; color: #627783; }
+.patient-text-settings :focus-visible { outline: 3px solid #0aa48c; outline-offset: 3px; }
+
+@media (max-width: 1640px) {
+    .patient-text-toggle-label { display: none; }
+}
+
+@media (max-width: 1640px) {
+    .patient-page .console-nav { height: auto; min-height: 66px; flex-wrap: wrap; gap: 8px; padding-top: 7px; padding-bottom: 7px; }
+    .patient-page .patient-menu { order: 3; flex: 1 0 100%; flex-wrap: wrap; justify-content: center; gap: 12px 22px; margin: 0; }
+    .patient-page .console-profile { margin-left: auto; }
+}
+
+@media print {
+    .patient-text-settings { display: none; }
+    .patient-page > main { zoom: 1 !important; }
+}
+
 .console-page.home-page {
     background: url("images/shelf-photo.png") -382px -2px / 1823px 1026px no-repeat, #e9f4f1;
 }
@@ -4877,6 +4967,41 @@ button.family-profile {
     margin-bottom: 16px;
     font-weight: 700;
     color: #00887a;
+}
+
+/* The AI assistant has its own full-screen layout, so it shares the same setting. */
+.chat-header { position: relative; z-index: 10; }
+.chat-header .patient-text-toggle { background: #eaf8f3; }
+.chat-header .patient-text-options { color: #18394c; }
+.chat-page.patient-text-large .chat-header h1 { font-size: 29px; }
+.chat-page.patient-text-extra-large .chat-header h1 { font-size: 33px; }
+.chat-page.patient-text-large .chat-header p { font-size: 24px; }
+.chat-page.patient-text-extra-large .chat-header p { font-size: 27px; }
+.chat-page.patient-text-large .chat-message p { font-size: 23px; }
+.chat-page.patient-text-extra-large .chat-message p { font-size: 26px; }
+.chat-page.patient-text-large .chat-option,
+.chat-page.patient-text-large .chat-send input { font-size: 24px; }
+.chat-page.patient-text-extra-large .chat-option,
+.chat-page.patient-text-extra-large .chat-send input { font-size: 27px; }
+.chat-page.patient-text-large .chat-handover,
+.chat-page.patient-text-large .chat-start-over { font-size: 17px; }
+.chat-page.patient-text-extra-large .chat-handover,
+.chat-page.patient-text-extra-large .chat-start-over { font-size: 20px; }
+
+@media (max-width: 860px) {
+    .chat-box { width: 100%; }
+    .chat-header { flex-wrap: wrap; gap: 12px; padding: 10px 16px; }
+    .chat-header-robot { width: clamp(54px, 12vw, 96px); }
+    .chat-header h1 { font-size: 20px; margin-bottom: 6px; }
+    .chat-header p { font-size: 14px; gap: 12px; }
+    .chat-header .chat-close img { width: 35px; height: 35px; }
+    .chat-page .chat-messages { padding: 20px 14px; }
+    .chat-page .chat-avatar { width: 60px; height: 60px; }
+    .chat-page .chat-message p { padding: 14px; }
+    .chat-options { width: auto; margin: 0 12px; }
+    .chat-option { box-sizing: border-box; width: 100%; gap: 12px; }
+    .chat-send { margin-left: 12px; margin-right: 12px; }
+    .chat-send input { min-width: 0; }
 }
 
 .messages-layout {

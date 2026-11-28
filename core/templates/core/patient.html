@@ -2,7 +2,8 @@
 {% load static %}
 
 {% block content %}
-<div class="console-page patient-page {% block page_class %}{% endblock %}">
+{% with text_size=request.COOKIES.carepharm_patient_text_size %}
+<div class="console-page patient-page {% if text_size == 'large' %}patient-text-large{% elif text_size == 'extra_large' %}patient-text-extra-large{% endif %} {% block page_class %}{% endblock %}">
     <header class="console-nav">
         <img src="{% static 'core/images/logo.png' %}" alt="CarePharm" width="164" height="58">
 
@@ -15,6 +16,7 @@
         </nav>
 
         <div class="console-profile">
+            {% include "core/text_size_control.html" %}
             <a href="{% url 'notifications' %}" class="patient-bell{% if unread_count %} unread{% endif %}"><img src="{% static 'core/images/patient-bell.svg' %}" alt="Notifications"></a>
             {% with words=patient_name.split %}
             <span class="profile-initials">{{ words.0|first|upper }}{{ words.1|first|upper }}</span>
@@ -37,4 +39,5 @@
         {% block patient_content %}{% endblock %}
     </main>
 </div>
+{% endwith %}
 {% endblock %}
