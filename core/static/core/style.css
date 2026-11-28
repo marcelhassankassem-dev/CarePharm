@@ -984,71 +984,6 @@ body {
     margin: 0;
 }
 
-.patient-passport {
-    max-width: 1120px;
-}
-
-.passport-table-scroll {
-    width: 100%;
-    overflow-x: auto;
-}
-
-.passport-table-scroll .data-table {
-    min-width: 630px;
-}
-
-.passport-sharing-status {
-    padding: 12px 16px;
-    margin: 16px 0;
-    border: 1px solid #b8ded4;
-    border-radius: 12px;
-    font-size: 14px;
-    color: #145566;
-    background: #eef8f5;
-}
-
-.passport-share-card {
-    max-width: 820px;
-}
-
-.passport-share-card h2 {
-    margin: 0 0 8px;
-}
-
-.passport-share-description {
-    color: #4f6070;
-}
-
-.passport-share-options {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    margin: 22px 0;
-    padding: 20px;
-    border: 1px solid #d6e3e0;
-    border-radius: 12px;
-}
-
-.passport-share-options legend {
-    padding: 0 8px;
-    font-weight: 700;
-}
-
-.passport-share-options label,
-.passport-consent-label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-}
-
-.passport-share-actions {
-    display: flex;
-    gap: 14px;
-    align-items: center;
-    margin-top: 24px;
-}
-
 .section-title {
     margin: 24px 0 12px;
     font-size: 18px;
@@ -5219,1073 +5154,464 @@ button.family-profile {
     background: #dbe7f8;
 }
 
-/* Patient-facing medication passport — SCRUM-54/55 Figma layout */
-.my-passport-page .console-content {
-    padding: 34px 26px 48px;
+.passport-heading {
+    margin-bottom: 26px;
 }
 
-.med-passport-wrap {
-    max-width: 1510px;
-    margin: 0 auto;
-}
-
-.med-passport-heading {
+.passport-actions {
     display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 22px;
-    margin: 0 0 24px;
-}
-
-.med-passport-eyebrow {
-    margin: 0 0 6px;
-    color: #41616a;
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 0.7px;
-}
-
-.med-passport-heading h1 {
-    margin: 0 0 4px;
-    color: #0d2b3d;
-    font-size: clamp(30px, 3vw, 46px);
-    letter-spacing: -1.5px;
-    line-height: 1.12;
-}
-
-.med-passport-heading p:not(.med-passport-eyebrow) {
-    margin: 0;
-    color: #587383;
-    font-size: 16px;
-}
-
-.med-passport-actions,
-.med-passport-dialog-actions {
-    display: flex;
-    align-items: center;
     gap: 12px;
-    flex-shrink: 0;
-}
-
-.med-passport-actions {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-}
-
-.med-passport-revoke-form {
-    margin: 0;
-}
-
-.med-passport-button.revoke {
-    border: 1px solid #f0b7bd;
-    color: #a83343;
-    background: #fff7f8;
-}
-
-.med-passport-revoke-link {
-    margin: 5px 0 0;
-    padding: 0;
-    border: 0;
-    color: #b83d4b;
-    background: transparent;
-    font: inherit;
-    font-size: 11px;
-    font-weight: 750;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    cursor: pointer;
-}
-
-.med-passport-button.revoke:focus-visible,
-.med-passport-revoke-link:focus-visible {
-    outline: 3px solid #cc4557;
-    outline-offset: 3px;
-}
-
-.med-passport-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 9px;
-    min-height: 42px;
-    padding: 0 16px;
-    border-radius: 10px;
-    font: inherit;
-    font-size: 14px;
-    font-weight: 750;
-    text-decoration: none;
-    white-space: nowrap;
-    cursor: pointer;
-}
-
-.med-passport-button.light {
-    border: 1px solid #cce1dc;
-    color: #117469;
-    background: white;
-}
-
-.med-passport-button.dark {
-    border: 1px solid #125061;
-    color: white;
-    background: #125061;
-}
-
-.med-passport-button:hover {
-    filter: brightness(0.96);
-}
-
-.med-passport-profiles {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 9px;
-    margin: 0 0 17px;
-}
-
-.med-passport-profiles form {
-    margin: 0;
-}
-
-.med-passport-profiles button {
-    padding: 9px 16px;
-    border: 1px solid #d6e8e3;
-    border-radius: 24px;
-    color: #334b5a;
-    background: #fff;
-    font: inherit;
-    font-size: 13px;
-    cursor: pointer;
-}
-
-.med-passport-profiles button.selected {
-    border-color: #117f75;
-    background: #117f75;
-    color: white;
-}
-
-.med-passport-layout {
-    display: grid;
-    grid-template-columns: minmax(270px, 31%) minmax(0, 1fr);
-    align-items: start;
-    gap: 16px;
-}
-
-.med-passport-sidebar {
-    display: grid;
-    gap: 15px;
-}
-
-.med-passport-identity {
-    min-height: 235px;
-    padding: 22px;
-    border-radius: 17px;
-    color: white;
-    background: linear-gradient(140deg, #126172 0%, #0c485a 67%, #063e51 100%);
-    box-shadow: 0 6px 16px rgba(13, 65, 76, 0.09);
-}
-
-.med-passport-identity > p {
-    margin: 0 0 11px;
-    color: #c3e3e6;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 1.1px;
-}
-
-.med-passport-identity h2 {
-    margin: 0 0 21px;
-    color: white;
-    font-size: 24px;
-    line-height: 1.2;
-}
-
-.med-passport-identity dl {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 17px 13px;
-    margin: 0;
-}
-
-.med-passport-identity dt {
-    color: #bbdce0;
-    font-size: 11px;
-}
-
-.med-passport-identity dd {
-    margin: 3px 0 0;
-    color: white;
-    font-size: 13px;
-    font-weight: 700;
-    overflow-wrap: anywhere;
-}
-
-.med-passport-identity-foot {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    gap: 10px;
-    margin-top: 14px;
-    color: #b9dbe0;
-    font-size: 11px;
-}
-
-.med-passport-mark {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 55px;
-    height: 55px;
-    border-radius: 9px;
-    color: #105467;
-    background: white;
-    font-size: 39px;
-    font-weight: 800;
-}
-
-.med-passport-shared,
-.med-passport-section {
-    padding: 21px;
-    border-radius: 16px;
-    background: white;
-    box-shadow: 0 4px 16px rgba(15, 51, 51, 0.05);
-}
-
-.med-passport-shared {
-    display: flex;
-    flex-direction: column;
-    min-height: 315px;
-}
-
-.med-passport-shared h2 {
-    margin: 0 0 3px;
-    font-size: 18px;
-    color: #132e40;
-}
-
-.med-passport-shared > p {
-    margin: 0 0 15px;
-    color: #607485;
-    font-size: 13px;
-}
-
-.med-passport-shared-row {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 9px;
-    padding: 12px;
-    border: 1px solid #d9e7e5;
-    border-radius: 12px;
-    background: #f3faf8;
-}
-
-.med-passport-shared-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 30px;
-    height: 30px;
-    border-radius: 10px;
-    color: #137a72;
-    background: #e1f0ec;
-}
-
-.med-passport-shared-row strong,
-.med-passport-shared-row small {
-    display: block;
-}
-
-.med-passport-shared-row strong {
-    margin: 2px 0 4px;
-    font-size: 13px;
-    color: #142f40;
-}
-
-.med-passport-shared-row small {
-    color: #6c8090;
-    font-size: 11px;
-    line-height: 1.45;
-}
-
-.med-passport-status.active {
-    color: #138378;
-}
-
-.med-passport-status.expired,
-.med-passport-status.removed {
-    color: #b84b52;
-}
-
-.med-passport-shared .med-passport-share-empty {
-    margin-top: 16px;
-    font-size: 13px;
-}
-
-.med-passport-shared .med-passport-privacy-note {
-    margin-top: auto;
-    padding-top: 22px;
-    font-size: 12px;
-    line-height: 1.5;
-    color: #537c7a;
-}
-
-.med-passport-main {
-    display: grid;
-    gap: 14px;
-    min-width: 0;
-}
-
-.med-passport-section-title {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    margin-bottom: 17px;
-}
-
-.med-passport-section-title h2 {
-    margin: 0 0 3px;
-    color: #123046;
-    font-size: 18px;
-}
-
-.med-passport-section-title p {
-    margin: 0;
-    color: #63798a;
-    font-size: 12px;
-}
-
-.med-passport-symbol {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    font-size: 18px;
-    font-weight: 800;
-}
-
-.med-passport-symbol.allergy {
-    color: #cf3448;
-    background: #ffe6eb;
-}
-
-.med-passport-symbol.medicine {
-    color: #157a79;
-    background: #e1f3f1;
-}
-
-.med-passport-symbol.history {
-    color: #2862ac;
-    background: #e4efff;
-}
-
-.med-passport-count {
-    margin-left: auto;
-    padding: 6px 12px;
-    border-radius: 16px;
-    color: #0c6b69;
-    background: #e8f5f1;
-    font-size: 12px;
-    font-weight: 750;
-}
-
-.med-passport-allergy-list {
-    padding-left: 49px;
-}
-
-.med-passport-allergy-pill {
-    display: inline-block;
-    margin-right: 6px;
-    padding: 5px 11px;
-    border-radius: 14px;
-    background: #fdecf0;
-    color: #c82342;
-    font-size: 12px;
-    font-weight: 800;
-}
-
-.med-passport-empty {
-    margin: 0;
-    color: #617788;
-    font-size: 14px;
-}
-
-.med-passport-table-scroll {
-    width: 100%;
-    overflow-x: auto;
-}
-
-.med-passport-table {
-    width: 100%;
-    min-width: 560px;
-    border-spacing: 0;
-    table-layout: auto;
-}
-
-.med-passport-table th {
-    padding: 11px 12px;
-    text-align: left;
-    color: #718999;
-    background: #eef8f5;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.4px;
-}
-
-.med-passport-table th:first-child {
-    border-radius: 9px 0 0 9px;
-}
-
-.med-passport-table th:last-child {
-    border-radius: 0 9px 9px 0;
-}
-
-.med-passport-table td {
-    padding: 13px 12px;
-    border-bottom: 1px solid #e8eeee;
-    color: #385465;
-    font-size: 13px;
-}
-
-.med-passport-table td:first-child,
-.med-passport-table strong {
-    color: #143044;
-}
-
-.med-passport-table tbody tr:last-child td {
-    border-bottom: 0;
-}
-
-.med-passport-table td small {
-    color: #6e8796;
-}
-
-.med-passport-view-all {
-    margin-left: auto;
-    padding: 6px 0;
-    border: 0;
-    background: transparent;
-    color: #08776e;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 750;
-    cursor: pointer;
-}
-
-.med-passport-history-extra {
-    display: none;
-}
-
-.show-all .med-passport-history-extra {
-    display: table-row;
-}
-
-/* Patient sharing dialog */
-.med-passport-dialog {
-    width: min(490px, calc(100vw - 32px));
-    max-height: 92vh;
-    padding: 0;
-    border: none;
-    border-radius: 17px;
-    color: #0e273b;
-    background: white;
-    box-shadow: 0 24px 65px rgba(6, 35, 50, 0.25);
-}
-
-.med-passport-dialog::backdrop {
-    background: rgba(10, 32, 44, 0.48);
-}
-
-.med-passport-dialog form {
-    margin: 0;
-}
-
-.med-passport-dialog-heading {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 22px 23px 16px;
-    border-bottom: 1px solid #e8eeee;
-}
-
-.med-passport-dialog-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 41px;
-    height: 41px;
-    border-radius: 50%;
-    color: #0c7b76;
-    background: #e4f5f0;
-    font-size: 19px;
-}
-
-.med-passport-dialog-heading h2 {
-    margin: 0 0 4px;
-    font-size: 20px;
-}
-
-.med-passport-dialog-heading p {
-    margin: 0;
-    color: #738593;
-    font-size: 12px;
-}
-
-.med-passport-dialog-close {
-    margin-left: auto;
-    border: 0;
-    background: transparent;
-    color: #6f7e89;
-    font-size: 27px;
-    cursor: pointer;
-}
-
-.med-passport-dialog-body {
-    padding: 20px 23px 5px;
-}
-
-.med-passport-input-label,
-.med-passport-modal-options legend,
-.med-passport-duration-row label {
-    display: block;
-    margin-bottom: 8px;
-    color: #203a4b;
-    font-size: 13px;
-    font-weight: 800;
-}
-
-.med-passport-pharmacy-select,
-.med-passport-duration-row select {
-    width: 100%;
-    min-height: 41px;
-    padding: 0 12px;
-    border: 1.5px solid #138b7e;
-    border-radius: 10px;
-    color: #15394a;
-    background: white;
-    font: inherit;
-    font-size: 13px;
-}
-
-.med-passport-dialog-help {
-    display: block;
-    margin: 6px 0 21px;
-    color: #738593;
-    font-size: 11px;
-}
-
-.med-passport-modal-options {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 13px 12px;
-    margin: 0 0 24px;
-    padding: 0;
-    border: 0;
-}
-
-.med-passport-modal-options legend {
-    grid-column: 1 / -1;
-    margin-bottom: 13px;
-}
-
-.med-passport-modal-options label,
-.med-passport-modal-consent {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    color: #173649;
-    font-size: 13px;
-    cursor: pointer;
-}
-
-.med-passport-modal-options input[type="checkbox"],
-.med-passport-modal-consent input[type="checkbox"] {
-    accent-color: #147c74;
-    width: 16px;
-    height: 16px;
-    margin: 0;
-    flex-shrink: 0;
-}
-
-.med-passport-duration-row {
-    display: grid;
-    grid-template-columns: 165px minmax(0, 1fr);
-    column-gap: 12px;
-    align-items: center;
     margin-bottom: 18px;
 }
 
-.med-passport-duration-row label {
-    grid-column: 1 / -1;
+.passport-actions .secondary-button {
+    width: 184px;
+    gap: 10px;
+    border-color: #cfe3de;
+    font-family: inherit;
+    cursor: pointer;
 }
 
-.med-passport-duration-row small {
-    color: #718898;
+.passport-actions .primary-button {
+    width: 210px;
+    white-space: nowrap;
+}
+
+.passport-layout {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 16px;
+    align-items: start;
+}
+
+.passport-side,
+.passport-main {
+    display: grid;
+    gap: 16px;
+}
+
+.passport-id-card {
+    min-height: 244px;
+    padding: 22px 24px;
+    border-radius: 20px;
+    color: white;
+    background: linear-gradient(90deg, #145566, #0b3b49);
+    box-shadow: 0 4px 16px rgba(15, 51, 51, 0.06);
+}
+
+.passport-id-title {
+    margin: 0;
     font-size: 11px;
-    line-height: 1.4;
+    font-weight: 700;
+    letter-spacing: 0.88px;
+    color: rgba(255, 255, 255, 0.7);
 }
 
-.med-passport-duration-row select {
-    border-color: #d7e6e2;
+.passport-id-card h2 {
+    margin: 8px 0 24px;
+    font-size: 26px;
 }
 
-.med-passport-modal-consent {
-    padding: 15px;
-    border: 1px solid #d5ebe5;
-    border-radius: 10px;
-    background: #eff9f6;
+.passport-id-card dl {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 18px 0;
+    margin: 0;
+}
+
+.passport-id-card dt {
     font-size: 12px;
-    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.7);
 }
 
-.med-passport-dialog-actions {
-    justify-content: flex-end;
-    padding: 14px 23px 23px;
+.passport-id-card dd {
+    margin: 3px 0 0;
+    font-size: 14px;
+    font-weight: 700;
 }
 
-.med-passport-revoke-dialog {
-    width: min(465px, calc(100vw - 32px));
+.passport-shared h2,
+.passport-section h2 {
+    margin: 0;
+    font-size: 18px;
 }
 
-.med-passport-dialog-icon.revoke {
-    color: #b63148;
-    background: #ffe7ea;
-    font-weight: 850;
+.passport-card-intro {
+    margin: 6px 0 18px;
+    font-size: 13px;
+    color: #4f6070;
 }
 
-.med-passport-revoke-recipient {
+.passport-share {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 12px;
-    padding: 15px;
-    border: 1px solid #d8e9e4;
+    margin-bottom: 12px;
+    padding: 14px;
+    border: 1px solid #e1e9e8;
     border-radius: 12px;
-    background: #f1faf7;
 }
 
-.med-passport-revoke-recipient-icon {
+.passport-share.active {
+    border-color: #cfe9e2;
+    background: #eef8f5;
+}
+
+.passport-share-icon,
+.passport-section-icon,
+.passport-popup-icon {
+    position: relative;
     display: flex;
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
+}
+
+.passport-share-icon img:first-child,
+.passport-section-icon img:first-child,
+.passport-popup-icon img:first-child {
+    position: absolute;
+    inset: 0;
+}
+
+.passport-share-icon {
     width: 36px;
     height: 36px;
-    border-radius: 11px;
-    color: #137b74;
-    background: #dbf0e9;
 }
 
-.med-passport-revoke-recipient strong,
-.med-passport-revoke-recipient small {
+.passport-share-icon img + img,
+.passport-section-icon img + img,
+.passport-popup-icon img + img {
+    position: relative;
+}
+
+.passport-share-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.passport-share-text strong {
     display: block;
+    font-size: 14.5px;
+    color: #0f2233;
 }
 
-.med-passport-revoke-recipient strong {
-    color: #143348;
-    font-size: 14px;
-}
-
-.med-passport-revoke-recipient small {
+.passport-share-text small {
+    display: block;
     margin-top: 3px;
-    color: #677f8b;
-    font-size: 11px;
-    line-height: 1.4;
+    font-size: 12.5px;
+    color: #7c8a96;
 }
 
-.med-passport-revoke-active {
-    margin-left: auto;
-    padding: 5px 9px;
-    border-radius: 16px;
-    color: #117c70;
-    background: #ddefe8;
-    font-size: 11px;
-    font-weight: 800;
-}
-
-.med-passport-revoke-warning {
-    margin: 15px 0 12px;
-    color: #536c78;
-    font-size: 13px;
-    line-height: 1.6;
-}
-
-.med-passport-revoke-warning strong {
-    color: #a92e42;
-}
-
-.med-passport-button.revoke-confirm {
-    border: 1px solid #b63649;
-    color: white;
-    background: #b63649;
-}
-
-.med-passport-button.revoke-confirm:hover {
-    background: #9f293b;
-}
-
-.med-passport-wrap :focus-visible,
-.med-passport-dialog :focus-visible {
-    outline: 3px solid #2a9d91;
-    outline-offset: 3px;
-}
-
-@media (max-width: 1050px) {
-    .med-passport-heading {
-        align-items: flex-start;
-        flex-wrap: wrap;
-    }
-    .med-passport-layout {
-        grid-template-columns: minmax(245px, 34%) minmax(0, 1fr);
-    }
-}
-
-@media (max-width: 750px) {
-    .my-passport-page .console-content {
-        padding: 22px 15px 36px;
-    }
-    .med-passport-layout {
-        grid-template-columns: 1fr;
-    }
-    .med-passport-shared {
-        min-height: 0;
-    }
-    .med-passport-heading h1 {
-        font-size: 31px;
-    }
-}
-
-@media (max-width: 460px) {
-    .med-passport-actions {
-        flex-wrap: wrap;
-    }
-    .med-passport-modal-options {
-        grid-template-columns: 1fr;
-    }
-    .med-passport-duration-row {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media print {
-    .my-passport-page .console-nav,
-    .med-passport-actions,
-    .med-passport-profiles,
-    .med-passport-shared,
-    .med-passport-dialog,
-    .med-passport-view-all {
-        display: none !important;
-    }
-    .med-passport-revoke-form {
-        display: none !important;
-    }
-    .med-passport-layout {
-        display: block;
-    }
-    .med-passport-sidebar {
-        margin-bottom: 18px;
-    }
-    .med-passport-identity {
-        color: #0e2c3f;
-        background: white !important;
-        border: 1px solid #bfd8d5;
-    }
-    .med-passport-identity h2,
-    .med-passport-identity dd {
-        color: #0e2c3f;
-    }
-    .med-passport-section {
-        box-shadow: none;
-        border: 1px solid #dce9e5;
-        break-inside: avoid;
-    }
-    .med-passport-history-extra {
-        display: table-row;
-    }
-}
-
-/* Pharmacist patient records — CarePharm passport dashboard */
-.staff-patients-page .page-heading {
-    align-items: flex-end;
-    margin-bottom: 24px;
-}
-
-.staff-patients-page .page-eyebrow,
-.staff-patients-page .page-heading h1,
-.staff-patients-page .page-intro {
-    padding-left: 0;
-}
-
-.staff-patients-page .page-heading h1 {
-    font-size: clamp(36px, 3.3vw, 48px);
-    line-height: 1.06;
-}
-
-.staff-patients-page .page-intro {
+.passport-share-link {
+    display: block;
     margin-top: 6px;
-    font-size: clamp(14px, 1.15vw, 18px);
-}
-
-.staff-patients-page .console-actions {
-    align-items: center;
-    margin-bottom: 0;
-}
-
-.staff-patients-caregiver-link {
     font-size: 12px;
+    color: #14756f;
+    word-break: break-all;
+}
+
+.passport-remove {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 12.5px;
     font-weight: 700;
-    color: #117b72;
+    color: #c8102e;
     text-decoration: none;
 }
 
-.staff-patients-caregiver-link:hover {
-    text-decoration: underline;
+.passport-share-status {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #4f6070;
+    background: #eef1f3;
 }
 
-.staff-patients-page .console-actions .primary-button {
-    width: auto;
-    min-width: 150px;
-    height: 44px;
-    margin-bottom: 0;
-    border-radius: 10px;
+.passport-share-status.active {
+    color: #14756f;
+    background: #e3f4f0;
+}
+
+.passport-privacy {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    margin: 24px 0 0;
     font-size: 13px;
+    line-height: 1.4;
+    color: #4f6070;
 }
 
-.staff-patients-page .patients-layout {
-    grid-template-columns: minmax(245px, 28%) minmax(0, 1fr);
-    gap: 15px;
-    align-items: stretch;
+.passport-section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
 }
 
-.staff-patients-page .patients-layout > .card {
-    min-width: 0;
+.passport-section-icon {
+    width: 40px;
+    height: 40px;
+}
+
+.passport-section-header p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: #4f6070;
+}
+
+.passport-count {
+    margin-left: auto;
+    padding: 6px 12px;
+    border-radius: 14px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #0e4a5a;
+    background: #e3f4f0;
+}
+
+.passport-allergies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 16px 0 4px 54px;
+}
+
+.passport-allergies .empty-note {
+    margin: 0;
+}
+
+.passport-allergy,
+.passport-medicine {
+    padding: 6px 14px;
+    border: 1px solid #f8d3d8;
     border-radius: 15px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #c8102e;
+    background: #fdecee;
 }
 
-.staff-patients-page .patient-list {
-    padding: 18px 8px 24px;
+.passport-medicine {
+    border-color: #cfe9e2;
+    color: #0f2233;
+    background: #eef8f5;
 }
 
-.staff-patients-page .patient-list input {
-    height: 43px;
-    border-radius: 10px;
-    font-size: 13px;
+.passport-table {
+    width: 100%;
+    margin-top: 22px;
+    border-spacing: 0;
 }
 
-.staff-patients-page .patient-list input:focus-visible {
-    outline: 2px solid #11877b;
-    outline-offset: 2px;
+.passport-table th {
+    padding: 10px 16px;
+    font-size: 11.5px;
+    letter-spacing: 0.69px;
+    text-align: left;
+    color: #7c8a96;
+    background: #eef8f5;
 }
 
-.staff-patients-page .list-title {
-    margin-top: 17px;
-    margin-bottom: 12px;
-    color: #8194a1;
+.passport-table th:first-child {
+    border-radius: 10px 0 0 10px;
 }
 
-.staff-patients-page .patient-row {
-    min-height: 65px;
-    padding: 10px 10px;
-    border-left-width: 4px;
-    border-bottom: 1px solid #ebf1f0;
-    border-radius: 2px;
+.passport-table th:last-child {
+    border-radius: 0 10px 10px 0;
 }
 
-.staff-patients-page .patient-row:last-of-type {
+.passport-table td {
+    padding: 13px 16px 12px;
+    border-bottom: 1px solid #e1e9e8;
+    font-size: 13.5px;
+    color: #1f3345;
+}
+
+.passport-table tr:last-child td {
     border-bottom: 0;
 }
 
-.staff-patients-page .patient-row:hover {
-    background: #f3faf7;
-}
-
-.staff-patients-page .patient-row.selected {
-    border-radius: 7px;
-}
-
-.staff-patients-page .avatar.small {
-    width: 42px;
-    height: 42px;
-}
-
-.staff-patients-page .patient-row-text strong {
+.passport-table strong {
     font-size: 14px;
+    color: #0f2233;
 }
 
-.staff-patients-page .patient-row-text small {
-    overflow: hidden;
-    font-size: 11px;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+.passport-table .passport-refill {
+    font-weight: 700;
+    color: #14756f;
 }
 
-.staff-patients-page .patient-row .pill {
-    flex-shrink: 0;
-    padding: 4px 8px;
-    font-size: 10px;
+.passport-table .passport-no-refill {
+    color: #7c8a96;
 }
 
-.staff-patients-page .staff-patients-detail {
-    padding: 24px 22px 28px;
+.passport-popup-icon {
+    width: 44px;
+    height: 44px;
 }
 
-.staff-patients-page .passport-header {
-    min-height: 82px;
-    padding-bottom: 18px;
-}
-
-.staff-patients-page .passport-header .avatar {
-    width: 64px;
-    height: 64px;
-}
-
-.staff-patients-page .passport-header h2 {
-    margin-bottom: 4px;
-    font-size: clamp(23px, 2.15vw, 29px);
-}
-
-.staff-patients-page .passport-header p {
-    font-size: 12px;
-    line-height: 1.45;
-}
-
-.staff-patients-identity {
-    min-width: 0;
-    flex: 1;
-}
-
-.staff-patients-prescription {
-    flex-shrink: 0;
-    height: 37px;
-    padding: 0 14px;
-    border-radius: 8px;
-    font-size: 12px;
-}
-
-.staff-patients-page .passport-cards {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    margin-top: 18px;
-}
-
-.staff-patients-page .passport-card {
-    min-width: 0;
-    min-height: 122px;
-    padding: 15px;
-    border-radius: 10px;
-    font-size: 12px;
-}
-
-.staff-patients-page .passport-card h3 {
-    margin-bottom: 12px;
-    font-size: 13px;
-}
-
-.staff-patients-page .passport-card p {
-    line-height: 1.5;
-}
-
-.staff-patients-page .passport-card small {
+.passport-send-form label,
+.passport-send-label {
     display: block;
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1f3345;
+}
+
+.passport-pharmacy-field {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.passport-pharmacy-field img {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+}
+
+.passport-pharmacy-field input {
+    width: 100%;
+    height: 48px;
+    padding: 0 16px 0 44px;
+    border: 2px solid #14756f;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 15px;
+}
+
+.passport-sections > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 0;
+    margin-bottom: 22px;
+}
+
+.passport-send-form .passport-sections label,
+.passport-send-form .passport-consent {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    font-size: 15px;
+    font-weight: 400;
+    cursor: pointer;
+}
+
+.passport-send-form input[type="checkbox"] {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    margin: 0;
+    accent-color: #14756f;
+}
+
+.passport-days {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.passport-days select {
+    flex-shrink: 0;
+    width: 240px;
+    height: 48px;
+    padding: 0 16px;
+    border: 1px solid #d6e3e0;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 15px;
+    background: white;
+}
+
+.passport-days p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #4f6070;
+}
+
+.passport-send-form .passport-consent {
+    align-items: flex-start;
+    margin-top: 24px;
+    padding: 16px 18px;
+    border: 1px solid #cfe9e2;
+    border-radius: 12px;
+    font-size: 13.5px;
+    line-height: 1.4;
+    background: #eef8f5;
+}
+
+.passport-send-form .popup-actions {
+    margin-top: 28px;
+}
+
+.passport-remove-button {
+    background: #c8102e;
+}
+
+.passport-cards.three {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.passport-card.sharing {
+    border-color: #cfe9e2;
+    background: #eef8f5;
+}
+
+.passport-card p + p {
     margin-top: 6px;
-    line-height: 1.5;
-    color: #647e8c;
 }
 
-.staff-patients-page .passport-card .pill.outlined {
-    padding: 5px 10px;
-    border: 0;
-    font-size: 11px;
+.patient-new-prescription {
+    margin-left: auto;
 }
 
-.staff-patients-warning {
-    margin-right: 4px;
+.shared-passport-page {
+    max-width: 1000px;
+    min-height: 100vh;
+    margin: 0 auto;
+    padding: 24px 29px 48px;
 }
 
-.staff-patients-sharing-card {
-    border-color: #cde7df !important;
-    background: #eff8f5;
+.shared-passport-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    font-size: 14px;
+    color: #4f6070;
 }
 
-.staff-patients-section-title {
-    margin: 24px 0 10px;
-    font-size: 17px;
+.shared-passport-page h1 {
+    margin: 0;
+    padding-left: 12px;
+    font-size: 46px;
 }
 
-.staff-patients-table-wrap {
-    overflow-x: auto;
+.shared-passport-sections {
+    display: grid;
+    gap: 16px;
+    margin-top: 24px;
 }
 
-.staff-patients-page .data-table {
-    min-width: 580px;
-    table-layout: auto;
+.shared-passport-ended {
+    margin-top: 24px;
 }
 
-.staff-patients-page .data-table th {
-    padding: 9px 12px;
-    font-size: 10px;
+.shared-passport-ended h2 {
+    margin: 0 0 8px;
 }
 
-.staff-patients-page .data-table td {
-    height: 42px;
-    padding: 8px 12px;
-    font-size: 12px;
-}
-
-.staff-patients-page .history-table th {
-    width: auto;
-}
-
-.staff-patients-page .medicine-table td strong,
-.staff-patients-page .history-table td strong {
-    color: #102b39;
-    font-size: 12px;
-}
-
-.staff-patients-page .empty-note {
-    margin: 12px 2px;
-}
-
-@media (max-width: 1060px) {
-    .staff-patients-page .passport-cards {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .staff-patients-sharing-card {
-        grid-column: 1 / -1;
-        min-height: 0 !important;
-    }
-}
-
-@media (max-width: 750px) {
-    .staff-patients-page .page-heading {
-        align-items: flex-start;
-        flex-direction: column;
-        gap: 15px;
-    }
-    .staff-patients-page .patients-layout {
-        grid-template-columns: minmax(0, 1fr);
-    }
-    .staff-patients-page .patient-list {
-        max-height: 365px;
-        overflow-y: auto;
-    }
-}
-
-@media (max-width: 460px) {
-    .staff-patients-page .passport-cards {
-        grid-template-columns: minmax(0, 1fr);
-    }
-    .staff-patients-sharing-card {
-        grid-column: auto;
-    }
-    .staff-patients-page .passport-header {
-        flex-wrap: wrap;
-    }
-    .staff-patients-prescription {
-        margin-left: auto;
-    }
-    .staff-patients-page .staff-patients-detail {
-        padding: 16px 14px;
+@media print {
+    .console-nav,
+    .passport-actions,
+    .profile-switch,
+    .passport-shared,
+    .console-message {
+        display: none;
     }
 }

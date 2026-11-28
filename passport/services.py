@@ -1,17 +1,19 @@
+import secrets
 from datetime import timedelta
 
-from django.conf import settings
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from accounts.services import staff_members
 from accounts.services import create_patient_login
-from core.services import notify, unread_count
+from core.services import unread_count
 from passport.models import Allergy, CurrentMedicine, PassportShare, Patient
+from sales.services import dispensing_history
+
+SHARE_DAYS = (1, 3, 7, 14, 30)
 
 
 @transaction.atomic
@@ -113,66 +115,82 @@ def current_medicines_of(patient):
     return CurrentMedicine.objects.filter(patient=patient).select_related("medicine")
 
 
-def active_passport_share(patient):
-    if patient is None:
-        return None
-    # Expiration is checked when staff requests the passport, so no background
-    # job is needed. An older grant with no expiry must fail closed as well.
-    return (
-        PassportShare.objects.filter(
-            patient=patient,
-            pharmacy_name=settings.PHARMACY_NAME,
-            revoked_at__isnull=True,
-            expires_at__gt=timezone.now(),
-        )
-        .order_by("-consented_at", "-pk")
-        .first()
-    )
+def passport_medicines(patient, next_refills):
+    return [
+        {"medicine": current.medicine, "next_refill": next_refills.get(current.medicine_id)}
+        for current in current_medicines_of(patient)
+    ]
 
 
-@transaction.atomic
-def share_passport(
-    patient, user, *, include_contact=False, include_allergies=False,
-    include_medicines=False, include_history=False, access_days=7,
-):
-    if patient is None or patient.user_id != user.pk:
-        raise PermissionDenied("Only the patient can consent to share their passport.")
-    if not any((include_contact, include_allergies, include_medicines, include_history)):
-        raise ValidationError("Select at least one section to share.")
-    if access_days not in (1, 3, 7, 14, 30):
-        raise ValidationError("Choose a valid access duration.")
+def age_of(patient, today=None):
+    today = today or timezone.localdate()
+    born = patient.date_of_birth
+    birthday_not_reached = (today.month, today.day) < (born.month, born.day)
+    return today.year - born.year - birthday_not_reached
 
-    # Replacing a previous share must not leave its broader permissions active.
-    now = timezone.now()
-    PassportShare.objects.filter(patient=patient, revoked_at__isnull=True).update(revoked_at=now)
-    share = PassportShare.objects.create(
+
+def share_passport(patient, pharmacy_name, sections, days):
+    if not sections:
+        raise ValidationError("Choose at least one section to share.")
+    if days not in SHARE_DAYS:
+        raise ValidationError("Choose how many days the pharmacy can see your passport.")
+    return PassportShare.objects.create(
         patient=patient,
-        consented_by=user,
-        pharmacy_name=settings.PHARMACY_NAME,
-        include_contact=include_contact,
-        include_allergies=include_allergies,
-        include_medicines=include_medicines,
-        include_history=include_history,
-        expires_at=now + timedelta(days=access_days),
+        token=secrets.token_urlsafe(24),
+        pharmacy_name=pharmacy_name,
+        include_contact="contact" in sections,
+        include_allergies="allergies" in sections,
+        include_medicines="medicines" in sections,
+        include_history="history" in sections,
+        expires_at=timezone.now() + timedelta(days=days),
     )
-    for staff in staff_members().filter(is_active=True):
-        notify(staff, f"{patient.name} shared a medication passport with the pharmacy.", f"/patients/{patient.pk}/")
-    return share
 
 
-@transaction.atomic
-def revoke_passport_share(patient, user, share_id):
-    """Remove one consent grant without affecting a newer replacement grant."""
-    if patient is None or patient.user_id != user.pk:
-        raise PermissionDenied("Only the patient can remove pharmacy access to their passport.")
+def share_is_open(share):
+    return not share.revoked and timezone.now() < share.expires_at
 
-    share = get_object_or_404(
-        PassportShare,
-        pk=share_id,
-        patient=patient,
-        pharmacy_name=settings.PHARMACY_NAME,
-    )
-    if share.revoked_at is None:
-        share.revoked_at = timezone.now()
-        share.save(update_fields=["revoked_at"])
-    return share
+
+def share_status(share):
+    if share.revoked:
+        return "Removed"
+    if share_is_open(share):
+        return "Active"
+    return "Expired"
+
+
+def shares_of(patient):
+    return PassportShare.objects.filter(patient=patient).order_by("-created_at", "-id")
+
+
+def share_rows(patient):
+    return [{"share": share, "status": share_status(share)} for share in shares_of(patient)]
+
+
+def open_shares_of(patient):
+    return [share for share in shares_of(patient) if share_is_open(share)]
+
+
+def get_share(patient, share_id):
+    return get_object_or_404(PassportShare, pk=share_id, patient=patient)
+
+
+def remove_share(share):
+    share.revoked = True
+    share.save()
+
+
+def shared_passport(token):
+    return get_object_or_404(PassportShare.objects.select_related("patient"), token=token)
+
+
+def shared_sections(share):
+    if not share_is_open(share):
+        return {"is_open": False}
+    patient = share.patient
+    return {
+        "is_open": True,
+        "contact": share.include_contact,
+        "allergies": allergies_of(patient) if share.include_allergies else None,
+        "medicines": current_medicines_of(patient) if share.include_medicines else None,
+        "history": dispensing_history(patient) if share.include_history else None,
+    }

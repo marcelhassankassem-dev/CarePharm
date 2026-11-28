@@ -207,6 +207,11 @@ def refill_reminders(patient):
     return sorted(reminders, key=lambda reminder: reminder["days_left"])
 
 
+def next_refill_dates(patient):
+    items = latest_item_of_each_medicine(collected_long_term_items(patient))
+    return {item.medicine_id: runs_out_on(item) for item in items}
+
+
 def patient_refill_requests(patient):
     return (
         open_refill_requests()
