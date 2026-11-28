@@ -11,9 +11,11 @@ from django.utils import timezone
 from accounts.models import CaregiverLink
 from inventory.models import DrugClass, Medicine
 from passport.forms import PatientChoiceForm
-from passport.models import Allergy, CurrentMedicine, Patient
+from passport.models import Allergy, CurrentMedicine, PassportShare, Patient
+from core.models import Notification
 from core.services import notify
 from passport.services import (
+    active_passport_share,
     add_current_medicine,
     create_patient,
     find_patients,
@@ -197,6 +199,9 @@ class FindPatientsTests(TestCase):
     def test_3_1_search_finds_part_of_a_phone_number(self):
         self.assertEqual(list(find_patients("100 002")), [self.maya])
 
+    def test_3_1_search_finds_a_passport_id(self):
+        self.assertEqual(list(find_patients(f"CP-{self.maya.pk:05d}")), [self.maya])
+
     def test_3_1_search_with_no_match_finds_nobody(self):
         self.assertEqual(list(find_patients("nobody")), [])
 
@@ -361,6 +366,22 @@ class PatientsPageTests(TestCase):
         self.assertContains(response, "03 100 001")
         self.assertContains(response, "Penicillins")
         self.assertContains(response, "Atorvastatin 500 mg")
+
+    def test_staff_patient_dashboard_matches_the_three_card_layout(self):
+        response = self.client.get(f"/patients/{self.samira.pk}/")
+        self.assertContains(response, 'class="card staff-patients-detail"')
+        self.assertContains(response, "Passport Sharing")
+        self.assertContains(response, "DOSE")
+        self.assertContains(response, "STARTED")
+        self.assertContains(response, "Not recorded")
+        self.assertContains(response, f"CP-{self.samira.pk:05d}")
+
+    def test_pharmacist_can_start_a_prescription_for_selected_patient(self):
+        self.client.force_login(make_user("rina", "pharmacist"))
+        patient_page = self.client.get(f"/patients/{self.samira.pk}/")
+        self.assertContains(patient_page, f'/prescriptions/new/?patient={self.samira.pk}')
+        new_prescription = self.client.get("/prescriptions/new/", {"patient": self.samira.pk})
+        self.assertEqual(new_prescription.context["form"].initial["patient"], self.samira.pk)
 
     def test_3_1_a_patient_with_no_allergies_says_so(self):
         response = self.client.get(f"/patients/{self.maya.pk}/")
@@ -687,3 +708,188 @@ class MyMedicationPassportTests(TestCase):
         self.client.force_login(make_user("unlinked", "patient"))
         response = self.client.get("/patients/my/")
         self.assertContains(response, "No patient passport is linked to your account")
+
+
+class PassportSharingConsentTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.maya_user = make_user("maya_share", "patient")
+        cls.maya = Patient.objects.create(
+            name="Maya Share", date_of_birth=date(1990, 9, 21), phone="03 100 002", user=cls.maya_user
+        )
+        cls.stranger_user = make_user("stranger_share", "patient")
+        cls.stranger = Patient.objects.create(
+            name="Other Patient", date_of_birth=date(1985, 1, 1), user=cls.stranger_user
+        )
+        cls.caregiver = make_user("caregiver_share", "patient")
+        CaregiverLink.objects.create(patient=cls.maya, caregiver=cls.caregiver)
+        cls.staff = make_user("rana_share", "pharmacist")
+        cls.penicillins = DrugClass.objects.create(name="Penicillins Share")
+        cls.statins = DrugClass.objects.create(name="Statins Share")
+        cls.medicine = make_medicine("Atorvastatin Share", "scrum55-1", cls.statins)
+        Allergy.objects.create(patient=cls.maya, drug_class=cls.penicillins)
+        CurrentMedicine.objects.create(patient=cls.maya, medicine=cls.medicine)
+        sale = Sale.objects.create(
+            staff=cls.staff, patient=cls.maya, payment_method="cash", source="counter"
+        )
+        SaleItem.objects.create(
+            sale=sale, medicine=cls.medicine, quantity=3, unit_price=Decimal("5.00")
+        )
+
+    def share(self, **overrides):
+        values = {"include_allergies": "on", "consent": "on", **overrides}
+        return self.client.post("/patients/my/share/", values)
+
+    def test_3_4a_share_page_requires_patient_login(self):
+        self.assertRedirects(
+            self.client.get("/patients/my/share/"),
+            "/login/?next=/patients/my/share/",
+        )
+
+    def test_3_4a_staff_cannot_consent_as_a_patient(self):
+        self.client.force_login(self.staff)
+        self.assertEqual(self.client.get("/patients/my/share/").status_code, 403)
+
+    def test_3_4a_patients_can_choose_sections_and_view_the_recipient(self):
+        self.client.force_login(self.maya_user)
+        response = self.client.get("/patients/my/share/")
+        self.assertContains(response, "Recipient: CarePharm")
+        self.assertContains(response, "Allergies")
+        self.assertContains(response, "Active medicines")
+        self.assertContains(response, "Dispensing history")
+        self.assertContains(response, "Confirm Consent")
+        self.assertFalse(PassportShare.objects.exists())
+
+    def test_3_4a_consent_checkbox_is_required(self):
+        self.client.force_login(self.maya_user)
+        response = self.client.post("/patients/my/share/", {"include_allergies": "on"})
+        self.assertContains(response, "Confirm your consent before sharing your passport.")
+        self.assertFalse(PassportShare.objects.exists())
+
+    def test_3_4a_at_least_one_section_must_be_selected(self):
+        self.client.force_login(self.maya_user)
+        response = self.client.post("/patients/my/share/", {"consent": "on"})
+        self.assertContains(response, "Select at least one section to share.")
+        self.assertFalse(PassportShare.objects.exists())
+
+    def test_3_4a_staff_cannot_see_passport_sections_without_consent(self):
+        self.client.force_login(self.staff)
+        response = self.client.get(f"/patients/{self.maya.pk}/")
+        self.assertContains(response, "has not shared their Medication Passport")
+        self.assertNotContains(response, "Penicillins Share")
+        self.assertNotContains(response, "Atorvastatin Share")
+
+    def test_3_4a_patient_can_share_only_allergies(self):
+        self.client.force_login(self.maya_user)
+        self.assertRedirects(self.share(), "/patients/my/")
+        share = PassportShare.objects.get(patient=self.maya)
+        self.assertEqual(share.consented_by, self.maya_user)
+        self.assertEqual(share.pharmacy_name, "CarePharm")
+        self.assertTrue(share.include_allergies)
+        self.assertFalse(share.include_medicines)
+        self.assertFalse(share.include_history)
+        self.assertIsNotNone(share.consented_at)
+        self.assertEqual(Notification.objects.filter(user=self.staff).count(), 1)
+
+        self.client.force_login(self.staff)
+        response = self.client.get(f"/patients/{self.maya.pk}/")
+        self.assertContains(response, "Penicillins Share")
+        self.assertNotContains(response, "Atorvastatin Share")
+        self.assertContains(response, "Not shared by patient", count=3)
+
+    def test_3_4a_patient_can_share_medicines_and_history(self):
+        self.client.force_login(self.maya_user)
+        self.share(include_allergies="", include_medicines="on", include_history="on")
+        self.client.force_login(self.staff)
+        response = self.client.get(f"/patients/{self.maya.pk}/")
+        self.assertContains(response, "Atorvastatin Share")
+        self.assertContains(response, "<td>3</td>", html=True)
+        self.assertNotContains(response, "Penicillins Share")
+
+    def test_3_4a_updating_sections_revokes_the_old_consent(self):
+        self.client.force_login(self.maya_user)
+        self.share(include_allergies="on", include_medicines="on")
+        previous = active_passport_share(self.maya)
+        self.share(include_allergies="", include_history="on")
+        previous.refresh_from_db()
+        self.assertIsNotNone(previous.revoked_at)
+        new_share = active_passport_share(self.maya)
+        self.assertNotEqual(new_share.pk, previous.pk)
+        self.assertTrue(new_share.include_history)
+        self.assertFalse(new_share.include_allergies)
+        self.assertFalse(new_share.include_medicines)
+
+    def test_3_4a_caregiver_cannot_consent_on_behalf_of_patient(self):
+        self.client.force_login(self.caregiver)
+        self.assertEqual(self.client.get("/patients/my/share/").status_code, 403)
+        self.assertEqual(self.share().status_code, 403)
+        self.assertFalse(PassportShare.objects.exists())
+
+    def test_3_4a_sharing_applies_only_to_owners_record(self):
+        self.client.force_login(self.stranger_user)
+        self.share(patient=self.maya.pk)
+        self.assertEqual(PassportShare.objects.get().patient, self.stranger)
+
+    def test_3_4a_expired_or_revoked_grant_does_not_allow_staff_access(self):
+        self.client.force_login(self.maya_user)
+        self.share()
+        share = PassportShare.objects.get()
+        share.expires_at = timezone.now() - timedelta(days=1)
+        share.save()
+        self.assertIsNone(active_passport_share(self.maya))
+        self.client.force_login(self.staff)
+        response = self.client.get(f"/patients/{self.maya.pk}/")
+        self.assertNotContains(response, "Penicillins Share")
+
+    def test_3_4a_patient_passport_shows_share_button_and_state(self):
+        self.client.force_login(self.maya_user)
+        self.assertContains(self.client.get("/patients/my/"), 'href="/patients/my/share/"')
+        self.share()
+        response = self.client.get("/patients/my/")
+        self.assertContains(response, "Send to a Pharmacy")
+        self.assertContains(response, "Shared With")
+        self.assertContains(response, "Active")
+
+    def test_3_4a_patient_dashboard_matches_passport_sections_and_sharing_dialog(self):
+        self.client.force_login(self.maya_user)
+        response = self.client.get("/patients/my/")
+        self.assertContains(response, "My Medication Passport")
+        self.assertContains(response, "Download PDF")
+        self.assertContains(response, "Send Your Passport")
+        self.assertContains(response, "What to include")
+        self.assertContains(response, "Contact details")
+        self.assertContains(response, "Access lasts")
+        self.assertContains(response, 'id="med-passport-share-dialog"')
+
+    def test_3_4a_contact_is_private_until_selected(self):
+        self.client.force_login(self.staff)
+        response = self.client.get(f"/patients/{self.maya.pk}/")
+        self.assertNotContains(response, "03 100 002")
+        self.assertNotContains(response, "21 Sep 1990")
+
+        self.client.force_login(self.maya_user)
+        self.share(include_allergies="", include_contact="on")
+        self.client.force_login(self.staff)
+        response = self.client.get(f"/patients/{self.maya.pk}/")
+        self.assertContains(response, "03 100 002")
+        self.assertContains(response, "21 Sep 1990")
+        self.assertNotContains(response, "Penicillins Share")
+
+    def test_3_4a_share_duration_is_selected_and_access_expires(self):
+        self.client.force_login(self.maya_user)
+        self.share(access_days="3")
+        share = PassportShare.objects.get(patient=self.maya)
+        self.assertAlmostEqual(
+            (share.expires_at - timezone.now()).total_seconds(),
+            timedelta(days=3).total_seconds(),
+            delta=10,
+        )
+        self.assertIsNotNone(active_passport_share(self.maya))
+        PassportShare.objects.filter(pk=share.pk).update(expires_at=timezone.now() - timedelta(seconds=1))
+        self.assertIsNone(active_passport_share(self.maya))
+
+    def test_3_4a_invalid_duration_is_rejected(self):
+        self.client.force_login(self.maya_user)
+        response = self.share(access_days="999")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(PassportShare.objects.exists())

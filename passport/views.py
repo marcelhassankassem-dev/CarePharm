@@ -1,11 +1,15 @@
 from django.contrib import messages
-from django.core.exceptions import ValidationError
+from django.conf import settings
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import redirect, render
+from django.utils import timezone
 
-from accounts.permissions import patient_required, staff_required
+from accounts.permissions import can_act_as_pharmacist, patient_required, staff_required
 from accounts.services import create_patient_login
-from passport.forms import PatientForm, PatientLoginForm
+from passport.forms import PassportShareForm, PatientForm, PatientLoginForm
+from passport.models import PassportShare
 from passport.services import (
+    active_passport_share,
     allergies_of,
     chosen_patient,
     create_patient,
@@ -13,6 +17,8 @@ from passport.services import (
     find_patients,
     get_patient,
     patient_header,
+    patient_of,
+    share_passport,
     viewable_patients,
 )
 from sales.services import dispensing_history
@@ -35,6 +41,25 @@ def patient_page_data(request):
 @patient_required
 def my_passport(request):
     patient = selected_patient(request)
+    owner_view = patient is not None and patient.user_id == request.user.pk
+    current_share = active_passport_share(patient) if owner_view else None
+    share_history = []
+    if owner_view:
+        now = timezone.now()
+        for share in PassportShare.objects.filter(patient=patient).order_by("-consented_at", "-pk"):
+            status = (
+                "Removed" if share.revoked_at else
+                "Expired" if share.expires_at and share.expires_at <= now else "Active"
+            )
+            share_history.append({"share": share, "status": status})
+    share_initial = {}
+    if current_share:
+        share_initial = {
+            "include_contact": current_share.include_contact,
+            "include_allergies": current_share.include_allergies,
+            "include_medicines": current_share.include_medicines,
+            "include_history": current_share.include_history,
+        }
     return render(
         request,
         "passport/my_passport.html",
@@ -43,6 +68,54 @@ def my_passport(request):
             "allergies": allergies_of(patient) if patient else [],
             "current_medicines": current_medicines_of(patient) if patient else [],
             "history": dispensing_history(patient) if patient else [],
+            "current_share": current_share,
+            "share_form": PassportShareForm(initial=share_initial),
+            "share_history": share_history,
+            "pharmacy_name": settings.PHARMACY_NAME,
+            "pharmacy_address": settings.PHARMACY_ADDRESS,
+        },
+    )
+
+
+@patient_required
+def passport_share(request):
+    patient = patient_of(request.user)
+    if patient is None:
+        raise PermissionDenied("Only patients can consent to share their own passport.")
+
+    current_share = active_passport_share(patient)
+    initial = {}
+    if current_share:
+        initial = {
+            "include_contact": current_share.include_contact,
+            "include_allergies": current_share.include_allergies,
+            "include_medicines": current_share.include_medicines,
+            "include_history": current_share.include_history,
+        }
+    form = PassportShareForm(request.POST if request.method == "POST" else None, initial=initial)
+    if request.method == "POST" and form.is_valid():
+        share_passport(
+            patient,
+            request.user,
+            include_contact=form.cleaned_data["include_contact"],
+            include_allergies=form.cleaned_data["include_allergies"],
+            include_medicines=form.cleaned_data["include_medicines"],
+            include_history=form.cleaned_data["include_history"],
+            access_days=form.cleaned_data["access_days"],
+        )
+        request.session[VIEWING_PATIENT] = patient.pk
+        messages.success(request, f"You shared the selected passport sections with {settings.PHARMACY_NAME}.")
+        return redirect("my_passport")
+    return render(
+        request,
+        "passport/share.html",
+        {
+            **patient_page_data(request),
+            "patient": patient,
+            "form": form,
+            "current_share": current_share,
+            "pharmacy_name": settings.PHARMACY_NAME,
+            "pharmacy_address": settings.PHARMACY_ADDRESS,
         },
     )
 
@@ -52,6 +125,19 @@ def patient_list(request, patient_id=None):
     search = request.GET.get("search", "")
     patients = find_patients(search)
     selected = get_patient(patient_id) if patient_id else patients.first()
+    # Existing staff-created records without a patient login keep their legacy workflow.
+    # A logged-in patient's passport requires their explicit section-level consent.
+    legacy_record = selected is not None and selected.user_id is None
+    share = active_passport_share(selected) if selected and not legacy_record else None
+    allow_allergies = bool(legacy_record or (share and share.include_allergies))
+    allow_contact = bool(legacy_record or (share and share.include_contact))
+    allow_medicines = bool(legacy_record or (share and share.include_medicines))
+    allow_history = bool(legacy_record or (share and share.include_history))
+    today = timezone.localdate()
+    selected_age = None
+    if selected and allow_contact:
+        birthday = selected.date_of_birth
+        selected_age = today.year - birthday.year - ((today.month, today.day) < (birthday.month, birthday.day))
     return render(
         request,
         "passport/patients.html",
@@ -59,9 +145,16 @@ def patient_list(request, patient_id=None):
             "patients": patients,
             "search": search,
             "selected": selected,
-            "allergies": allergies_of(selected),
-            "current_medicines": current_medicines_of(selected),
-            "history": dispensing_history(selected) if selected else [],
+            "selected_share": share,
+            "allow_contact": allow_contact,
+            "allow_allergies": allow_allergies,
+            "allow_medicines": allow_medicines,
+            "allow_history": allow_history,
+            "selected_age": selected_age,
+            "can_create_prescription": can_act_as_pharmacist(request.user),
+            "allergies": allergies_of(selected) if allow_allergies else [],
+            "current_medicines": current_medicines_of(selected) if allow_medicines else [],
+            "history": dispensing_history(selected) if allow_history else [],
         },
     )
 

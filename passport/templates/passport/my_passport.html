@@ -1,81 +1,233 @@
 {% extends "core/patient.html" %}
 
-{% block title %}Medication Passport - CarePharm{% endblock %}
-
+{% block title %}My Medication Passport - CarePharm{% endblock %}
 {% block page_class %}my-passport-page{% endblock %}
+{% block profile_switch %}{% endblock %}
 
 {% block patient_content %}
-<header class="page-heading">
-    <div>
-        <p class="page-eyebrow">MY HEALTH RECORD</p>
-        <h1>Medication Passport</h1>
-        <p class="page-intro">Your allergies, active medicines and dispensing history in one place.</p>
-    </div>
-</header>
-
-<section class="card patient-passport">
-    {% if viewing %}
-    <div class="passport-header">
-        <span class="avatar">{{ viewing.name|slice:":2"|upper }}</span>
+<div class="med-passport-wrap">
+    <header class="med-passport-heading">
         <div>
-            <h2>{{ viewing.name }}</h2>
-            <p>Born {{ viewing.date_of_birth|date:"j M Y" }}{% if viewing.phone %} · {{ viewing.phone }}{% endif %}</p>
+            <p class="med-passport-eyebrow">MEDICATION PASSPORT</p>
+            <h1>My Medication Passport</h1>
+            <p>Your medicines, allergies and history in one record you can share with your pharmacy.</p>
+        </div>
+        {% if viewing and viewing.user_id == user.pk %}
+        <div class="med-passport-actions">
+            <button class="med-passport-button light" type="button" onclick="window.print()" title="Use your browser's Save as PDF option">
+                <span aria-hidden="true">↓</span> Download PDF
+            </button>
+            <a class="med-passport-button dark" href="{% url 'passport_share' %}" data-open-passport-share>
+                <span aria-hidden="true">➤</span> Send to a Pharmacy
+            </a>
+        </div>
+        {% endif %}
+    </header>
+
+    {% if viewing %}
+    <nav class="med-passport-profiles" aria-label="Select a patient passport">
+        {% for patient in viewable_patients %}
+        <form method="post" action="{% url 'view_patient' patient.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="{% if patient.pk == viewing.pk %}selected{% endif %}">
+                {{ patient.name }}{% if patient.user_id == user.pk %} (me){% endif %}
+            </button>
+        </form>
+        {% endfor %}
+    </nav>
+
+    <div class="med-passport-layout">
+        <aside class="med-passport-sidebar">
+            <article class="med-passport-identity">
+                <p>CAREPHARM MEDICATION PASSPORT</p>
+                <h2>{{ viewing.name }}</h2>
+                <dl>
+                    <div><dt>Date of birth</dt><dd>{{ viewing.date_of_birth|date:"j M Y" }}</dd></div>
+                    <div><dt>Passport ID</dt><dd>CP-{{ viewing.pk|stringformat:"05d" }}</dd></div>
+                    <div><dt>Phone</dt><dd>{{ viewing.phone|default:"Not recorded" }}</dd></div>
+                    <div><dt>Home pharmacy</dt><dd>{{ pharmacy_name }}</dd></div>
+                </dl>
+                <div class="med-passport-identity-foot">
+                    <span>Current patient record</span>
+                    <span class="med-passport-mark" aria-label="CarePharm passport emblem">✚</span>
+                </div>
+            </article>
+
+            <section class="med-passport-shared">
+                <h2>Shared With</h2>
+                <p>Pharmacies that can see your passport</p>
+                {% if viewing.user_id == user.pk %}
+                    {% for item in share_history %}
+                    <div class="med-passport-shared-row">
+                        <span class="med-passport-shared-icon" aria-hidden="true">▣</span>
+                        <div>
+                            <strong>{{ item.share.pharmacy_name }}</strong>
+                            <small>Shared {{ item.share.consented_at|date:"j M Y" }}{% if item.share.expires_at %} · Ends {{ item.share.expires_at|date:"j M Y" }}{% endif %}</small>
+                            {% if item.status == "Removed" %}
+                            <small class="med-passport-status removed">Previous consent replaced or removed</small>
+                            {% elif item.status == "Expired" %}
+                            <small class="med-passport-status expired">Expired</small>
+                            {% else %}
+                            <small class="med-passport-status active">Active</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="med-passport-share-empty">Not shared with a pharmacy yet.</p>
+                    {% endfor %}
+                {% else %}
+                <p class="med-passport-share-empty">Only the patient can manage pharmacy sharing.</p>
+                {% endif %}
+                <p class="med-passport-privacy-note">♧ Only approved passport sections are visible to the pharmacy. Sharing permissions can be changed by the patient.</p>
+            </section>
+        </aside>
+
+        <div class="med-passport-main">
+            <section class="med-passport-section">
+                <div class="med-passport-section-title">
+                    <span class="med-passport-symbol allergy" aria-hidden="true">!</span>
+                    <div><h2>Allergies</h2><p>Checked by pharmacy staff before dispensing medicines</p></div>
+                </div>
+                <div class="med-passport-allergy-list">
+                    {% for allergy in allergies %}
+                    <span class="med-passport-allergy-pill">{{ allergy.drug_class }}</span>
+                    {% empty %}
+                    <p class="med-passport-empty">No allergies recorded</p>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="med-passport-section">
+                <div class="med-passport-section-title">
+                    <span class="med-passport-symbol medicine" aria-hidden="true">◆</span>
+                    <div><h2>Active Medicines</h2><p>What you are taking now</p></div>
+                    <span class="med-passport-count">{{ current_medicines|length }} medicine{{ current_medicines|length|pluralize }}</span>
+                </div>
+                {% if current_medicines %}
+                <div class="med-passport-table-scroll">
+                    <table class="med-passport-table">
+                        <thead><tr><th>MEDICINE</th><th>DOSE</th><th>PRESCRIBED BY</th><th>NEXT REFILL</th></tr></thead>
+                        <tbody>
+                        {% for current in current_medicines %}
+                        <tr>
+                            <td><strong>{{ current.medicine }}</strong></td>
+                            <td>Not recorded</td>
+                            <td>Not recorded</td>
+                            <td>—</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="med-passport-empty">No active medicines recorded</p>
+                {% endif %}
+            </section>
+
+            <section class="med-passport-section" id="dispensing-history">
+                <div class="med-passport-section-title">
+                    <span class="med-passport-symbol history" aria-hidden="true">◷</span>
+                    <div><h2>Dispensing History</h2><p>Every medicine you collected</p></div>
+                    {% if history|length > 4 %}
+                    <button type="button" class="med-passport-view-all" data-toggle-history aria-expanded="false">View all</button>
+                    {% endif %}
+                </div>
+                {% if history %}
+                <div class="med-passport-table-scroll">
+                    <table class="med-passport-table med-passport-history">
+                        <thead><tr><th>DATE</th><th>MEDICINE</th><th>QUANTITY</th><th>PHARMACY / DISPENSED BY</th></tr></thead>
+                        <tbody>
+                        {% for line in history %}
+                        <tr{% if forloop.counter > 4 %} class="med-passport-history-extra"{% endif %}>
+                            <td>{{ line.sale.time|date:"j M Y" }}</td>
+                            <td><strong>{{ line.medicine }}</strong></td>
+                            <td>{{ line.quantity }}</td>
+                            <td>{{ pharmacy_name }} <small>· {{ line.sale.staff.get_full_name|default:line.sale.staff.username }}</small></td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="med-passport-empty">No medicines dispensed yet</p>
+                {% endif %}
+            </section>
         </div>
     </div>
+    {% else %}
+    <section class="med-passport-section">
+        <p>No patient passport is linked to your account. Ask the pharmacy to link a patient or grant caregiver access.</p>
+    </section>
+    {% endif %}
+</div>
 
-    <div class="passport-cards">
-        <div class="passport-card {% if allergies %}danger{% endif %}">
-            <h3>Allergies</h3>
-            {% for allergy in allergies %}
-            <span class="pill outlined">{{ allergy.drug_class }}</span>
-            {% empty %}
-            <p>No allergies recorded</p>
-            {% endfor %}
+{% if viewing and viewing.user_id == user.pk %}
+<dialog id="med-passport-share-dialog" class="med-passport-dialog" aria-labelledby="med-passport-dialog-title">
+    <form method="post" action="{% url 'passport_share' %}">
+        {% csrf_token %}
+        <header class="med-passport-dialog-heading">
+            <span class="med-passport-dialog-icon" aria-hidden="true">➤</span>
+            <div><h2 id="med-passport-dialog-title">Send Your Passport</h2><p>Choose what CarePharm can see.</p></div>
+            <button type="button" class="med-passport-dialog-close" data-close-passport-share aria-label="Close dialog">×</button>
+        </header>
+        <div class="med-passport-dialog-body">
+            <label class="med-passport-input-label" for="med-passport-pharmacy">Pharmacy</label>
+            <select id="med-passport-pharmacy" class="med-passport-pharmacy-select" aria-label="Recipient pharmacy">
+                <option selected>{{ pharmacy_name }} — {{ pharmacy_address }}</option>
+            </select>
+            <small class="med-passport-dialog-help">CarePharm is the pharmacy configured for this application.</small>
+
+            <fieldset class="med-passport-modal-options">
+                <legend>What to include</legend>
+                <label>{{ share_form.include_contact }} <span>Contact details</span></label>
+                <label>{{ share_form.include_allergies }} <span>Allergies</span></label>
+                <label>{{ share_form.include_medicines }} <span>Active medicines</span></label>
+                <label>{{ share_form.include_history }} <span>Dispensing history</span></label>
+            </fieldset>
+
+            <div class="med-passport-duration-row">
+                <label for="{{ share_form.access_days.id_for_label }}">Access lasts</label>
+                {{ share_form.access_days }}
+                <small id="med-passport-expiry-note">Access ends automatically after the chosen number of days.</small>
+            </div>
+
+            <label class="med-passport-modal-consent">
+                {{ share_form.consent }}
+                <span>I agree to share the selected medical information with {{ pharmacy_name }}. Access expires automatically after the selected days.</span>
+            </label>
+            {{ share_form.consent.errors }}
         </div>
-        <div class="passport-card">
-            <h3>Contact</h3>
-            <p>{{ viewing.phone|default:"No phone recorded" }}</p>
-        </div>
-    </div>
+        <footer class="med-passport-dialog-actions">
+            <button type="button" class="med-passport-button light" data-close-passport-share>Cancel</button>
+            <button type="submit" class="med-passport-button dark">➤ Send Passport</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
 
-    <h3 class="section-title">Active Medicines</h3>
-    {% if current_medicines %}
-    <div class="passport-table-scroll">
-        <table class="data-table medicine-table">
-            <thead><tr><th>Medicine</th><th>Status</th></tr></thead>
-            <tbody>
-                {% for current in current_medicines %}
-                <tr><td><strong>{{ current.medicine }}</strong></td><td><span class="pill status-active">Active</span></td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <p class="empty-note">No active medicines recorded</p>
-    {% endif %}
-
-    <h3 class="section-title">Dispensing History</h3>
-    {% if history %}
-    <div class="passport-table-scroll">
-        <table class="data-table history-table">
-            <thead><tr><th>Date</th><th>Medicine</th><th>Quantity</th><th>Dispensed by</th></tr></thead>
-            <tbody>
-                {% for line in history %}
-                <tr>
-                    <td>{{ line.sale.time|date:"j M Y" }}</td>
-                    <td><strong>{{ line.medicine }}</strong></td>
-                    <td>{{ line.quantity }}</td>
-                    <td>{{ line.sale.staff.get_full_name|default:line.sale.staff.username }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <p class="empty-note">No medicines dispensed yet</p>
-    {% endif %}
-    {% else %}
-    <p class="empty-note">No patient passport is linked to your account. Ask the pharmacy to link a patient or grant caregiver access.</p>
-    {% endif %}
-</section>
+<script>
+(function () {
+    var dialog = document.getElementById("med-passport-share-dialog");
+    var trigger = document.querySelector("[data-open-passport-share]");
+    if (dialog && trigger && typeof dialog.showModal === "function") {
+        trigger.addEventListener("click", function (event) {
+            event.preventDefault();
+            dialog.showModal();
+        });
+        dialog.querySelectorAll("[data-close-passport-share]").forEach(function (button) {
+            button.addEventListener("click", function () { dialog.close(); });
+        });
+    }
+    var historyToggle = document.querySelector("[data-toggle-history]");
+    if (historyToggle) {
+        historyToggle.addEventListener("click", function () {
+            var expanded = historyToggle.getAttribute("aria-expanded") === "true";
+            document.getElementById("dispensing-history").classList.toggle("show-all", !expanded);
+            historyToggle.setAttribute("aria-expanded", String(!expanded));
+            historyToggle.textContent = expanded ? "View all" : "View less";
+        });
+    }
+})();
+</script>
 {% endblock %}

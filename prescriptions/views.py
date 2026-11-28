@@ -84,7 +84,12 @@ def prescription_list(request):
 
 @pharmacist_required
 def prescription_new(request):
-    form = PatientChoiceForm(request.POST) if request.method == "POST" else PatientChoiceForm()
+    if request.method == "POST":
+        form = PatientChoiceForm(request.POST)
+    else:
+        patient_id = request.GET.get("patient", "")
+        initial = {"patient": int(patient_id)} if patient_id.isdecimal() else None
+        form = PatientChoiceForm(initial=initial)
     if form.is_valid():
         prescription = create_prescription(form.cleaned_data["patient"])
         return redirect("prescription_detail", prescription.pk)

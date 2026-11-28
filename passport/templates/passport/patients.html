@@ -3,6 +3,7 @@
 {% block title %}Patients - CarePharm{% endblock %}
 
 {% block console_content %}
+<div class="staff-patients-page">
 <div class="page-heading">
     <div>
         <p class="page-eyebrow">PHARMACIST CONSOLE</p>
@@ -10,7 +11,7 @@
         <p class="page-intro">Each patient’s medication passport: contact details, allergies, medicines and history.</p>
     </div>
     <div class="console-actions">
-        <a href="{% url 'patient_login_new' %}" class="secondary-button">Add Caregiver Login</a>
+        <a href="{% url 'patient_login_new' %}" class="staff-patients-caregiver-link">Add Caregiver Login</a>
         <a href="{% url 'patient_new' %}" class="primary-button">+ Add Patient</a>
     </div>
 </div>
@@ -18,7 +19,7 @@
 <div class="patients-layout">
     <section class="card patient-list">
         <form method="get" action="{% url 'patient_list' %}">
-            <input type="search" name="search" value="{{ search }}" placeholder="Search by name or phone" aria-label="Search by name or phone">
+            <input type="search" name="search" value="{{ search }}" placeholder="Search by name, phone or ID" aria-label="Search by name, phone or ID">
         </form>
         <p class="list-title">ALL PATIENTS · {{ patients|length }}</p>
         {% for patient in patients %}
@@ -26,9 +27,9 @@
             <span class="avatar small">{{ patient.name|slice:":2"|upper }}</span>
             <span class="patient-row-text">
                 <strong>{{ patient.name }}</strong>
-                <small>{{ patient.phone|default:"No phone recorded" }}</small>
+                <small>CP-{{ patient.pk|stringformat:"05d" }}{% if not patient.user_id and patient.phone %} · {{ patient.phone }}{% endif %}</small>
             </span>
-            {% if patient.allergy_count %}
+            {% if patient.allergy_count and not patient.user_id %}
             <span class="pill danger">Allergy</span>
             {% endif %}
         </a>
@@ -37,37 +38,71 @@
         {% endfor %}
     </section>
 
-    <section class="card">
+    <section class="card staff-patients-detail">
         {% if selected %}
         <div class="passport-header">
             <span class="avatar">{{ selected.name|slice:":2"|upper }}</span>
-            <div>
+            <div class="staff-patients-identity">
                 <h2>{{ selected.name }}</h2>
-                <p>Born {{ selected.date_of_birth|date:"j M Y" }}{% if selected.phone %} · {{ selected.phone }}{% endif %}</p>
+                {% if allow_contact %}
+                <p>{{ selected_age }} years · CP-{{ selected.pk|stringformat:"05d" }}{% if selected.phone %} · {{ selected.phone }}{% endif %}</p>
+                {% else %}
+                <p>CP-{{ selected.pk|stringformat:"05d" }} · Contact details not shared</p>
+                {% endif %}
             </div>
+            {% if can_create_prescription %}
+            <a class="primary-button staff-patients-prescription" href="{% url 'prescription_new' %}?patient={{ selected.pk }}">New Prescription</a>
+            {% endif %}
         </div>
 
         <div class="passport-cards">
             <div class="passport-card {% if allergies %}danger{% endif %}">
-                <h3>Allergies</h3>
+                <h3>{% if allergies %}<span class="staff-patients-warning" aria-hidden="true">⚠</span>{% endif %} Allergies</h3>
+                {% if allow_allergies %}
                 {% for allergy in allergies %}
                 <span class="pill outlined">{{ allergy.drug_class }}</span>
                 {% empty %}
                 <p>No allergies recorded</p>
                 {% endfor %}
+                {% else %}
+                <p>Not shared by patient</p>
+                {% endif %}
             </div>
             <div class="passport-card">
                 <h3>Contact</h3>
+                {% if allow_contact %}
                 <p>{{ selected.phone|default:"No phone recorded" }}</p>
+                <small>Born {{ selected.date_of_birth|date:"j M Y" }}</small>
+                {% else %}
+                <p>Not shared by patient</p>
+                {% endif %}
+            </div>
+            <div class="passport-card staff-patients-sharing-card">
+                <h3>Passport Sharing</h3>
+                {% if selected.user_id and not selected_share %}
+                <p>This patient has not shared their Medication Passport with the pharmacy.</p>
+                {% elif selected_share %}
+                <p>Shared with {{ selected_share.pharmacy_name }}</p>
+                <small>Patient consent recorded on {{ selected_share.consented_at|date:"j M Y" }}. Only the approved sections are shown below.</small>
+                {% if selected_share.expires_at %}<small>Access ends {{ selected_share.expires_at|date:"j M Y, H:i" }}</small>{% endif %}
+                {% else %}
+                <p>Staff-managed patient record</p>
+                {% endif %}
             </div>
         </div>
 
-        <h3 class="section-title">Active Medicines</h3>
+        <h3 class="section-title staff-patients-section-title">Active Medicines</h3>
+        {% if not allow_medicines %}
+        <p class="empty-note">Not shared by patient</p>
+        {% else %}
         {% if current_medicines %}
+        <div class="staff-patients-table-wrap">
         <table class="data-table medicine-table">
             <thead>
                 <tr>
                     <th>MEDICINE</th>
+                    <th>DOSE</th>
+                    <th>STARTED</th>
                     <th>STATUS</th>
                 </tr>
             </thead>
@@ -75,17 +110,25 @@
                 {% for current in current_medicines %}
                 <tr>
                     <td><strong>{{ current.medicine }}</strong></td>
+                    <td>Not recorded</td>
+                    <td>—</td>
                     <td><span class="pill status-active">Active</span></td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% else %}
         <p class="empty-note">No active medicines recorded</p>
         {% endif %}
+        {% endif %}
 
-        <h3 class="section-title">Dispensing History</h3>
+        <h3 class="section-title staff-patients-section-title">Dispensing History</h3>
+        {% if not allow_history %}
+        <p class="empty-note">Not shared by patient</p>
+        {% else %}
         {% if history %}
+        <div class="staff-patients-table-wrap">
         <table class="data-table history-table">
             <thead>
                 <tr>
@@ -106,12 +149,15 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% else %}
         <p class="empty-note">No medicines dispensed yet</p>
+        {% endif %}
         {% endif %}
         {% else %}
         <p class="empty-note">Choose a patient to see their passport.</p>
         {% endif %}
     </section>
+</div>
 </div>
 {% endblock %}

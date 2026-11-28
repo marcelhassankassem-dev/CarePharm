@@ -1,0 +1,49 @@
+{% extends "core/patient.html" %}
+
+{% block title %}Share Medication Passport - CarePharm{% endblock %}
+
+{% block patient_content %}
+<header class="page-heading">
+    <div>
+        <p class="page-eyebrow">PATIENT CONSENT</p>
+        <h1>Share Medication Passport</h1>
+        <p class="page-intro">Choose exactly what this pharmacy can view.</p>
+    </div>
+</header>
+
+<section class="card passport-share-card">
+    <h2>Recipient: {{ pharmacy_name }}</h2>
+    <p class="passport-share-description">{{ pharmacy_address }} · Passport belonging to {{ patient.name }}</p>
+    <p>Only the sections you select below will become visible in the pharmacy's passport view.</p>
+
+    {% if current_share %}
+    <p class="passport-sharing-status">Your passport is already shared with this pharmacy. Saving again replaces your previous section choices.</p>
+    {% endif %}
+
+    <form method="post" action="{% url 'passport_share' %}">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+
+        <fieldset class="passport-share-options">
+            <legend>Information to share</legend>
+            <label>{{ form.include_contact }} <strong>Contact details</strong></label>
+            <label>{{ form.include_allergies }} <strong>Allergies</strong></label>
+            <label>{{ form.include_medicines }} <strong>Active medicines</strong></label>
+            <label>{{ form.include_history }} <strong>Dispensing history</strong></label>
+        </fieldset>
+
+        <p><label for="{{ form.access_days.id_for_label }}"><strong>Access lasts</strong></label> {{ form.access_days }}</p>
+
+        <label class="passport-consent-label">
+            {{ form.consent }}
+            <span>{{ form.consent.label }}</span>
+        </label>
+        {{ form.consent.errors }}
+
+        <div class="passport-share-actions">
+            <button class="primary-button" type="submit">Confirm Consent &amp; Share</button>
+            <a class="secondary-button" href="{% url 'my_passport' %}">Cancel</a>
+        </div>
+    </form>
+</section>
+{% endblock %}
