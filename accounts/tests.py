@@ -19,12 +19,14 @@ from accounts.services import (
     landing_page,
     revoke_caregiver,
 )
-from core.models import ActivityLog
-from core.services import log_action, notify
+from assistant.questions import answer_question, pass_to_pharmacist
+from core.models import ActivityLog, Notification
+from core.services import log_action, notify, unread_count
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Patient
 from passport.views import selected_patient
 from prescriptions.models import Prescription, PrescriptionItem
+from prescriptions.services import add_item, create_prescription, mark_ready, start_preparing
 from reservations.models import RefillRequest, Reservation
 
 NEW_STAFF = {
@@ -734,6 +736,92 @@ class ViewingAsTests(FamilyTestData):
         response = self.client.get("/home/")
         self.assertContains(response, "Welcome, Omar Nassar")
         self.assertContains(response, ">ON<")
+
+
+class CaregiverAlertsTests(FamilyTestData):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        drug_class = DrugClass.objects.create(name="Statins")
+        cls.atorvastatin = Medicine.objects.create(
+            name="Atorvastatin",
+            strength="20 mg",
+            barcode="1000000000005",
+            drug_class=drug_class,
+            price=Decimal("9.00"),
+            minimum_quantity=5,
+        )
+
+    def setUp(self):
+        self.omar_link = CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        Batch.objects.create(
+            medicine=self.atorvastatin,
+            batch_number="ATO-001",
+            expiry_date=timezone.localdate() + timedelta(days=300),
+            quantity=50,
+            unit_cost=Decimal("4.00"),
+            supplier="Cedar Medical Supplies",
+        )
+
+    def make_ready(self):
+        prescription = create_prescription(self.father)
+        add_item(prescription, self.atorvastatin, 30, 30)
+        start_preparing(prescription)
+        mark_ready(self.rana, prescription)
+        return prescription
+
+    def family_page(self):
+        self.client.force_login(self.omar)
+        return self.client.get("/family/")
+
+    def test_12_2_the_caregiver_is_told_when_the_prescription_is_ready(self):
+        self.make_ready()
+        alert = Notification.objects.get(user=self.omar)
+        self.assertTrue(alert.text.startswith("Khalil Nassar's prescription is ready for pickup"))
+        self.assertIn("Atorvastatin 20 mg", alert.text)
+        self.assertEqual(alert.link, "/prescriptions/mine/")
+
+    def test_12_2_the_caregiver_is_told_when_a_pharmacist_answers(self):
+        question = pass_to_pharmacist(self.omar, self.father, "Can he take it with food?")
+        answer_question(question, "Yes, with or without food.")
+        alert = Notification.objects.get(user=self.omar)
+        self.assertEqual((alert.text, alert.link), ("A pharmacist answered Khalil Nassar's question.", "/assistant/questions/"))
+
+    def test_12_2_after_access_is_removed_no_new_alerts_arrive(self):
+        revoke_caregiver(self.father, self.omar_link.pk)
+        self.make_ready()
+        self.assertFalse(Notification.objects.filter(user=self.omar).exists())
+
+    def test_12_2_the_caregivers_bell_counts_the_alert(self):
+        self.make_ready()
+        self.client.force_login(self.omar)
+        self.assertEqual(self.client.get("/home/").context["unread_count"], 1)
+
+    def test_12_2_the_family_page_shows_the_3_latest_notifications(self):
+        for text in ["First alert", "Second alert", "Third alert", "Fourth alert"]:
+            notify(self.omar, text, "/prescriptions/mine/")
+        response = self.family_page()
+        self.assertContains(response, "Notifications")
+        self.assertContains(response, '<a href="/notifications/" class="family-view-all">View all</a>', html=True)
+        page = response.content.decode()
+        self.assertLess(page.index("Fourth alert"), page.index("Third alert"))
+        self.assertLess(page.index("Third alert"), page.index("Second alert"))
+        self.assertNotIn("First alert", page)
+        self.assertEqual(page.count('class="notification unread"'), 3)
+
+    def test_12_2_the_family_page_shows_the_alert_with_its_link(self):
+        self.make_ready()
+        response = self.family_page()
+        self.assertContains(response, "Khalil Nassar&#x27;s prescription is ready for pickup")
+        self.assertContains(response, 'href="/prescriptions/mine/" class="notification unread"')
+
+    def test_12_2_opening_the_family_page_keeps_the_alerts_unread(self):
+        self.make_ready()
+        self.family_page()
+        self.assertEqual(unread_count(self.omar), 1)
+
+    def test_12_2_with_no_alerts_the_card_says_so(self):
+        self.assertContains(self.family_page(), "No notifications yet.")
 
 
 class RolePermissionTests(TestCase):
