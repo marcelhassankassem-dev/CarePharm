@@ -1,0 +1,25 @@
+{# Shared by the patient navigation and the full-screen AI assistant. #}
+<details class="patient-text-settings">
+    <summary class="patient-text-toggle" title="Change text size" aria-label="Choose text size">
+        <span class="patient-text-aa" aria-hidden="true">Aa</span>
+        <span class="patient-text-toggle-label">Text size</span>
+    </summary>
+    <div class="patient-text-options" role="group" aria-label="Text size choices">
+        <h2>Text size</h2>
+        <p>Choose a comfortable size for your patient pages.</p>
+        <form method="post" action="{% url 'patient_text_size' %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" name="text_size" value="standard" class="patient-text-option{% if text_size != 'large' and text_size != 'extra_large' %} selected{% endif %}" aria-pressed="{% if text_size != 'large' and text_size != 'extra_large' %}true{% else %}false{% endif %}">
+                <span class="patient-text-sample standard" aria-hidden="true">A</span> Standard <span class="patient-text-choice-check" aria-hidden="true">✓</span>
+            </button>
+            <button type="submit" name="text_size" value="large" class="patient-text-option{% if text_size == 'large' %} selected{% endif %}" aria-pressed="{% if text_size == 'large' %}true{% else %}false{% endif %}">
+                <span class="patient-text-sample large" aria-hidden="true">A</span> Large <span class="patient-text-choice-check" aria-hidden="true">✓</span>
+            </button>
+            <button type="submit" name="text_size" value="extra_large" class="patient-text-option{% if text_size == 'extra_large' %} selected{% endif %}" aria-pressed="{% if text_size == 'extra_large' %}true{% else %}false{% endif %}">
+                <span class="patient-text-sample extra-large" aria-hidden="true">A</span> Extra large <span class="patient-text-choice-check" aria-hidden="true">✓</span>
+            </button>
+        </form>
+        <p class="patient-text-note">Your choice is saved in this browser.</p>
+    </div>
+</details>
