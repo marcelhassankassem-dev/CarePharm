@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from core.services import notify_patient
 from inventory.services import available_stock, find_medicines, return_stock, take_stock
+from passport.services import patient_name_for
 from prescriptions.services import UNCOLLECTED_STATUSES, collected_long_term_items, create_refill_prescription
 from reservations.models import RefillRequest, Reservation
 from sales.services import record_sale
@@ -141,8 +142,9 @@ def delay_refill(refill_request, expected_on):
     refill_request.expected_on = expected_on
     refill_request.save()
     item = refill_request.prescription_item
-    text = f"Refill delayed: {item.medicine}, expected {expected_on:%d %b %Y}."
-    return notify_patient(item.prescription.patient, text, "/")
+    patient = item.prescription.patient
+    text = f"{patient.name}'s refill of {item.medicine} is delayed, expected {expected_on:%d %b %Y}."
+    return notify_patient(patient, text, "/")
 
 
 def get_refill_request(refill_request_id):
@@ -221,8 +223,16 @@ def patient_refill_requests(patient):
     )
 
 
+def requested_by_caregiver(refill_request):
+    patient = refill_request.prescription_item.prescription.patient
+    if refill_request.requested_by_id == patient.user_id:
+        return ""
+    return patient_name_for(refill_request.requested_by)
+
+
 def refill_rows(search=""):
     requests = open_refill_requests().select_related(
+        "requested_by",
         "prescription_item__medicine",
         "prescription_item__prescription__patient",
     )
@@ -232,6 +242,10 @@ def refill_rows(search=""):
             | Q(prescription_item__prescription__patient__phone__icontains=search)
         )
     return [
-        {"request": request, "out_of_stock": available_stock(request.prescription_item.medicine) == 0}
+        {
+            "request": request,
+            "out_of_stock": available_stock(request.prescription_item.medicine) == 0,
+            "requested_by_caregiver": requested_by_caregiver(request),
+        }
         for request in requests.order_by("created_at", "id")
     ]
