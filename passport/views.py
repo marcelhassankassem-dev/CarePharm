@@ -1,28 +1,32 @@
-from django.contrib import messages
 from django.conf import settings
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.contrib import messages
+from django.core.exceptions import ValidationError
+from django.http import Http404
 from django.shortcuts import redirect, render
-from django.utils import timezone
-from django.views.decorators.http import require_POST
 
 from accounts.permissions import can_act_as_pharmacist, patient_required, staff_required
-from accounts.services import create_patient_login
+from accounts.services import caregiver_links_of, create_patient_login
 from passport.forms import PassportShareForm, PatientForm, PatientLoginForm
-from passport.models import PassportShare
 from passport.services import (
-    active_passport_share,
+    age_of,
     allergies_of,
     chosen_patient,
     create_patient,
     current_medicines_of,
     find_patients,
     get_patient,
+    get_share,
+    open_shares_of,
+    passport_medicines,
     patient_header,
-    patient_of,
-    revoke_passport_share,
+    remove_share,
     share_passport,
+    share_rows,
+    shared_passport,
+    shared_sections,
     viewable_patients,
 )
+from reservations.services import next_refill_dates
 from sales.services import dispensing_history
 
 VIEWING_PATIENT = "viewing_patient_id"
@@ -40,96 +44,55 @@ def patient_page_data(request):
     }
 
 
+def passport_page_data(request):
+    data = {**patient_page_data(request), "pharmacy_name": settings.PHARMACY_NAME}
+    patient = data["viewing"]
+    if patient:
+        data["allergies"] = allergies_of(patient)
+        data["medicines"] = passport_medicines(patient, next_refill_dates(patient))
+        data["history"] = dispensing_history(patient)
+        data["share_rows"] = share_rows(patient)
+    return data
+
+
 @patient_required
 def my_passport(request):
-    patient = selected_patient(request)
-    owner_view = patient is not None and patient.user_id == request.user.pk
-    current_share = active_passport_share(patient) if owner_view else None
-    share_history = []
-    if owner_view:
-        now = timezone.now()
-        for share in PassportShare.objects.filter(patient=patient).order_by("-consented_at", "-pk"):
-            status = (
-                "Removed" if share.revoked_at else
-                "Expired" if share.expires_at is None or share.expires_at <= now else "Active"
-            )
-            share_history.append({"share": share, "status": status})
-    share_initial = {}
-    if current_share:
-        share_initial = {
-            "include_contact": current_share.include_contact,
-            "include_allergies": current_share.include_allergies,
-            "include_medicines": current_share.include_medicines,
-            "include_history": current_share.include_history,
-        }
-    return render(
-        request,
-        "passport/my_passport.html",
-        {
-            **patient_page_data(request),
-            "allergies": allergies_of(patient) if patient else [],
-            "current_medicines": current_medicines_of(patient) if patient else [],
-            "history": dispensing_history(patient) if patient else [],
-            "current_share": current_share,
-            "share_form": PassportShareForm(initial=share_initial),
-            "share_history": share_history,
-            "pharmacy_name": settings.PHARMACY_NAME,
-            "pharmacy_address": settings.PHARMACY_ADDRESS,
-        },
-    )
+    return render(request, "passport/my_passport.html", passport_page_data(request))
 
 
 @patient_required
 def passport_share(request):
-    patient = patient_of(request.user)
+    patient = selected_patient(request)
     if patient is None:
-        raise PermissionDenied("Only patients can consent to share their own passport.")
-
-    current_share = active_passport_share(patient)
-    initial = {}
-    if current_share:
-        initial = {
-            "include_contact": current_share.include_contact,
-            "include_allergies": current_share.include_allergies,
-            "include_medicines": current_share.include_medicines,
-            "include_history": current_share.include_history,
-        }
-    form = PassportShareForm(request.POST if request.method == "POST" else None, initial=initial)
-    if request.method == "POST" and form.is_valid():
-        share_passport(
-            patient,
-            request.user,
-            include_contact=form.cleaned_data["include_contact"],
-            include_allergies=form.cleaned_data["include_allergies"],
-            include_medicines=form.cleaned_data["include_medicines"],
-            include_history=form.cleaned_data["include_history"],
-            access_days=form.cleaned_data["access_days"],
-        )
-        request.session[VIEWING_PATIENT] = patient.pk
-        messages.success(request, f"You shared the selected passport sections with {settings.PHARMACY_NAME}.")
+        raise Http404
+    form = PassportShareForm(request.POST) if request.method == "POST" else PassportShareForm()
+    if form.is_valid():
+        data = form.cleaned_data
+        share = share_passport(patient, data["pharmacy_name"], data["sections"], data["days"])
+        messages.success(request, f"Passport sent to {share.pharmacy_name or 'the pharmacy'}. Give them its link.")
         return redirect("my_passport")
-    return render(
-        request,
-        "passport/share.html",
-        {
-            **patient_page_data(request),
-            "patient": patient,
-            "form": form,
-            "current_share": current_share,
-            "pharmacy_name": settings.PHARMACY_NAME,
-            "pharmacy_address": settings.PHARMACY_ADDRESS,
-        },
-    )
+    return render(request, "passport/share.html", {**passport_page_data(request), "form": form})
 
 
 @patient_required
-@require_POST
 def passport_share_remove(request, share_id):
-    patient = patient_of(request.user)
-    revoke_passport_share(patient, request.user, share_id)
-    request.session[VIEWING_PATIENT] = patient.pk
-    messages.success(request, "Pharmacy access removed. CarePharm can no longer view your shared passport details.")
-    return redirect("my_passport")
+    share = get_share(selected_patient(request), share_id)
+    if request.method == "POST":
+        remove_share(share)
+        messages.success(request, f"{share.pharmacy_name or 'The pharmacy'} can no longer open your passport.")
+        return redirect("my_passport")
+    return render(request, "passport/remove_share.html", {**passport_page_data(request), "share": share})
+
+
+def shared_passport_page(request, token):
+    share = shared_passport(token)
+    context = {
+        "share": share,
+        "patient": share.patient,
+        "pharmacy_name": settings.PHARMACY_NAME,
+        **shared_sections(share),
+    }
+    return render(request, "passport/shared.html", context)
 
 
 @staff_required
@@ -137,53 +100,20 @@ def patient_list(request, patient_id=None):
     search = request.GET.get("search", "")
     patients = find_patients(search)
     selected = get_patient(patient_id) if patient_id else patients.first()
-    # Existing staff-created records without a patient login keep their legacy workflow.
-    # A logged-in patient's passport requires their explicit section-level consent.
-    legacy_record = selected is not None and selected.user_id is None
-    share = active_passport_share(selected) if selected and not legacy_record else None
-    most_recent_share = (
-        PassportShare.objects.filter(patient=selected, pharmacy_name=settings.PHARMACY_NAME)
-        .order_by("-consented_at", "-pk")
-        .first()
-        if selected and not legacy_record and share is None else None
-    )
-    share_expired = bool(
-        most_recent_share
-        and most_recent_share.revoked_at is None
-        and (most_recent_share.expires_at is None or most_recent_share.expires_at <= timezone.now())
-    )
-    share_removed = bool(most_recent_share and most_recent_share.revoked_at is not None)
-    allow_allergies = bool(legacy_record or (share and share.include_allergies))
-    allow_contact = bool(legacy_record or (share and share.include_contact))
-    allow_medicines = bool(legacy_record or (share and share.include_medicines))
-    allow_history = bool(legacy_record or (share and share.include_history))
-    today = timezone.localdate()
-    selected_age = None
-    if selected and allow_contact:
-        birthday = selected.date_of_birth
-        selected_age = today.year - birthday.year - ((today.month, today.day) < (birthday.month, birthday.day))
-    return render(
-        request,
-        "passport/patients.html",
-        {
-            "patients": patients,
-            "search": search,
-            "selected": selected,
-            "selected_share": share,
-            "selected_share_expired": share_expired,
-            "selected_share_removed": share_removed,
-            "selected_latest_share": most_recent_share,
-            "allow_contact": allow_contact,
-            "allow_allergies": allow_allergies,
-            "allow_medicines": allow_medicines,
-            "allow_history": allow_history,
-            "selected_age": selected_age,
-            "can_create_prescription": can_act_as_pharmacist(request.user),
-            "allergies": allergies_of(selected) if allow_allergies else [],
-            "current_medicines": current_medicines_of(selected) if allow_medicines else [],
-            "history": dispensing_history(selected) if allow_history else [],
-        },
-    )
+    context = {
+        "patients": patients,
+        "search": search,
+        "selected": selected,
+        "can_create_prescription": can_act_as_pharmacist(request.user),
+    }
+    if selected:
+        context["age"] = age_of(selected)
+        context["allergies"] = allergies_of(selected)
+        context["current_medicines"] = current_medicines_of(selected)
+        context["history"] = dispensing_history(selected)
+        context["open_shares"] = open_shares_of(selected)
+        context["caregiver_links"] = caregiver_links_of(selected)
+    return render(request, "passport/patients.html", context)
 
 
 @staff_required

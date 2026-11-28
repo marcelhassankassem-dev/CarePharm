@@ -1,0 +1,29 @@
+{% extends "passport/my_passport.html" %}
+{% load static %}
+
+{% block title %}Remove Access - CarePharm{% endblock %}
+
+{% block popup %}
+<div class="popup-overlay">
+    <dialog open class="popup">
+        <div class="popup-header">
+            <span class="passport-popup-icon"><img src="{% static 'core/images/passport-allergy-bubble.svg' %}" alt=""><img src="{% static 'core/images/passport-alert.svg' %}" alt=""></span>
+            <div>
+                <h2>Remove Access</h2>
+                <p>{{ share.pharmacy_name|default:"This pharmacy" }} will no longer be able to open your passport.</p>
+            </div>
+            <a href="{% url 'my_passport' %}" class="popup-close" aria-label="Close"><img src="{% static 'core/images/icon-close.svg' %}" alt=""></a>
+        </div>
+
+        <p class="popup-note">The link stops working at once. Your medicines and history stay in your passport, and you can send it again later.</p>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="popup-actions">
+                <a href="{% url 'my_passport' %}" class="secondary-button">Keep Access</a>
+                <button type="submit" class="primary-button passport-remove-button">Remove Access</button>
+            </div>
+        </form>
+    </dialog>
+</div>
+{% endblock %}

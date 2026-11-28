@@ -10,7 +10,8 @@ from assistant.models import PharmacistQuestion
 from assistant.questions import answer_question, pass_to_pharmacist
 from core.models import ActivityLog, Notification
 from inventory.models import Batch, DrugClass, Medicine
-from passport.models import Allergy, CurrentMedicine, Patient
+from passport.models import Allergy, CurrentMedicine, PassportShare, Patient
+from passport.services import share_passport
 from prescriptions.models import Prescription, PrescriptionItem
 from prescriptions.services import (
     add_item,
@@ -369,6 +370,15 @@ def create_questions():
     pass_to_pharmacist(samira.user, samira, "Can I take my Amlodipine with grapefruit juice?")
 
 
+def create_passport_shares():
+    samira = Patient.objects.get(name="Samira")
+    if PassportShare.objects.filter(patient=samira).exists():
+        return
+    expired = share_passport(samira, "Saida Health Pharmacy", ["allergies", "medicines"], 7)
+    PassportShare.objects.filter(pk=expired.pk).update(created_at=days_ago(30), expires_at=days_ago(23))
+    share_passport(samira, "Byblos Family Pharmacy", ["contact", "allergies", "medicines"], 7)
+
+
 class Command(BaseCommand):
     def handle(self, *args, **options):
         create_staff()
@@ -382,3 +392,4 @@ class Command(BaseCommand):
         create_reservations()
         create_refill_requests()
         create_questions()
+        create_passport_shares()
