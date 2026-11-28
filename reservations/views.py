@@ -177,4 +177,4 @@ def refill_request(request, item_id):
         messages.error(request, " ".join(problem.messages))
     else:
         messages.success(request, f"Refill requested: {item.medicine}. The pharmacy will let you know when it is ready.")
-    return redirect("patient_home")
+    return redirect("family_access" if request.POST.get("return_to") == "family" else "patient_home")

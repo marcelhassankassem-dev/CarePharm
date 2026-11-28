@@ -1,7 +1,9 @@
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.shortcuts import redirect, render
 
+from accounts.models import CaregiverLink
 from accounts.permissions import can_act_as_pharmacist, patient_required, pharmacist_required, staff_required
 from passport.forms import PatientChoiceForm
 from passport.views import patient_page_data, selected_patient
@@ -33,6 +35,7 @@ from reservations.services import (
     refill_rows,
     reservation_rows,
 )
+from reservations.models import RefillRequest
 from safety.services import safety_warnings
 from safety.views import safety_check_page
 from sales.forms import PaymentForm
@@ -200,6 +203,22 @@ def tracked_prescriptions(patient):
 
 @patient_required
 def my_prescriptions(request):
+    patient = selected_patient(request)
     context = patient_page_data(request)
-    context["rows"] = tracked_prescriptions(selected_patient(request))
+    context["rows"] = tracked_prescriptions(patient)
+    caregiver_view = patient is not None and CaregiverLink.objects.filter(
+        patient=patient, caregiver=request.user, active=True
+    ).exists()
+    context["caregiver_return"] = caregiver_view
+    context["caregiver_refill_updates"] = (
+        list(
+            RefillRequest.objects.filter(prescription_item__prescription__patient=patient)
+            .filter(
+                Q(status__in=["waiting", "delayed"])
+                | Q(status="approved", new_prescription__status__in=["received", "preparing", "ready"])
+            )
+            .select_related("prescription_item__medicine", "new_prescription")
+            .order_by("-created_at", "-pk")
+        ) if caregiver_view else []
+    )
     return render(request, "prescriptions/mine.html", context)

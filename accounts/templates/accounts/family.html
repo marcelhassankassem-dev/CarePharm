@@ -2,6 +2,7 @@
 {% load static %}
 
 {% block title %}Family Access - CarePharm{% endblock %}
+{% block page_class %}family-access-page{% endblock %}
 
 {% block profile_switch %}{% endblock %}
 
@@ -26,34 +27,114 @@
                     <h2>Linked Family Profiles</h2>
                     <p>Manage the people you care for</p>
                 </div>
+                {% if own_record %}
+                <a href="{% url 'family_add' %}" class="primary-button family-add-button family-profiles-add">+ &nbsp;Add Family Member</a>
+                {% else %}
+                <button type="button" class="primary-button family-add-button family-profiles-add" data-family-add-open>+ &nbsp;Add Family Member</button>
+                {% endif %}
             </div>
             <div class="family-profiles">
+                <div class="family-profile-shell">
                 <div class="family-profile">
                     {% with words=patient_name.split %}
-                    <span class="family-avatar">{{ words.0|first|upper }}{{ words.1|first|upper }}</span>
+                    <span class="family-avatar">{% if user.profile_photo %}<img src="{{ user.profile_photo.url }}" alt="{{ patient_name }} profile photo">{% else %}{{ words.0|first|upper }}{{ words.1|first|upper }}{% endif %}</span>
                     {% endwith %}
                     <div>
                         <strong>{{ patient_name }} <span class="family-pill">You</span></strong>
                         <small>Account owner&nbsp;&nbsp;•&nbsp;&nbsp;Managing {{ cared_for|length }} family member{{ cared_for|length|pluralize }}</small>
                     </div>
                 </div>
+                <button type="button" class="family-photo-trigger" data-family-photo-url="{% url 'family_photo_me' %}" data-family-photo-name="{{ patient_name }}" aria-label="Change your profile photo" title="Change your profile photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h4l2-2h4l2 2h4v12H4z"/><circle cx="12" cy="13" r="3"/></svg></button>
+                </div>
                 {% for patient in cared_for %}
+                <div class="family-profile-shell">
                 <form method="post" action="/family/view/{{ patient.pk }}/">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="/family/">
                     <button type="submit" class="family-profile{% if patient == viewing %} selected{% endif %}">
                         {% with words=patient.name.split %}
-                        <span class="family-avatar">{{ words.0|first|upper }}{{ words.1|first|upper }}</span>
+                        <span class="family-avatar">{% if patient.profile_photo %}<img src="{{ patient.profile_photo.url }}" alt="{{ patient.name }} profile photo">{% elif patient.user.profile_photo %}<img src="{{ patient.user.profile_photo.url }}" alt="{{ patient.name }} profile photo">{% else %}{{ words.0|first|upper }}{{ words.1|first|upper }}{% endif %}</span>
                         {% endwith %}
                         <span>
-                            <strong>{{ patient.name }}</strong>
+                            <strong>{{ patient.name }} <span class="family-relationship-pill">Family</span></strong>
                             <small><img src="{% static 'core/images/family-users.svg' %}" alt="">Managed by you</small>
                         </span>
                     </button>
                 </form>
+                <button type="button" class="family-photo-trigger" data-family-photo-url="{% url 'family_photo_patient' patient.pk %}" data-family-photo-name="{{ patient.name }}" aria-label="Change {{ patient.name }}'s profile photo" title="Change profile photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h4l2-2h4l2 2h4v12H4z"/><circle cx="12" cy="13" r="3"/></svg></button>
+                </div>
                 {% endfor %}
             </div>
         </section>
+
+        {% if caregiver_view %}
+        <section class="card family-card family-medicines" aria-labelledby="family-medicines-heading">
+            <div class="family-card-header family-medicines-heading">
+                <span class="family-header-icon"><img src="{% static 'core/images/family-pill.svg' %}" alt=""></span>
+                <div>
+                    <h2 id="family-medicines-heading">{{ viewing.name }}’s Medicines</h2>
+                    <p>Request refills and follow collection status for {{ viewing.name }}.</p>
+                </div>
+                <a href="/prescriptions/mine/" class="family-inline-link">View all medicines →</a>
+            </div>
+            {% if caregiver_reminders %}
+            <p class="family-reminder-banner" role="status">
+                <span aria-hidden="true">◷</span>
+                {{ caregiver_reminders|length }} medicine{{ caregiver_reminders|length|pluralize }} due for a refill soon.
+            </p>
+            {% endif %}
+            <div class="family-medicine-grid">
+                {% for card in caregiver_medicines %}
+                <article class="family-medicine-card">
+                    <div class="family-medicine-card-top">
+                        <div class="family-medicine-symbol" aria-hidden="true"></div>
+                        <details class="family-medicine-menu">
+                            <summary aria-label="More options for {{ card.medicine }}" title="More options">⋮</summary>
+                            <div><a href="{% url 'my_prescriptions' %}#prescription-{{ card.target_prescription_id }}">View prescription</a></div>
+                        </details>
+                    </div>
+                    <h3>{{ card.medicine }}</h3>
+                    <p class="family-medicine-category">{{ card.medicine.drug_class.name }}</p>
+                    <div class="family-medicine-status {{ card.tone }}">
+                        <span class="family-medicine-status-icon" aria-hidden="true">{% if card.tone == 'urgent' %}⌂{% elif card.tone == 'upcoming' %}◷{% elif card.tone == 'pending' %}◷{% else %}✓{% endif %}</span>
+                        <span class="family-medicine-status-copy"><strong>{{ card.status }}</strong><small>{{ card.status_note }}</small></span>
+                    </div>
+                    <div class="family-medicine-meta">
+                        <span><span class="family-medicine-meta-icon" aria-hidden="true">◷</span>{{ card.item.quantity }} units · {{ card.item.days_of_supply }}-day supply</span>
+                        <span><span class="family-medicine-meta-icon" aria-hidden="true">▤</span>Prescription #{{ card.item.prescription_id }}</span>
+                    </div>
+                    <div class="family-medicine-actions">
+                        <a class="family-medicine-secondary" href="{% url 'my_prescriptions' %}#prescription-{{ card.item.prescription_id }}">View Details</a>
+                        {% if card.refill_item %}
+                        <form method="post" action="{% url 'refill_request' card.refill_item.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="return_to" value="family">
+                            <button type="submit" class="family-medicine-primary">Request Refill</button>
+                        </form>
+                        {% elif card.can_view_pickup %}
+                        <a class="family-medicine-primary" href="{% url 'my_prescriptions' %}#prescription-{{ card.target_prescription_id }}">{{ card.action_label }}</a>
+                        {% else %}
+                        <a class="family-medicine-primary" href="{% url 'my_prescriptions' %}#prescription-{{ card.item.prescription_id }}">Track Status</a>
+                        {% endif %}
+                    </div>
+                </article>
+                {% empty %}
+                <p class="family-empty">No prescription medicines recorded for this family member yet.</p>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if caregiver_view %}
+        <section class="family-encouragement" aria-label="Caregiver encouragement">
+            <img class="family-encouragement-art" src="{% static 'core/images/family-encouragement.svg' %}" alt="">
+            <div class="family-encouragement-copy">
+                <h2>You’re making a difference</h2>
+                <p>Your support helps keep {{ viewing.name }}’s health on track.</p>
+            </div>
+            <p class="family-encouragement-quote">Different<br>tomorrows,<br>together</p>
+        </section>
+        {% endif %}
 
         {% if own_record %}
         <section class="card family-card">
@@ -89,7 +170,8 @@
         {% endif %}
     </div>
 
-    <aside class="card family-card family-permissions">
+    <aside class="family-side">
+    <section class="card family-card family-permissions">
         <div class="family-card-header">
             <span class="family-header-icon"><img src="{% static 'core/images/family-shield.svg' %}" alt=""></span>
             <h2>Permission &amp; Access</h2>
@@ -116,8 +198,83 @@
                 <li><span class="family-permission-icon"><img src="{% static 'core/images/family-file.svg' %}" alt=""></span>Access pharmacy details<span class="family-allowed">Allowed</span></li>
             </ul>
         </div>
+    </section>
+
+    <section class="card family-card family-notifications" aria-labelledby="family-notifications-heading">
+        <div class="family-card-header family-notifications-heading">
+            <span class="family-header-icon"><img src="{% static 'core/images/family-bell.svg' %}" alt=""></span>
+            <h2 id="family-notifications-heading">Notifications</h2>
+            <a href="{% url 'notifications' %}" class="family-inline-link">View all →</a>
+        </div>
+        <div class="family-notification-list">
+            {% for notice in caregiver_notifications %}
+            <a href="{{ notice.link }}" class="family-notification{% if not notice.read %} unread{% endif %}">
+                <span class="family-notification-icon" aria-hidden="true">{% if 'not collected' in notice.text %}!{% else %}♧{% endif %}</span>
+                <span class="family-notification-text">{{ notice.text }}</span>
+                <span class="family-notification-chevron" aria-hidden="true">›</span>
+            </a>
+            {% empty %}
+            <p class="family-empty">No notifications yet. Refill and pickup alerts will appear here.</p>
+            {% endfor %}
+        </div>
+    </section>
     </aside>
 </div>
+
+<dialog id="family-photo-dialog" class="family-photo-dialog" aria-labelledby="family-photo-title">
+    <form method="post" enctype="multipart/form-data" action="{% url 'family_photo_me' %}">
+        {% csrf_token %}
+        <div class="family-photo-dialog-heading">
+            <h2 id="family-photo-title">Update profile photo</h2>
+            <button type="button" data-family-photo-close aria-label="Close photo uploader">×</button>
+        </div>
+        <p>Choose a photo for <strong data-family-photo-name>{{ patient_name }}</strong>.</p>
+        <label for="family-photo-input">JPG, PNG, or WebP (maximum 2 MB)</label>
+        <input id="family-photo-input" type="file" name="photo" accept=".jpg,.jpeg,.png,.webp" required>
+        <div class="family-photo-dialog-actions">
+            <button type="button" class="family-photo-cancel" data-family-photo-close>Cancel</button>
+            <button type="submit" class="family-photo-save">Save photo</button>
+        </div>
+    </form>
+</dialog>
+
+{% if not own_record %}
+<dialog id="family-add-info-dialog" class="family-photo-dialog" aria-labelledby="family-add-info-title">
+    <div class="family-photo-dialog-heading">
+        <h2 id="family-add-info-title">Add a family member</h2>
+        <button type="button" data-family-add-close aria-label="Close">×</button>
+    </div>
+    <p>For their privacy, your family member must sign in to their own CarePharm account and grant you caregiver access through <strong>Family Access → Add Family Member</strong>.</p>
+    <p>Ask them to enter your username: <strong>{{ user.username }}</strong>.</p>
+    <div class="family-photo-dialog-actions"><button type="button" class="family-photo-save" data-family-add-close>Got it</button></div>
+</dialog>
+{% endif %}
+
+<script>
+(function () {
+    var dialog = document.getElementById('family-photo-dialog');
+    if (!dialog || typeof dialog.showModal !== 'function') return;
+    document.querySelectorAll('[data-family-photo-url]').forEach(function (trigger) {
+        trigger.addEventListener('click', function () {
+            dialog.querySelector('form').action = trigger.dataset.familyPhotoUrl;
+            dialog.querySelector('[data-family-photo-name]').textContent = trigger.dataset.familyPhotoName;
+            dialog.querySelector('#family-photo-input').value = '';
+            dialog.showModal();
+        });
+    });
+    dialog.querySelectorAll('[data-family-photo-close]').forEach(function (button) {
+        button.addEventListener('click', function () { dialog.close(); });
+    });
+    var addDialog = document.getElementById('family-add-info-dialog');
+    var addTrigger = document.querySelector('[data-family-add-open]');
+    if (addDialog && addTrigger && typeof addDialog.showModal === 'function') {
+        addTrigger.addEventListener('click', function () { addDialog.showModal(); });
+        addDialog.querySelectorAll('[data-family-add-close]').forEach(function (button) {
+            button.addEventListener('click', function () { addDialog.close(); });
+        });
+    }
+})();
+</script>
 
 {% block popup %}{% endblock %}
 {% endblock %}

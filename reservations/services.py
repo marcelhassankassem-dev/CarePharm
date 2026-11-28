@@ -7,10 +7,12 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from core.services import notify_patient
+from accounts.models import CaregiverLink
+from core.services import notify, notify_caregivers, notify_patient
 from inventory.services import available_stock, find_medicines, return_stock, take_stock
+from prescriptions.models import PrescriptionItem
 from prescriptions.services import UNCOLLECTED_STATUSES, collected_long_term_items, create_refill_prescription
-from reservations.models import RefillRequest, Reservation
+from reservations.models import CaregiverRefillReminder, RefillRequest, Reservation
 from sales.services import record_sale
 
 HOLD_TIME = timedelta(hours=2)
@@ -18,6 +20,7 @@ SOON_MINUTES = 30
 OPEN_REFILL_STATUSES = ["waiting", "delayed"]
 FIND_LIMIT = 5
 REMINDER_DAYS = 3
+UNCOLLECTED_REFILL_AFTER = timedelta(days=2)
 
 
 def availability(medicine, quantity):
@@ -117,7 +120,13 @@ def open_refill_requests():
 def request_refill(user, item):
     if open_refill_requests().filter(prescription_item=item).exists():
         raise ValidationError(f"A refill of {item.medicine} has already been requested.")
-    return RefillRequest.objects.create(prescription_item=item, requested_by=user)
+    requested = RefillRequest.objects.create(prescription_item=item, requested_by=user)
+    if CaregiverLink.objects.filter(patient=item.prescription.patient, caregiver=user, active=True).exists():
+        notify_caregivers(
+            item.prescription.patient,
+            f"Refill requested for {item.prescription.patient.name}: {item.medicine}.",
+        )
+    return requested
 
 
 @transaction.atomic
@@ -128,6 +137,10 @@ def approve_refill(refill_request):
     refill_request.status = "approved"
     refill_request.new_prescription = prescription
     refill_request.save()
+    notify_caregivers(
+        prescription.patient,
+        f"Refill approved for {prescription.patient.name}: {refill_request.prescription_item.medicine}.",
+    )
     return prescription
 
 
@@ -142,7 +155,166 @@ def delay_refill(refill_request, expected_on):
     refill_request.save()
     item = refill_request.prescription_item
     text = f"Refill delayed: {item.medicine}, expected {expected_on:%d %b %Y}."
-    return notify_patient(item.prescription.patient, text, "/")
+    told = notify_patient(item.prescription.patient, text, "/")
+    notify_caregivers(item.prescription.patient, text)
+    return told
+
+
+@transaction.atomic
+def send_uncollected_refill_alerts(now=None, caregiver=None):
+    """Notify current caregivers once, 48 hours after a refill becomes ready."""
+    now = now or timezone.now()
+    cutoff = now - UNCOLLECTED_REFILL_AFTER
+    due = (
+        RefillRequest.objects.select_for_update()
+        .filter(
+            status="approved",
+            pickup_alert_sent_at__isnull=True,
+            new_prescription__status="ready",
+            new_prescription__ready_at__isnull=False,
+            new_prescription__ready_at__lte=cutoff,
+        )
+        .select_related("prescription_item__medicine", "new_prescription__patient")
+    )
+    if caregiver is not None:
+        authorized_patients = CaregiverLink.objects.filter(
+            caregiver=caregiver, active=True
+        ).values("patient_id")
+        due = due.filter(new_prescription__patient_id__in=authorized_patients)
+    alerted = 0
+    for requested in due:
+        patient = requested.new_prescription.patient
+        recipients = notify_caregivers(
+            patient,
+            f"Refill not collected: {patient.name}'s {requested.prescription_item.medicine} "
+            f"has been ready for pickup for 2 days. Please collect it from the pharmacy.",
+        )
+        if recipients:
+            requested.pickup_alert_sent_at = now
+            requested.save(update_fields=["pickup_alert_sent_at"])
+            alerted += 1
+    return alerted
+
+
+@transaction.atomic
+def send_caregiver_refill_reminders(today=None, caregiver=None):
+    """Create one reminder per linked caregiver and medicine per day (0–3 days left)."""
+    today = today or timezone.localdate()
+    alerted = 0
+    links = CaregiverLink.objects.filter(active=True).select_related("patient", "caregiver")
+    if caregiver is not None:
+        links = links.filter(caregiver=caregiver)
+    for connection in links:
+        for item in latest_item_of_each_medicine(collected_long_term_items(connection.patient)):
+            days_left = (runs_out_on(item) - today).days
+            if not 0 <= days_left <= REMINDER_DAYS or refill_in_progress(item):
+                continue
+            _, created = CaregiverRefillReminder.objects.get_or_create(
+                prescription_item=item,
+                caregiver=connection.caregiver,
+                reminder_date=today,
+            )
+            if created:
+                notify(
+                    connection.caregiver,
+                    f"Refill reminder for {connection.patient.name}: {runs_out_text(item.medicine, days_left)}",
+                    "/family/",
+                )
+                alerted += 1
+    return alerted
+
+
+def caregiver_medicine_cards(patient):
+    """Build medication summaries from real prescription/refill records."""
+    if patient is None:
+        return []
+    items = (
+        PrescriptionItem.objects.filter(prescription__patient=patient)
+        .select_related("medicine__drug_class", "prescription")
+        .order_by("-prescription__created_at", "-id")
+    )
+    latest = {}
+    for item in items:
+        latest.setdefault(item.medicine_id, item)
+
+    refillable = {
+        item.medicine_id: item for item in latest_item_of_each_medicine(collected_long_term_items(patient))
+    }
+    today = timezone.localdate()
+    cards = []
+    for item in latest.values():
+        source = refillable.get(item.medicine_id)
+        latest_request = (
+            RefillRequest.objects.filter(prescription_item=source)
+            .select_related("new_prescription")
+            .order_by("-created_at", "-id")
+            .first()
+            if source else None
+        )
+        active_request = latest_request and (
+            latest_request.status in OPEN_REFILL_STATUSES
+            or latest_request.status == "approved"
+            and latest_request.new_prescription
+            and latest_request.new_prescription.status in UNCOLLECTED_STATUSES
+        )
+        if active_request and latest_request.status == "waiting":
+            status, tone = "Refill requested", "pending"
+        elif active_request and latest_request.status == "delayed":
+            status, tone = f"Refill delayed to {latest_request.expected_on:%d %b %Y}" if latest_request.expected_on else "Refill delayed", "pending"
+        elif active_request and latest_request.new_prescription.status == "ready":
+            status, tone = "Refill ready for pickup", "urgent"
+        elif active_request:
+            status, tone = "Refill being prepared", "pending"
+        elif item.prescription.status == "ready":
+            status, tone = "Ready for pickup", "urgent"
+        elif source:
+            days_left = (runs_out_on(source) - today).days
+            if days_left < 0:
+                status, tone = f"Refill overdue by {-days_left} day(s)", "urgent"
+            elif days_left == 0:
+                status, tone = "Refill due today", "urgent"
+            else:
+                status, tone = f"Next refill in {days_left} days", "upcoming"
+        else:
+            status, tone = item.prescription.get_status_display(), "neutral"
+        action_label = (
+            "Track Refill" if active_request else
+            "Pickup Details" if item.prescription.status == "ready" else "View Details"
+        )
+        if active_request and latest_request.new_prescription and latest_request.new_prescription.status == "ready":
+            action_label = "Pickup Details"
+        ready_prescription = (
+            latest_request.new_prescription
+            if active_request and latest_request.new_prescription
+            else item.prescription
+        )
+        if active_request and latest_request.status == "waiting":
+            status_note = "Your request is with the pharmacy"
+        elif active_request and latest_request.status == "delayed":
+            status_note = "The pharmacy will update you"
+        elif ready_prescription.status == "ready":
+            status_note = (
+                f"Ready since {timezone.localtime(ready_prescription.ready_at):%d %b %Y}"
+                if ready_prescription.ready_at else "Available at your pharmacy"
+            )
+        elif active_request:
+            status_note = "The pharmacy is preparing it"
+        elif source:
+            status_note = f"Next refill: {runs_out_on(source):%d %b %Y}"
+        else:
+            status_note = f"{item.days_of_supply}-day prescription supply"
+        cards.append({
+            "medicine": item.medicine,
+            "item": item,
+            "status": status,
+            "status_note": status_note,
+            "tone": tone,
+            "refill_item": source if source and not active_request else None,
+            "can_view_pickup": item.prescription.status == "ready" or bool(active_request),
+            "action_label": action_label,
+            "target_prescription_id": ready_prescription.pk,
+        })
+    return cards
 
 
 def get_refill_request(refill_request_id):

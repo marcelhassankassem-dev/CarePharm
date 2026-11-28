@@ -4,6 +4,9 @@
 {% block title %}Track Prescription - CarePharm{% endblock %}
 
 {% block patient_content %}
+{% if caregiver_return %}
+<a class="tracked-family-back" href="{% url 'family_access' %}">← Back to Family Access</a>
+{% endif %}
 <div class="page-heading">
     <div>
         <h1>Track Prescription</h1>
@@ -11,9 +14,30 @@
     </div>
 </div>
 
+{% if caregiver_refill_updates %}
+<section class="tracked-refill-updates" aria-labelledby="tracked-refill-heading">
+    <h2 id="tracked-refill-heading">Current refill requests</h2>
+    <p>These refill requests are separate from the original prescriptions shown below. An older prescription can be collected while a new refill is still being processed.</p>
+    <ul>
+        {% for refill in caregiver_refill_updates %}
+        <li>
+            <strong>{{ refill.prescription_item.medicine }}</strong>
+            <span>
+                {% if refill.status == 'waiting' %}Refill requested — awaiting pharmacy review
+                {% elif refill.status == 'delayed' %}Refill delayed{% if refill.expected_on %} until {{ refill.expected_on|date:'d M Y' }}{% endif %}
+                {% elif refill.new_prescription.status == 'ready' %}Refill ready for pickup
+                {% elif refill.new_prescription.status == 'preparing' %}Refill being prepared
+                {% else %}Refill approved — awaiting preparation{% endif %}
+            </span>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
+
 <div class="tracked-list">
     {% for row in rows %}
-    <article class="tracked-prescription">
+    <article id="prescription-{{ row.prescription.pk }}" class="tracked-prescription">
         <div class="tracked-title">
             <span class="tracked-icon"><img src="{% static 'core/images/prescription-pill.svg' %}" alt=""></span>
             <div>

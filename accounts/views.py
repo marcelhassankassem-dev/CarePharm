@@ -4,8 +4,12 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_POST
+from uuid import uuid4
 
-from accounts.forms import EditStaffForm, FamilyMemberForm, NewStaffForm
+from accounts.models import CaregiverLink
+
+from accounts.forms import EditStaffForm, FamilyMemberForm, NewStaffForm, ProfilePhotoForm
 from accounts.permissions import ROLE_PERMISSIONS, patient_required, require_owner
 from accounts.services import (
     active_staff_count,
@@ -19,10 +23,16 @@ from accounts.services import (
     staff_members,
     update_staff_member,
 )
-from core.services import activity_log, pharmacy_details
+from core.services import activity_log, notifications_for, pharmacy_details
 from passport.services import patient_name_for, patient_of, patients_cared_for, viewable_patient
 from passport.views import VIEWING_PATIENT, patient_page_data, selected_patient
-from reservations.services import patient_refill_requests, refill_reminders
+from reservations.services import (
+    caregiver_medicine_cards,
+    patient_refill_requests,
+    refill_reminders,
+    send_caregiver_refill_reminders,
+    send_uncollected_refill_alerts,
+)
 
 
 def site_root(request):
@@ -75,17 +85,55 @@ def family_page_data(request):
     family_members = [
         {"link": link, "name": patient_name_for(link.caregiver)} for link in caregiver_links_of(own_record)
     ]
+    viewing = selected_patient(request)
+    caregiver_view = viewing is not None and CaregiverLink.objects.filter(
+        patient=viewing, caregiver=request.user, active=True
+    ).exists()
     return {
         **patient_page_data(request),
         "own_record": own_record,
         "family_members": family_members,
         "cared_for": patients_cared_for(request.user),
+        "caregiver_view": caregiver_view,
+        "caregiver_medicines": caregiver_medicine_cards(viewing) if caregiver_view else [],
+        "caregiver_reminders": refill_reminders(viewing) if caregiver_view else [],
+        "caregiver_notifications": list(notifications_for(request.user)[:3]),
     }
 
 
 @patient_required
 def family_access(request):
+    send_caregiver_refill_reminders(caregiver=request.user)
+    send_uncollected_refill_alerts(caregiver=request.user)
     return render(request, "accounts/family.html", family_page_data(request))
+
+
+def save_family_photo(request, profile):
+    form = ProfilePhotoForm(request.POST, request.FILES)
+    if form.is_valid():
+        photo = form.cleaned_data["photo"]
+        extension = photo.name.rsplit(".", 1)[-1].lower()
+        photo.name = f"{uuid4().hex}.{extension}"
+        profile.profile_photo = photo
+        profile.save(update_fields=["profile_photo"])
+        messages.success(request, "Profile photo updated.")
+    else:
+        for problem in form.errors.get("photo", ["Choose a valid profile photo."]):
+            messages.error(request, problem)
+    return redirect("family_access")
+
+
+@patient_required
+@require_POST
+def family_photo_me(request):
+    return save_family_photo(request, request.user)
+
+
+@patient_required
+@require_POST
+def family_photo_patient(request, patient_id):
+    patient = viewable_patient(request.user, patient_id)
+    return save_family_photo(request, patient)
 
 
 @patient_required
