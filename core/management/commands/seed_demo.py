@@ -69,7 +69,7 @@ def create_patients():
     samira = get_or_create_user("samira", "patient")
     maya = get_or_create_user("maya", "patient")
     omars_father = get_or_create_user("omars_father", "patient")
-    get_or_create_user("omar", "patient")
+    get_or_create_user("omar", "patient", "Omar")
 
     create_patient("Samira", date(1958, 3, 14), "03 100 001", samira)
     create_patient("Maya", date(1988, 9, 21), "03 100 002", maya)
@@ -324,15 +324,16 @@ def create_reservations():
     demo_reservation("Omar's Father", "Omeprazole", "20 mg", 1, 180)
 
 
-def demo_refill_request(patient_name, medicine_name, strength, hours):
+def demo_refill_request(patient_name, medicine_name, strength, hours, requested_by=None):
     patient = Patient.objects.get(name=patient_name)
+    requested_by = requested_by or patient.user
     item = PrescriptionItem.objects.get(
         prescription__patient=patient,
         prescription__status="collected",
         medicine__name=medicine_name,
         medicine__strength=strength,
     )
-    refill_request = request_refill(patient.user, item)
+    refill_request = request_refill(requested_by, item)
     RefillRequest.objects.filter(pk=refill_request.pk).update(created_at=timezone.now() - timedelta(hours=hours))
     refill_request.refresh_from_db()
     return refill_request
@@ -343,7 +344,8 @@ def create_refill_requests():
         return
     out_of_stock = demo_refill_request("Omar's Father", "Metformin", "850 mg", 20)
     delay_refill(out_of_stock, timezone.localdate() + timedelta(days=7))
-    demo_refill_request("Omar's Father", "Losartan", "50 mg", 2)
+    omar = get_user_model().objects.get(username="omar")
+    demo_refill_request("Omar's Father", "Losartan", "50 mg", 2, omar)
 
 
 def answered_yesterday(patient, question, answer):

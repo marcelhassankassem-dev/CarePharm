@@ -5,7 +5,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from core.services import notify_caregivers, notify_patient
+from core.services import notify_patient
 from inventory.services import return_stock, take_stock
 from passport.services import add_current_medicine
 from prescriptions.models import Prescription, PrescriptionItem
@@ -175,8 +175,8 @@ def mark_ready(user, prescription):
     prescription.status = "ready"
     prescription.ready_at = timezone.now()
     prescription.save()
+    # notify_patient also sends to authorized caregivers; avoid duplicates.
     notify_patient(prescription.patient, ready_text(prescription, items), PATIENT_PRESCRIPTIONS_LINK)
-    notify_caregivers(prescription.patient, ready_text(prescription, items))
 
 
 @transaction.atomic

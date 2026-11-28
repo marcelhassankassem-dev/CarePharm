@@ -170,55 +170,53 @@
         {% endif %}
     </div>
 
-    <aside class="family-side">
-    <section class="card family-card family-permissions">
-        <div class="family-card-header">
-            <span class="family-header-icon"><img src="{% static 'core/images/family-shield.svg' %}" alt=""></span>
-            <h2>Permission &amp; Access</h2>
-        </div>
-        <div class="family-permission-box">
-            <div class="family-status">
-                <span class="family-status-icon"><img src="{% static 'core/images/family-check.svg' %}" alt=""></span>
-                {% if viewing and viewing.user_id != user.id %}
-                <div>
-                    <strong>Authorized caregiver access active</strong>
-                    <p>You can manage {{ viewing.name }}’s medicines, reminders, and pickup status from your account.</p>
-                </div>
-                {% else %}
-                <div>
-                    <strong>You stay in control</strong>
-                    <p>A family member you add can do the following for you, until you remove their access.</p>
-                </div>
-                {% endif %}
+    <div class="family-side">
+        <aside class="card family-card family-permissions">
+            <div class="family-card-header">
+                <span class="family-header-icon"><img src="{% static 'core/images/family-shield.svg' %}" alt=""></span>
+                <h2>Permission &amp; Access</h2>
             </div>
-            <ul class="family-permission-list">
-                <li><span class="family-permission-icon"><img src="{% static 'core/images/family-pill.svg' %}" alt=""></span>View and manage medicines<span class="family-allowed">Allowed</span></li>
-                <li><span class="family-permission-icon"><img src="{% static 'core/images/family-bell.svg' %}" alt=""></span>Manage reminders<span class="family-allowed">Allowed</span></li>
-                <li><span class="family-permission-icon"><img src="{% static 'core/images/family-bag.svg' %}" alt=""></span>View pickup status<span class="family-allowed">Allowed</span></li>
-                <li><span class="family-permission-icon"><img src="{% static 'core/images/family-file.svg' %}" alt=""></span>Access pharmacy details<span class="family-allowed">Allowed</span></li>
-            </ul>
-        </div>
-    </section>
+            <div class="family-permission-box">
+                <div class="family-status">
+                    <span class="family-status-icon"><img src="{% static 'core/images/family-check.svg' %}" alt=""></span>
+                    {% if viewing and viewing.user_id != user.id %}
+                    <div>
+                        <strong>Authorized caregiver access active</strong>
+                        <p>You can manage {{ viewing.name }}’s medicines, reminders, and pickup status from your account.</p>
+                    </div>
+                    {% else %}
+                    <div>
+                        <strong>You stay in control</strong>
+                        <p>A family member you add can do the following for you, until you remove their access.</p>
+                    </div>
+                    {% endif %}
+                </div>
+                <ul class="family-permission-list">
+                    <li><span class="family-permission-icon"><img src="{% static 'core/images/family-pill.svg' %}" alt=""></span>View and manage medicines<span class="family-allowed">Allowed</span></li>
+                    <li><span class="family-permission-icon"><img src="{% static 'core/images/family-bell.svg' %}" alt=""></span>Manage reminders<span class="family-allowed">Allowed</span></li>
+                    <li><span class="family-permission-icon"><img src="{% static 'core/images/family-bag.svg' %}" alt=""></span>View pickup status<span class="family-allowed">Allowed</span></li>
+                    <li><span class="family-permission-icon"><img src="{% static 'core/images/family-file.svg' %}" alt=""></span>Access pharmacy details<span class="family-allowed">Allowed</span></li>
+                </ul>
+            </div>
+        </aside>
 
-    <section class="card family-card family-notifications" aria-labelledby="family-notifications-heading">
-        <div class="family-card-header family-notifications-heading">
-            <span class="family-header-icon"><img src="{% static 'core/images/family-bell.svg' %}" alt=""></span>
-            <h2 id="family-notifications-heading">Notifications</h2>
-            <a href="{% url 'notifications' %}" class="family-inline-link">View all →</a>
-        </div>
-        <div class="family-notification-list">
-            {% for notice in caregiver_notifications %}
-            <a href="{{ notice.link }}" class="family-notification{% if not notice.read %} unread{% endif %}">
-                <span class="family-notification-icon" aria-hidden="true">{% if 'not collected' in notice.text %}!{% else %}♧{% endif %}</span>
-                <span class="family-notification-text">{{ notice.text }}</span>
-                <span class="family-notification-chevron" aria-hidden="true">›</span>
+        <section class="card family-card family-notifications">
+            <div class="family-card-header">
+                <span class="family-header-icon"><img src="{% static 'core/images/family-bell.svg' %}" alt=""></span>
+                <h2>Notifications</h2>
+                <a href="/notifications/" class="family-view-all">View all</a>
+            </div>
+            {% for notification in notifications %}
+            <a href="{{ notification.link }}" class="notification{% if not notification.read %} unread{% endif %}">
+                <span class="notification-icon"><img src="{% static 'core/images/notification-bell.svg' %}" alt=""></span>
+                <span class="notification-text">{{ notification.text }}</span>
+                <img class="notification-arrow" src="{% static 'core/images/notification-arrow.svg' %}" alt="">
             </a>
             {% empty %}
-            <p class="family-empty">No notifications yet. Refill and pickup alerts will appear here.</p>
+            <p class="family-empty">No notifications yet.</p>
             {% endfor %}
-        </div>
-    </section>
-    </aside>
+        </section>
+    </div>
 </div>
 
 <dialog id="family-photo-dialog" class="family-photo-dialog" aria-labelledby="family-photo-title">

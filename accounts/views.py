@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
@@ -23,7 +24,7 @@ from accounts.services import (
     staff_members,
     update_staff_member,
 )
-from core.services import activity_log, notifications_for, pharmacy_details
+from core.services import activity_log, latest_notifications, pharmacy_details
 from passport.services import patient_name_for, patient_of, patients_cared_for, viewable_patient
 from passport.views import VIEWING_PATIENT, patient_page_data, selected_patient
 from reservations.services import (
@@ -33,6 +34,9 @@ from reservations.services import (
     send_caregiver_refill_reminders,
     send_uncollected_refill_alerts,
 )
+
+PATIENT_TEXT_SIZE_COOKIE = "carepharm_patient_text_size"
+PATIENT_TEXT_SIZES = {"standard", "large", "extra_large"}
 
 
 def site_root(request):
@@ -80,6 +84,27 @@ def patient_home(request):
     return render(request, "accounts/home.html", context)
 
 
+@patient_required
+@require_POST
+def patient_text_size(request):
+    """Keep a patient's readable text-size choice across pages and visits."""
+    size = request.POST.get("text_size", "")
+    if size not in PATIENT_TEXT_SIZES:
+        return HttpResponseBadRequest("Choose a valid text size.")
+
+    return_to = address_on_this_site(request, request.POST.get("next", ""), "/home/")
+    response = redirect(return_to)
+    response.set_cookie(
+        PATIENT_TEXT_SIZE_COOKIE,
+        size,
+        max_age=365 * 24 * 60 * 60,
+        httponly=True,
+        secure=request.is_secure(),
+        samesite="Lax",
+    )
+    return response
+
+
 def family_page_data(request):
     own_record = patient_of(request.user)
     family_members = [
@@ -89,6 +114,7 @@ def family_page_data(request):
     caregiver_view = viewing is not None and CaregiverLink.objects.filter(
         patient=viewing, caregiver=request.user, active=True
     ).exists()
+    notifications = list(latest_notifications(request.user))
     return {
         **patient_page_data(request),
         "own_record": own_record,
@@ -97,7 +123,8 @@ def family_page_data(request):
         "caregiver_view": caregiver_view,
         "caregiver_medicines": caregiver_medicine_cards(viewing) if caregiver_view else [],
         "caregiver_reminders": refill_reminders(viewing) if caregiver_view else [],
-        "caregiver_notifications": list(notifications_for(request.user)[:3]),
+        "caregiver_notifications": notifications,
+        "notifications": notifications,
     }
 
 

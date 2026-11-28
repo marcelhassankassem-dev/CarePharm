@@ -6,6 +6,7 @@ from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
+from accounts.models import CaregiverLink
 from assistant.models import PharmacistQuestion
 from core.models import ActivityLog, Notification
 from core.services import (
@@ -368,10 +369,11 @@ class SeedDemoRefillTests(TestCase):
         batches = medicine.batch_set.filter(expiry_date__gte=timezone.localdate())
         return sum(batch.quantity for batch in batches)
 
-    def test_11_2_the_demo_has_two_open_refill_requests_from_omars_father(self):
+    def test_11_2_the_demo_has_two_open_refill_requests_for_omars_father(self):
         requests = RefillRequest.objects.filter(status__in=["waiting", "delayed"])
         self.assertEqual(requests.count(), 2)
-        self.assertEqual({request.requested_by.username for request in requests}, {"omars_father"})
+        self.assertEqual({request.prescription_item.prescription.patient.name for request in requests}, {"Omar's Father"})
+        self.assertEqual({request.requested_by.username for request in requests}, {"omars_father", "omar"})
 
     def test_11_4_the_out_of_stock_demo_request_is_delayed_with_a_date(self):
         delayed = RefillRequest.objects.get(status="delayed")
@@ -386,10 +388,10 @@ class SeedDemoRefillTests(TestCase):
 
     def test_11_4_omars_father_was_told_about_the_delay(self):
         delayed = RefillRequest.objects.get(status="delayed")
-        notification = Notification.objects.get(user__username="omars_father", text__startswith="Refill delayed")
+        notification = Notification.objects.get(user__username="omars_father", text__contains="is delayed")
         self.assertEqual(
             notification.text,
-            f"Refill delayed: Metformin 850 mg, expected {delayed.expected_on:%d %b %Y}.",
+            f"Omar's Father's refill of Metformin 850 mg is delayed, expected {delayed.expected_on:%d %b %Y}.",
         )
 
     def test_11_2_demo_requests_point_at_collected_long_term_items(self):
@@ -409,6 +411,44 @@ class SeedDemoRefillTests(TestCase):
 
     def test_11_2_samira_has_no_refill_request_yet(self):
         self.assertFalse(RefillRequest.objects.filter(prescription_item__prescription__patient__name="Samira").exists())
+
+
+class SeedDemoCaregiverTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_demo")
+        cls.omar = get_user_model().objects.get(username="omar")
+
+    def test_12_2_omar_has_a_first_name(self):
+        self.assertEqual(self.omar.get_full_name(), "Omar")
+
+    def test_12_2_omar_asked_for_his_fathers_losartan_refill(self):
+        refill_request = RefillRequest.objects.get(status="waiting")
+        self.assertEqual(str(refill_request.prescription_item.medicine), "Losartan 50 mg")
+        self.assertEqual(refill_request.requested_by, self.omar)
+
+    def test_12_2_omar_was_told_about_the_delay(self):
+        delayed = RefillRequest.objects.get(status="delayed")
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.omar,
+                text=f"Omar's Father's refill of Metformin 850 mg is delayed, expected {delayed.expected_on:%d %b %Y}.",
+                read=False,
+            ).exists()
+        )
+
+    def test_12_2_omar_was_told_his_fathers_atorvastatin_is_ready(self):
+        ready = Notification.objects.get(user=self.omar, text__contains="Atorvastatin")
+        self.assertTrue(ready.text.startswith("Omar's Father's prescription is ready for pickup"))
+        self.assertFalse(ready.read)
+
+    def test_12_2_alerts_about_prescriptions_already_collected_are_read(self):
+        # The caregiver now also receives an acknowledgement when requesting a refill.
+        self.assertEqual(unread_count(self.omar), 3)
+        self.assertEqual(
+            Notification.objects.filter(user=self.omar, read=False, text__startswith="Refill requested").count(),
+            1,
+        )
 
 
 class SeedDemoQuestionTests(TestCase):
@@ -639,3 +679,53 @@ class NotifyPatientTests(TestCase):
         ahmad = Patient.objects.create(name="Ahmad", date_of_birth="1980-06-02")
         self.assertEqual(notify_patient(ahmad, "Refill delayed", "/"), [])
         self.assertFalse(Notification.objects.exists())
+
+
+class NotifyCaregiversTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.father_user = User.objects.create_user(username="omars_father", password="pass", role="patient")
+        cls.father = Patient.objects.create(name="Omar's Father", date_of_birth="1949-11-05", user=cls.father_user)
+        cls.omar = User.objects.create_user(username="omar", password="pass", role="patient", first_name="Omar")
+        cls.maya = User.objects.create_user(username="maya", password="pass", role="patient")
+
+    def test_12_2_an_active_caregiver_is_told_too(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        told = notify_patient(self.father, "Omar's Father's prescription is ready.", "/prescriptions/mine/")
+        self.assertEqual(told, [self.father_user, self.omar])
+        caregiver_copy = Notification.objects.get(user=self.omar)
+        self.assertEqual(
+            (caregiver_copy.text, caregiver_copy.link, caregiver_copy.read),
+            ("Omar's Father's prescription is ready.", "/prescriptions/mine/", False),
+        )
+
+    def test_12_2_every_active_caregiver_is_told(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.maya)
+        told = notify_patient(self.father, "Ready", "/")
+        self.assertEqual(set(told), {self.father_user, self.omar, self.maya})
+        self.assertEqual(Notification.objects.count(), 3)
+
+    def test_12_2_a_caregiver_whose_access_was_removed_is_not_told(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.omar, active=False)
+        self.assertEqual(notify_patient(self.father, "Ready", "/"), [self.father_user])
+        self.assertFalse(Notification.objects.filter(user=self.omar).exists())
+
+    def test_12_2_a_patient_with_no_login_still_reaches_their_caregiver(self):
+        ahmad = Patient.objects.create(name="Ahmad", date_of_birth="1980-06-02")
+        CaregiverLink.objects.create(patient=ahmad, caregiver=self.omar)
+        self.assertEqual(notify_patient(ahmad, "Ready", "/"), [self.omar])
+
+    def test_12_2_a_caregiver_is_not_told_about_other_patients(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        maya_record = Patient.objects.create(name="Maya", date_of_birth="1990-06-02", user=self.maya)
+        notify_patient(maya_record, "Ready", "/")
+        self.assertFalse(Notification.objects.filter(user=self.omar).exists())
+
+    def test_12_2_the_caregiver_sees_the_alert_in_their_own_bell(self):
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+        notify_patient(self.father, "Omar's Father's prescription is ready.", "/prescriptions/mine/")
+        self.assertEqual(unread_count(self.omar), 1)
+        self.client.force_login(self.omar)
+        self.assertContains(self.client.get("/notifications/"), "Omar&#x27;s Father&#x27;s prescription is ready.")

@@ -25,7 +25,10 @@
                 <strong class="prescription-medicine">{{ item.medicine }} · {{ item.quantity }} unit{{ item.quantity|pluralize }}</strong>
                 {% if row.out_of_stock %}<small class="refill-flag">Out of stock</small>{% endif %}
             </td>
-            <td>{{ refill_request.created_at|date:"d M Y, H:i" }}</td>
+            <td>
+                {{ refill_request.created_at|date:"d M Y, H:i" }}
+                {% if row.requested_by_caregiver %}<small class="refill-requested-by">By caregiver {{ row.requested_by_caregiver }}</small>{% endif %}
+            </td>
             <td>
                 <span class="pill refill-status {{ refill_request.status }}">{{ refill_request.get_status_display }}</span>
                 {% if refill_request.expected_on %}<small class="refill-expected">Expected {{ refill_request.expected_on|date:"d M Y" }}</small>{% endif %}

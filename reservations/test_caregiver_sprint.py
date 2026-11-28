@@ -111,7 +111,7 @@ class CaregiverRefillSprintTests(TestCase):
     def test_59_caregiver_gets_approval_delay_and_ready_notifications(self):
         first = request_refill(self.father_user, self.item)
         delay_refill(first, timezone.localdate() + timedelta(days=7))
-        self.assertTrue(Notification.objects.filter(user=self.omar, text__startswith="Refill delayed").exists())
+        self.assertEqual(Notification.objects.filter(user=self.omar, text__contains="is delayed").count(), 1)
         prescription = approve_refill(first)
         self.assertTrue(Notification.objects.filter(user=self.omar, text__startswith="Refill approved").exists())
         Batch.objects.create(
@@ -122,7 +122,7 @@ class CaregiverRefillSprintTests(TestCase):
         start_preparing(prescription)
         mark_ready(self.pharmacist, prescription)
         self.assertTrue(Notification.objects.filter(
-            user=self.omar, text__contains="ready for pickup", link="/family/"
+            user=self.omar, text__contains="ready for pickup", link="/prescriptions/mine/"
         ).exists())
         self.assertTrue(Notification.objects.filter(user=self.father_user, text__contains="ready for pickup").exists())
 

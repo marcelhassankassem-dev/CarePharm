@@ -8,6 +8,7 @@ urlpatterns = [
     path("login/staff/", views.staff_login, name="staff_login"),
     path("logout/", views.sign_out, name="sign_out"),
     path("home/", views.patient_home, name="patient_home"),
+    path("settings/text-size/", views.patient_text_size, name="patient_text_size"),
     path("family/", views.family_access, name="family_access"),
     path("family/photo/me/", views.family_photo_me, name="family_photo_me"),
     path("family/photo/<int:patient_id>/", views.family_photo_patient, name="family_photo_patient"),

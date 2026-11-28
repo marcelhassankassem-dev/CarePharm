@@ -4,7 +4,8 @@
 {% block title %}AI Assistant · CarePharm{% endblock %}
 
 {% block content %}
-<div class="chat-page">
+{% with text_size=request.COOKIES.carepharm_patient_text_size %}
+<div class="chat-page {% if text_size == 'large' %}patient-text-large{% elif text_size == 'extra_large' %}patient-text-extra-large{% endif %}">
     <section class="chat-box">
         <header class="chat-header">
             <img src="{% static 'core/images/chat-robot-online.png' %}" alt="" class="chat-header-robot">
@@ -12,6 +13,7 @@
                 <h1>CarePharm assistant</h1>
                 <p><span>Online</span><span>Always here to help</span></p>
             </div>
+            {% include "core/text_size_control.html" %}
             <a href="{% url 'patient_home' %}" class="chat-close"><img src="{% static 'core/images/chat-close.png' %}" alt="Close"></a>
         </header>
 
@@ -57,6 +59,7 @@
         {% endif %}
     </section>
 </div>
+{% endwith %}
 
 <script>
     const chatMessages = document.getElementById("chat-messages");
