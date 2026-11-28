@@ -158,3 +158,21 @@ def share_passport(
     for staff in staff_members().filter(is_active=True):
         notify(staff, f"{patient.name} shared a medication passport with the pharmacy.", f"/patients/{patient.pk}/")
     return share
+
+
+@transaction.atomic
+def revoke_passport_share(patient, user, share_id):
+    """Remove one consent grant without affecting a newer replacement grant."""
+    if patient is None or patient.user_id != user.pk:
+        raise PermissionDenied("Only the patient can remove pharmacy access to their passport.")
+
+    share = get_object_or_404(
+        PassportShare,
+        pk=share_id,
+        patient=patient,
+        pharmacy_name=settings.PHARMACY_NAME,
+    )
+    if share.revoked_at is None:
+        share.revoked_at = timezone.now()
+        share.save(update_fields=["revoked_at"])
+    return share
