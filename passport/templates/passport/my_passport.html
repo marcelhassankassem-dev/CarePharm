@@ -20,6 +20,12 @@
             <a class="med-passport-button dark" href="{% url 'passport_share' %}" data-open-passport-share>
                 <span aria-hidden="true">➤</span> Send to a Pharmacy
             </a>
+            {% if current_share %}
+            <form method="post" action="{% url 'passport_share_remove' current_share.pk %}" class="med-passport-revoke-form" data-open-passport-revoke>
+                {% csrf_token %}
+                <button class="med-passport-button revoke" type="submit">Remove access</button>
+            </form>
+            {% endif %}
         </div>
         {% endif %}
     </header>
@@ -65,12 +71,16 @@
                             <strong>{{ item.share.pharmacy_name }}</strong>
                             <small>Shared {{ item.share.consented_at|date:"j M Y" }}{% if item.share.expires_at %} · Ends {{ item.share.expires_at|date:"j M Y" }}{% endif %}</small>
                             {% if item.status == "Removed" %}
-                            <small class="med-passport-status removed">Previous consent replaced or removed</small>
+                            <small class="med-passport-status removed">Removed</small>
                             {% elif item.status == "Expired" %}
                             <small class="med-passport-status expired">Expired</small>
                             <small>Share again to restore access.</small>
                             {% else %}
                             <small class="med-passport-status active">Active</small>
+                            <form method="post" action="{% url 'passport_share_remove' item.share.pk %}" class="med-passport-revoke-form" data-open-passport-revoke>
+                                {% csrf_token %}
+                                <button type="submit" class="med-passport-revoke-link">Remove access</button>
+                            </form>
                             {% endif %}
                         </div>
                     </div>
@@ -205,6 +215,38 @@
         </footer>
     </form>
 </dialog>
+{% if current_share %}
+<dialog id="med-passport-revoke-dialog" class="med-passport-dialog med-passport-revoke-dialog" aria-labelledby="med-passport-revoke-title" aria-describedby="med-passport-revoke-description">
+    <form method="post" action="{% url 'passport_share_remove' current_share.pk %}">
+        {% csrf_token %}
+        <header class="med-passport-dialog-heading">
+            <span class="med-passport-dialog-icon revoke" aria-hidden="true">!</span>
+            <div>
+                <h2 id="med-passport-revoke-title">Remove pharmacy access?</h2>
+                <p>This will stop sharing your Medication Passport.</p>
+            </div>
+            <button type="button" class="med-passport-dialog-close" data-close-passport-revoke aria-label="Close dialog">×</button>
+        </header>
+        <div class="med-passport-dialog-body">
+            <div class="med-passport-revoke-recipient">
+                <span class="med-passport-revoke-recipient-icon" aria-hidden="true">▣</span>
+                <div>
+                    <strong>{{ pharmacy_name }}</strong>
+                    <small>Currently has access to your selected passport sections.</small>
+                </div>
+                <span class="med-passport-revoke-active">Active</span>
+            </div>
+            <p id="med-passport-revoke-description" class="med-passport-revoke-warning">
+                Access will end <strong>immediately</strong>, even if days remain. You can share again later, and your medical records will not be deleted.
+            </p>
+        </div>
+        <footer class="med-passport-dialog-actions">
+            <button type="button" class="med-passport-button light" data-close-passport-revoke autofocus>Keep access</button>
+            <button type="submit" class="med-passport-button revoke-confirm">Remove access</button>
+        </footer>
+    </form>
+</dialog>
+{% endif %}
 {% endif %}
 
 <script>
@@ -218,6 +260,19 @@
         });
         dialog.querySelectorAll("[data-close-passport-share]").forEach(function (button) {
             button.addEventListener("click", function () { dialog.close(); });
+        });
+    }
+    var revokeDialog = document.getElementById("med-passport-revoke-dialog");
+    if (revokeDialog && typeof revokeDialog.showModal === "function") {
+        document.querySelectorAll("[data-open-passport-revoke]").forEach(function (form) {
+            form.addEventListener("submit", function (event) {
+                event.preventDefault();
+                revokeDialog.querySelector("form").action = form.action;
+                revokeDialog.showModal();
+            });
+        });
+        revokeDialog.querySelectorAll("[data-close-passport-revoke]").forEach(function (button) {
+            button.addEventListener("click", function () { revokeDialog.close(); });
         });
     }
     var historyToggle = document.querySelector("[data-toggle-history]");

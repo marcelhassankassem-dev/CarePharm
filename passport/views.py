@@ -3,6 +3,7 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from accounts.permissions import can_act_as_pharmacist, patient_required, staff_required
 from accounts.services import create_patient_login
@@ -18,6 +19,7 @@ from passport.services import (
     get_patient,
     patient_header,
     patient_of,
+    revoke_passport_share,
     share_passport,
     viewable_patients,
 )
@@ -120,6 +122,16 @@ def passport_share(request):
     )
 
 
+@patient_required
+@require_POST
+def passport_share_remove(request, share_id):
+    patient = patient_of(request.user)
+    revoke_passport_share(patient, request.user, share_id)
+    request.session[VIEWING_PATIENT] = patient.pk
+    messages.success(request, "Pharmacy access removed. CarePharm can no longer view your shared passport details.")
+    return redirect("my_passport")
+
+
 @staff_required
 def patient_list(request, patient_id=None):
     search = request.GET.get("search", "")
@@ -140,6 +152,7 @@ def patient_list(request, patient_id=None):
         and most_recent_share.revoked_at is None
         and (most_recent_share.expires_at is None or most_recent_share.expires_at <= timezone.now())
     )
+    share_removed = bool(most_recent_share and most_recent_share.revoked_at is not None)
     allow_allergies = bool(legacy_record or (share and share.include_allergies))
     allow_contact = bool(legacy_record or (share and share.include_contact))
     allow_medicines = bool(legacy_record or (share and share.include_medicines))
@@ -158,6 +171,7 @@ def patient_list(request, patient_id=None):
             "selected": selected,
             "selected_share": share,
             "selected_share_expired": share_expired,
+            "selected_share_removed": share_removed,
             "selected_latest_share": most_recent_share,
             "allow_contact": allow_contact,
             "allow_allergies": allow_allergies,

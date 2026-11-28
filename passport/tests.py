@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.db.models import ProtectedError
-from django.test import TestCase
+from django.test import Client, TestCase
 from django.utils import timezone
 
 from accounts.models import CaregiverLink
@@ -958,3 +958,90 @@ class PassportSharingConsentTests(TestCase):
 
         self.client.force_login(self.maya_user)
         self.assertContains(self.client.get("/patients/my/"), "Expired")
+
+    def test_3_5_patient_sees_remove_access_without_scrolling(self):
+        self.client.force_login(self.maya_user)
+        self.share()
+        share = active_passport_share(self.maya)
+        response = self.client.get("/patients/my/")
+        url = f"/patients/my/share/{share.pk}/remove/"
+        self.assertContains(response, url, count=3)
+        self.assertContains(response, 'class="med-passport-button revoke"')
+        self.assertContains(response, 'id="med-passport-revoke-dialog"')
+        self.assertContains(response, "Remove pharmacy access?")
+        self.assertContains(response, "Keep access")
+        self.assertContains(response, "your medical records will not be deleted")
+        self.assertNotContains(response, "return confirm(")
+        self.assertLess(
+            response.content.index(b'med-passport-button revoke'),
+            response.content.index(b'med-passport-layout'),
+        )
+
+    def test_3_5_patient_can_immediately_remove_pharmacy_access(self):
+        self.client.force_login(self.maya_user)
+        self.share(include_contact="on", include_medicines="on", include_history="on")
+        share = active_passport_share(self.maya)
+        self.assertIsNotNone(share)
+
+        response = self.client.post(f"/patients/my/share/{share.pk}/remove/")
+        self.assertRedirects(response, "/patients/my/")
+        share.refresh_from_db()
+        self.assertIsNotNone(share.revoked_at)
+        self.assertIsNone(active_passport_share(self.maya))
+        patient_page = self.client.get("/patients/my/")
+        self.assertContains(patient_page, "Removed")
+        self.assertNotContains(patient_page, 'class="med-passport-button revoke"')
+
+        self.client.force_login(self.staff)
+        staff_page = self.client.get(f"/patients/{self.maya.pk}/")
+        self.assertContains(staff_page, "The patient removed pharmacy access")
+        self.assertNotContains(staff_page, "Penicillins Share")
+        self.assertNotContains(staff_page, "Atorvastatin Share")
+        self.assertNotContains(staff_page, "03 100 002")
+        self.assertNotContains(staff_page, "<td>3</td>", html=True)
+
+    def test_3_5_revoke_requires_post_and_csrf(self):
+        self.client.force_login(self.maya_user)
+        self.share()
+        share = active_passport_share(self.maya)
+        url = f"/patients/my/share/{share.pk}/remove/"
+        self.assertEqual(self.client.get(url).status_code, 405)
+
+        strict_client = Client(enforce_csrf_checks=True)
+        strict_client.force_login(self.maya_user)
+        self.assertEqual(strict_client.post(url).status_code, 403)
+        share.refresh_from_db()
+        self.assertIsNone(share.revoked_at)
+
+    def test_3_5_caregiver_and_other_patient_cannot_revoke(self):
+        self.client.force_login(self.maya_user)
+        self.share()
+        share = active_passport_share(self.maya)
+        url = f"/patients/my/share/{share.pk}/remove/"
+
+        self.client.force_login(self.caregiver)
+        self.assertNotContains(self.client.get("/patients/my/"), url)
+        self.assertNotContains(self.client.get("/patients/my/"), 'id="med-passport-revoke-dialog"')
+        self.assertEqual(self.client.post(url).status_code, 403)
+        self.client.force_login(self.stranger_user)
+        self.assertEqual(self.client.post(url).status_code, 404)
+        self.client.force_login(self.staff)
+        self.assertEqual(self.client.post(url).status_code, 403)
+        share.refresh_from_db()
+        self.assertIsNone(share.revoked_at)
+
+    def test_3_5_old_revoke_request_does_not_remove_new_consent(self):
+        self.client.force_login(self.maya_user)
+        self.share()
+        old_share = active_passport_share(self.maya)
+        self.share(include_allergies="", include_medicines="on")
+        latest_share = active_passport_share(self.maya)
+        self.assertNotEqual(old_share.pk, latest_share.pk)
+
+        self.assertRedirects(
+            self.client.post(f"/patients/my/share/{old_share.pk}/remove/"),
+            "/patients/my/",
+        )
+        self.assertEqual(active_passport_share(self.maya), latest_share)
+        self.client.force_login(self.staff)
+        self.assertContains(self.client.get(f"/patients/{self.maya.pk}/"), "Atorvastatin Share")

@@ -82,6 +82,8 @@
                 {% if selected_share_expired %}
                 <p>Pharmacy access has expired. The patient must share their passport again to restore access.</p>
                 {% if selected_latest_share.expires_at %}<small>Expired {{ selected_latest_share.expires_at|date:"j M Y, H:i" }}</small>{% endif %}
+                {% elif selected_share_removed %}
+                <p>The patient removed pharmacy access to their Medication Passport.</p>
                 {% elif selected.user_id and not selected_share %}
                 <p>This patient has not shared their Medication Passport with the pharmacy.</p>
                 {% elif selected_share %}

@@ -5267,6 +5267,41 @@ button.family-profile {
     flex-shrink: 0;
 }
 
+.med-passport-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.med-passport-revoke-form {
+    margin: 0;
+}
+
+.med-passport-button.revoke {
+    border: 1px solid #f0b7bd;
+    color: #a83343;
+    background: #fff7f8;
+}
+
+.med-passport-revoke-link {
+    margin: 5px 0 0;
+    padding: 0;
+    border: 0;
+    color: #b83d4b;
+    background: transparent;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 750;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+.med-passport-button.revoke:focus-visible,
+.med-passport-revoke-link:focus-visible {
+    outline: 3px solid #cc4557;
+    outline-offset: 3px;
+}
+
 .med-passport-button {
     display: inline-flex;
     align-items: center;
@@ -5810,6 +5845,86 @@ button.family-profile {
     padding: 14px 23px 23px;
 }
 
+.med-passport-revoke-dialog {
+    width: min(465px, calc(100vw - 32px));
+}
+
+.med-passport-dialog-icon.revoke {
+    color: #b63148;
+    background: #ffe7ea;
+    font-weight: 850;
+}
+
+.med-passport-revoke-recipient {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px;
+    border: 1px solid #d8e9e4;
+    border-radius: 12px;
+    background: #f1faf7;
+}
+
+.med-passport-revoke-recipient-icon {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    color: #137b74;
+    background: #dbf0e9;
+}
+
+.med-passport-revoke-recipient strong,
+.med-passport-revoke-recipient small {
+    display: block;
+}
+
+.med-passport-revoke-recipient strong {
+    color: #143348;
+    font-size: 14px;
+}
+
+.med-passport-revoke-recipient small {
+    margin-top: 3px;
+    color: #677f8b;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.med-passport-revoke-active {
+    margin-left: auto;
+    padding: 5px 9px;
+    border-radius: 16px;
+    color: #117c70;
+    background: #ddefe8;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.med-passport-revoke-warning {
+    margin: 15px 0 12px;
+    color: #536c78;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.med-passport-revoke-warning strong {
+    color: #a92e42;
+}
+
+.med-passport-button.revoke-confirm {
+    border: 1px solid #b63649;
+    color: white;
+    background: #b63649;
+}
+
+.med-passport-button.revoke-confirm:hover {
+    background: #9f293b;
+}
+
 .med-passport-wrap :focus-visible,
 .med-passport-dialog :focus-visible {
     outline: 3px solid #2a9d91;
@@ -5860,6 +5975,9 @@ button.family-profile {
     .med-passport-shared,
     .med-passport-dialog,
     .med-passport-view-all {
+        display: none !important;
+    }
+    .med-passport-revoke-form {
         display: none !important;
     }
     .med-passport-layout {
