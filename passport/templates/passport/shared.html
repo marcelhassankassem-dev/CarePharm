@@ -1,0 +1,102 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Shared Medication Passport - CarePharm{% endblock %}
+
+{% block content %}
+<div class="shared-passport-page">
+    <header class="shared-passport-header">
+        <img src="{% static 'core/images/logo.png' %}" alt="CarePharm" width="164" height="58">
+        {% if share.pharmacy_name %}<p>Shared with {{ share.pharmacy_name }}</p>{% endif %}
+    </header>
+
+    <p class="page-eyebrow">SHARED MEDICATION PASSPORT</p>
+    <h1>{{ patient.name }}</h1>
+
+    {% if is_open %}
+    <p class="page-intro">Access ends {{ share.expires_at|date:"j M Y, H:i" }}. Only the sections the patient chose are shown.</p>
+
+    <div class="shared-passport-sections">
+        {% if contact %}
+        <section class="passport-id-card">
+            <p class="passport-id-title">CONTACT DETAILS</p>
+            <dl>
+                <div><dt>Date of birth</dt><dd>{{ patient.date_of_birth|date:"j M Y" }}</dd></div>
+                <div><dt>Passport ID</dt><dd>CP-{{ patient.pk|stringformat:"05d" }}</dd></div>
+                <div><dt>Phone</dt><dd>{{ patient.phone|default:"Not recorded" }}</dd></div>
+                <div><dt>Home pharmacy</dt><dd>{{ pharmacy_name }}</dd></div>
+            </dl>
+        </section>
+        {% endif %}
+
+        {% if allergies is not None %}
+        <section class="card passport-section">
+            <div class="passport-section-header">
+                <span class="passport-section-icon"><img src="{% static 'core/images/passport-allergy-bubble.svg' %}" alt=""><img src="{% static 'core/images/passport-alert.svg' %}" alt=""></span>
+                <div><h2>Allergies</h2></div>
+            </div>
+            <div class="passport-allergies">
+                {% for allergy in allergies %}
+                <span class="passport-allergy">{{ allergy.drug_class }}</span>
+                {% empty %}
+                <p class="empty-note">No allergies recorded</p>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if medicines is not None %}
+        <section class="card passport-section">
+            <div class="passport-section-header">
+                <span class="passport-section-icon"><img src="{% static 'core/images/passport-medicine-bubble.svg' %}" alt=""><img src="{% static 'core/images/passport-pill.svg' %}" alt=""></span>
+                <div><h2>Active Medicines</h2></div>
+            </div>
+            <div class="passport-allergies">
+                {% for current in medicines %}
+                <span class="passport-medicine">{{ current.medicine }}</span>
+                {% empty %}
+                <p class="empty-note">No active medicines recorded</p>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if history is not None %}
+        <section class="card passport-section">
+            <div class="passport-section-header">
+                <span class="passport-section-icon"><img src="{% static 'core/images/passport-history-bubble.svg' %}" alt=""><img src="{% static 'core/images/passport-clock.svg' %}" alt=""></span>
+                <div><h2>Dispensing History</h2></div>
+            </div>
+            {% if history %}
+            <table class="passport-table">
+                <thead>
+                    <tr>
+                        <th>DATE</th>
+                        <th>MEDICINE</th>
+                        <th>QUANTITY</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line in history %}
+                    <tr>
+                        <td>{{ line.sale.time|date:"j M Y" }}</td>
+                        <td><strong>{{ line.medicine }}</strong></td>
+                        <td>{{ line.quantity }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="empty-note">No medicines dispensed yet</p>
+            {% endif %}
+        </section>
+        {% endif %}
+    </div>
+    {% else %}
+    <section class="card shared-passport-ended">
+        <h2>This passport link has ended.</h2>
+        <p>It expired or the patient removed access. Ask the patient to send their passport again.</p>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

@@ -86,7 +86,12 @@ def passport_share_remove(request, share_id):
 
 def shared_passport_page(request, token):
     share = shared_passport(token)
-    context = {"share": share, "patient": share.patient, **shared_sections(share)}
+    context = {
+        "share": share,
+        "patient": share.patient,
+        "pharmacy_name": settings.PHARMACY_NAME,
+        **shared_sections(share),
+    }
     return render(request, "passport/shared.html", context)
 
 

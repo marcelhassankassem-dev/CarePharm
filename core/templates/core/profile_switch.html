@@ -1,0 +1,11 @@
+{% if viewable_patients|length > 1 or viewing and viewing.user_id != user.id %}
+<nav class="profile-switch" aria-label="Viewing as">
+    {% for patient in viewable_patients %}
+    <form method="post" action="/family/view/{{ patient.pk }}/">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" class="profile-pill{% if patient == viewing %} selected{% endif %}">{{ patient.name }}{% if patient.user_id == user.id %} (me){% endif %}</button>
+    </form>
+    {% endfor %}
+</nav>
+{% endif %}
