@@ -37,6 +37,23 @@ class RefillRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     expected_on = models.DateField(null=True, blank=True)
     new_prescription = models.ForeignKey(Prescription, on_delete=models.SET_NULL, null=True, blank=True)
+    pickup_alert_sent_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"Refill of {self.prescription_item}"
+
+
+class CaregiverRefillReminder(models.Model):
+    """Durable per-day deduplication of caregiver reminder notifications."""
+
+    prescription_item = models.ForeignKey(PrescriptionItem, on_delete=models.CASCADE)
+    caregiver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    reminder_date = models.DateField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["prescription_item", "caregiver", "reminder_date"],
+                name="unique_caregiver_refill_reminder_per_day",
+            ),
+        ]

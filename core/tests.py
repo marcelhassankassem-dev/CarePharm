@@ -443,7 +443,12 @@ class SeedDemoCaregiverTests(TestCase):
         self.assertFalse(ready.read)
 
     def test_12_2_alerts_about_prescriptions_already_collected_are_read(self):
-        self.assertEqual(unread_count(self.omar), 2)
+        # The caregiver now also receives an acknowledgement when requesting a refill.
+        self.assertEqual(unread_count(self.omar), 3)
+        self.assertEqual(
+            Notification.objects.filter(user=self.omar, read=False, text__startswith="Refill requested").count(),
+            1,
+        )
 
 
 class SeedDemoQuestionTests(TestCase):

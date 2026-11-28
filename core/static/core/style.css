@@ -4038,6 +4038,37 @@ a.home-card {
     color: #4f6070;
 }
 
+.tracked-family-back {
+    display: inline-flex;
+    align-items: center;
+    position: sticky;
+    top: 12px;
+    z-index: 5;
+    margin: 0 0 15px 14px;
+    padding: 8px 12px;
+    border: 1px solid #cde2dd;
+    border-radius: 9px;
+    background: #fff;
+    color: #08776e;
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+}
+.tracked-family-back:hover { background: #eaf7f2; }
+.tracked-refill-updates {
+    box-sizing: border-box;
+    max-width: 1060px;
+    margin: 0 0 20px 14px;
+    padding: 14px 18px;
+    border: 1px solid #b6ded6;
+    border-radius: 13px;
+    background: #f0faf7;
+}
+.tracked-refill-updates h2 { margin: 0 0 5px; color: #0d4e50; font-size: 18px; }
+.tracked-refill-updates p { margin: 0 0 10px; color: #476874; font-size: 13px; }
+.tracked-refill-updates ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.tracked-refill-updates li { display: flex; flex-wrap: wrap; gap: 6px 12px; color: #265765; font-size: 13px; }
+.tracked-refill-updates li strong { min-width: 160px; color: #143747; }
 .tracked-list {
     display: grid;
     grid-template-columns: repeat(2, 520px);
@@ -4051,6 +4082,11 @@ a.home-card {
     border: 1px solid #e1e9e8;
     border-radius: 18px;
     background: white;
+    scroll-margin-top: 25px;
+}
+.tracked-prescription:target {
+    border-color: #008c7f;
+    box-shadow: 0 0 0 2px #008c7f33;
 }
 
 .tracked-title {
@@ -4722,6 +4758,413 @@ button.family-profile {
     margin: 0 0 4px;
     font-size: 13px;
     color: #4f6070;
+}
+
+/* Sprint 2: compact caregiver refill and alert dashboard. */
+.family-side {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+}
+
+.family-medicines-heading,
+.family-notifications-heading {
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.family-inline-link {
+    color: #08786d;
+    font-size: 12px;
+    font-weight: 700;
+    margin-left: auto;
+    white-space: nowrap;
+    text-decoration: none;
+}
+
+.family-inline-link:hover { text-decoration: underline; }
+
+.family-reminder-banner {
+    margin: 0 0 13px;
+    padding: 10px 13px;
+    border-radius: 9px;
+    background: #e8f3fd;
+    color: #195a91;
+    font-size: 13px;
+}
+
+.family-medicine-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 11px;
+}
+
+.family-medicine-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid #dfe9e7;
+    border-radius: 11px;
+    background: #fff;
+}
+
+.family-medicine-symbol {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    margin-bottom: 11px;
+    border-radius: 11px;
+    color: #127d73;
+    background: #e2f3ef;
+    font-size: 20px;
+}
+
+.family-medicine-card h3 {
+    margin: 0;
+    font-size: 15px;
+    color: #102b3d;
+    overflow-wrap: anywhere;
+}
+
+.family-medicine-card small {
+    margin: 5px 0 13px;
+    color: #657787;
+    font-size: 12px;
+}
+
+.family-medicine-status {
+    margin: auto 0 13px;
+    padding: 11px 9px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+}
+
+.family-medicine-status.urgent { color: #ad3043; background: #fff0f0; }
+.family-medicine-status.pending { color: #a3680e; background: #fff5e3; }
+.family-medicine-status.upcoming { color: #245c99; background: #eaf3ff; }
+.family-medicine-status.neutral { color: #526b71; background: #eef5f3; }
+
+.family-medicine-actions form { margin: 0; }
+
+.family-medicine-primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 36px;
+    box-sizing: border-box;
+    border: 1px solid #0f485a;
+    border-radius: 7px;
+    background: #0f485a;
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.family-medicine-primary:hover { background: #086375; }
+
+.family-notification-list { display: grid; gap: 8px; }
+
+.family-notification {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 9px;
+    min-width: 0;
+    border: 1px solid #e0e9e8;
+    border-radius: 9px;
+    background: #fff;
+    color: #203949;
+    text-decoration: none;
+}
+
+.family-notification.unread { background: #eff9f6; }
+
+.family-notification-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #ffe7eb;
+    color: #c5254c;
+    font-weight: 750;
+}
+
+.family-notification-text {
+    font-size: 12px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.family-notification-chevron { margin-left: auto; color: #0f485a; }
+
+@media (max-width: 1530px) {
+    .family-layout { grid-template-columns: minmax(0, 2fr) minmax(295px, 1fr); }
+    .family-profiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1050px) {
+    .family-layout { grid-template-columns: minmax(0, 1fr); }
+    .family-medicine-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+    .family-profiles, .family-medicine-grid { grid-template-columns: minmax(0, 1fr); }
+    .family-card-header { flex-wrap: wrap; }
+    .family-inline-link { margin-left: 0; }
+    .family-profile { height: auto; min-height: 85px; }
+}
+
+/* Family dashboard: keep the key content and encouragement in one desktop view. */
+.family-access-page .console-content {
+    padding: clamp(11px, 2vh, 24px) 25px 15px;
+}
+
+.family-access-page .page-heading { margin-bottom: clamp(10px, 1.8vh, 17px); }
+.family-access-page .page-heading h1 { font-size: clamp(29px, 4.7vh, 39px); }
+.family-access-page .page-intro { font-size: clamp(13px, 2vh, 17px); }
+.family-access-page .inventory-quote { top: 87px; }
+.family-access-page .inventory-leaves { top: 52px; }
+.family-access-page .family-layout {
+    width: 100%;
+    grid-template-columns: minmax(0, 1.9fr) minmax(290px, .95fr);
+    gap: 13px;
+    padding: 0;
+}
+.family-access-page .family-main,
+.family-access-page .family-side { gap: 10px; min-width: 0; }
+.family-access-page .family-card { min-width: 0; padding: clamp(10px, 1.6vh, 15px); }
+.family-access-page .family-card-header { gap: 9px; margin-bottom: 11px; align-items: center; }
+.family-access-page .family-card-header h2 { font-size: clamp(16px, 2.2vh, 19px); margin-top: 0; }
+.family-access-page .family-card-header p { font-size: 11px; margin-top: 3px; }
+.family-access-page .family-header-icon { width: 30px; height: 30px; }
+.family-access-page .family-profiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 0; }
+.family-access-page .family-profiles-add {
+    height: 31px;
+    padding: 0 12px;
+    margin-left: auto;
+    border: 0;
+    border-radius: 7px;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.family-access-page .family-relationship-pill {
+    display: inline-flex;
+    padding: 3px 8px;
+    border-radius: 20px;
+    background: #e3effc;
+    color: #397db4;
+    font-size: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+.family-profile-shell { position: relative; min-width: 0; }
+.family-profile-shell form { margin: 0; }
+.family-access-page .family-profile {
+    min-height: 0;
+    height: clamp(65px, 10.5vh, 83px);
+    padding: 0 12px;
+    gap: 12px;
+}
+.family-access-page .family-profile > div,
+.family-access-page .family-profile > span:last-child { min-width: 0; }
+.family-access-page .family-profile strong { font-size: 13px; gap: 8px; }
+.family-access-page .family-profile small { font-size: 11px; margin-top: 4px; gap: 5px; }
+.family-access-page .family-avatar { width: 52px; height: 52px; font-size: 17px; overflow: hidden; }
+.family-avatar img, .profile-nav-photo { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.profile-initials:has(.profile-nav-photo) { overflow: hidden; border-radius: 50%; }
+.family-photo-trigger {
+    position: absolute;
+    left: 49px;
+    bottom: 8px;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 25px;
+    height: 25px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #e6f5f1;
+    color: #0b645c;
+    font-size: 12px;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(5, 45, 48, .13);
+}
+.family-photo-trigger:hover { background: #ccece3; }
+.family-photo-trigger svg { width: 14px; height: 14px; }
+.family-access-page .family-medicine-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.family-access-page .family-medicine-card { padding: clamp(8px, 1.4vh, 12px); }
+.family-medicine-card { position: relative; }
+.family-medicine-card-top { display: flex; align-items: flex-start; justify-content: space-between; min-height: 36px; }
+.family-access-page .family-medicine-symbol {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    margin: 4px 0 8px 4px;
+    transform: rotate(-22deg);
+    border: 1px solid #d5e2e5;
+    border-radius: 20px;
+    background: linear-gradient(90deg, #ec6584 0 47%, #fff 47%);
+    font-size: 0;
+}
+.family-access-page .family-medicine-symbol::after {
+    position: absolute;
+    content: "";
+    height: 100%;
+    width: 1px;
+    top: 0;
+    left: 47%;
+    background: #d8e3e5;
+}
+.family-access-page .family-medicine-card:nth-child(2n) .family-medicine-symbol {
+    background: linear-gradient(90deg, #edf5fc 0 47%, #fff 47%);
+}
+.family-medicine-menu { position: relative; z-index: 2; }
+.family-medicine-menu summary {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 26px;
+    border-radius: 5px;
+    color: #29465b;
+    font-size: 21px;
+    line-height: 1;
+    list-style: none;
+    cursor: pointer;
+}
+.family-medicine-menu summary::-webkit-details-marker { display: none; }
+.family-medicine-menu summary:hover { background: #eef6f3; }
+.family-medicine-menu > div {
+    position: absolute;
+    top: 26px;
+    right: 0;
+    width: max-content;
+    max-width: 200px;
+    border: 1px solid #d8e5e4;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 5px 18px #0f33332a;
+}
+.family-medicine-menu a { display: block; padding: 9px 12px; color: #0f485a; font-size: 12px; text-decoration: none; }
+.family-medicine-menu a:hover { background: #eef6f3; }
+.family-access-page .family-medicine-card h3 { font-size: clamp(12px, 1.8vh, 14px); }
+.family-access-page .family-medicine-category { margin: 3px 0 8px; color: #657787; font-size: 10px; }
+.family-access-page .family-medicine-status {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 42px;
+    padding: 5px 7px;
+    margin: auto 0 8px;
+    font-size: 10px;
+}
+.family-medicine-status-icon { flex: none; width: 19px; text-align: center; font-size: 17px; line-height: 1; }
+.family-medicine-status-copy { min-width: 0; }
+.family-medicine-status-copy strong { display: block; line-height: 1.2; }
+.family-medicine-status-copy small {
+    display: block;
+    margin: 2px 0 0;
+    color: inherit;
+    font-size: 9px;
+    font-weight: 400;
+    line-height: 1.15;
+}
+.family-medicine-meta { display: grid; gap: 4px; margin: 0 0 9px; color: #617589; font-size: 10px; }
+.family-medicine-meta > span { display: flex; align-items: center; gap: 5px; overflow-wrap: anywhere; }
+.family-medicine-meta-icon { width: 13px; flex: none; color: #4d708a; font-size: 12px; }
+.family-medicine-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.family-medicine-actions form { min-width: 0; }
+.family-access-page .family-medicine-primary,
+.family-access-page .family-medicine-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 31px;
+    padding: 4px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+    text-decoration: none;
+}
+.family-access-page .family-medicine-secondary { border: 1px solid #d1dedb; background: white; color: #104859; }
+.family-access-page .family-medicine-secondary:hover { background: #eef8f5; }
+.family-access-page .family-permissions .family-card-header { margin-bottom: 10px; }
+.family-access-page .family-permission-box { padding: 11px 12px; }
+.family-access-page .family-status { gap: 10px; padding-bottom: 9px; }
+.family-access-page .family-status-icon { width: 34px; height: 34px; }
+.family-access-page .family-status strong { font-size: 12px; }
+.family-access-page .family-status p { font-size: 11px; line-height: 1.3; }
+.family-access-page .family-permission-list li { height: clamp(25px, 3.5vh, 31px); font-size: 11px; }
+.family-access-page .family-permission-icon { width: 25px; }
+.family-access-page .family-notification-list { gap: 7px; }
+.family-access-page .family-notification { padding: 8px; gap: 8px; }
+.family-access-page .family-notification-icon { width: 26px; height: 26px; }
+.family-access-page .family-notification-text { font-size: 11px; line-height: 1.3; }
+.family-encouragement {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: clamp(69px, 10vh, 92px);
+    padding: 12px 17px 12px 19%;
+    overflow: hidden;
+    border: 5px solid #fff;
+    border-radius: 15px;
+    background: linear-gradient(100deg, #e1f4ee, #f2faf6);
+    box-shadow: 0 4px 12px rgba(15, 51, 51, .04);
+}
+.family-encouragement-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
+.family-encouragement-copy { position: relative; z-index: 1; }
+.family-encouragement-copy h2 { margin: 0 0 5px; font-size: clamp(14px, 1.9vh, 18px); }
+.family-encouragement-copy p { margin: 0; color: #607787; font-size: clamp(10px, 1.45vh, 13px); }
+.family-encouragement-quote { position: relative; z-index: 1; margin-left: auto; font-family: Caveat, cursive; color: #4faaa0; font-size: 17px; line-height: 1.05; transform: rotate(-7deg); }
+.family-photo-dialog { width: min(400px, calc(100vw - 32px)); max-width: none; border: 0; border-radius: 16px; padding: 22px; color: #0f2233; box-shadow: 0 14px 40px #173d4a44; }
+.family-photo-dialog::backdrop { background: #0d273d77; }
+.family-photo-dialog-heading { display: flex; align-items: center; justify-content: space-between; }
+.family-photo-dialog-heading h2 { margin: 0; font-size: 22px; }
+.family-photo-dialog-heading button { border: 0; background: transparent; font-size: 24px; cursor: pointer; }
+.family-photo-dialog p { color: #4f6070; font-size: 14px; }
+.family-photo-dialog label { display: block; margin: 17px 0 8px; font-size: 13px; font-weight: 700; }
+.family-photo-dialog input[type=file] { display: block; width: 100%; padding: 10px; border: 1px solid #cededa; border-radius: 9px; }
+.family-photo-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.family-photo-dialog-actions button { padding: 10px 17px; border-radius: 9px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.family-photo-cancel { background: #fff; color: #0b605c; border: 1px solid #d0e4de; }
+.family-photo-save { background: #0e4a5a; color: #fff; border: 1px solid #0e4a5a; }
+.family-access-page :focus-visible { outline: 3px solid #17a393; outline-offset: 2px; }
+
+/* Keep the full caregiver dashboard in view at common desktop sizes. */
+@media (min-width: 1200px) {
+    .family-access-page .family-card { padding: 10px 12px; }
+    .family-access-page .family-main,
+    .family-access-page .family-side { gap: 8px; }
+    .family-access-page .family-encouragement { min-height: 65px; padding-top: 8px; padding-bottom: 8px; }
+}
+
+@media (max-width: 1050px) {
+    .family-access-page .family-layout { grid-template-columns: minmax(0, 1fr); }
+    .family-access-page .family-medicine-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+    .family-access-page .family-profiles, .family-access-page .family-medicine-grid { grid-template-columns: 1fr; }
+    .family-access-page .family-encouragement { padding-left: 60px; }
+    .family-access-page .family-encouragement-quote { display: none; }
 }
 
 .main-login {

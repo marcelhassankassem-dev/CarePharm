@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -45,3 +47,33 @@ class EditStaffForm(forms.Form):
 
 class FamilyMemberForm(forms.Form):
     username = forms.CharField(label="Their CarePharm username", max_length=150)
+
+
+class ProfilePhotoForm(forms.Form):
+    """Accept only small raster profile pictures; SVG and arbitrary files are unsafe."""
+
+    photo = forms.FileField(widget=forms.FileInput(attrs={"accept": ".jpg,.jpeg,.png,.webp"}))
+
+    def clean_photo(self):
+        photo = self.cleaned_data["photo"]
+        if photo.size > 2 * 1024 * 1024:
+            raise forms.ValidationError("Choose a photo smaller than 2 MB.")
+
+        extension = Path(photo.name).suffix.lower()
+        signatures = {
+            ".jpg": "jpeg",
+            ".jpeg": "jpeg",
+            ".png": "png",
+            ".webp": "webp",
+        }
+        photo_type = signatures.get(extension)
+        header = photo.read(16)
+        photo.seek(0)
+        detected = (
+            "jpeg" if header.startswith(b"\xff\xd8\xff") else
+            "png" if header.startswith(b"\x89PNG\r\n\x1a\n") else
+            "webp" if header.startswith(b"RIFF") and header[8:12] == b"WEBP" else None
+        )
+        if not photo_type or photo_type != detected:
+            raise forms.ValidationError("Upload a valid JPG, PNG, or WebP image.")
+        return photo

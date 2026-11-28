@@ -8,8 +8,7 @@ from django.utils import timezone
 from accounts.services import add_caregiver, caregiver_links_of
 from assistant.models import PharmacistQuestion
 from assistant.questions import answer_question, pass_to_pharmacist
-from core.models import ActivityLog
-from core.services import mark_all_read
+from core.models import ActivityLog, Notification
 from inventory.models import Batch, DrugClass, Medicine
 from passport.models import Allergy, CurrentMedicine, PassportShare, Patient
 from passport.services import share_passport
@@ -217,6 +216,7 @@ def collect_in_the_past(rana, prescription, ready_days, collected_days):
     ready_at = days_ago(ready_days)
     collected_at = days_ago(collected_days)
     log_id = latest_log_id()
+    last_notification = Notification.objects.order_by("-pk").values_list("pk", flat=True).first() or 0
     mark_ready(rana, prescription)
     move_log_entries_after(log_id, ready_at)
     log_id = latest_log_id()
@@ -229,10 +229,9 @@ def collect_in_the_past(rana, prescription, ready_days, collected_days):
     )
     sale = Sale.objects.filter(source="prescription").latest("id")
     Sale.objects.filter(pk=sale.pk).update(time=collected_at)
-    if prescription.patient.user:
-        mark_all_read(prescription.patient.user)
-    for caregiver_link in caregiver_links_of(prescription.patient):
-        mark_all_read(caregiver_link.caregiver)
+    # Only this historical collection's notifications are old; newer pickup
+    # messages must stay unread when upgrading an existing seeded database.
+    Notification.objects.filter(pk__gt=last_notification).update(read=True)
 
 
 def create_prescriptions():
@@ -265,6 +264,22 @@ def create_prescriptions():
     start_preparing(preparing)
 
     demo_prescription("Ahmad", "Amoxicillin", "500 mg", 21, 7, False)
+
+
+def create_caregiver_demo_medicine():
+    """Add a refillable example even when an older demo database is already seeded."""
+    father = Patient.objects.get(name="Omar's Father")
+    exists = PrescriptionItem.objects.filter(
+        prescription__patient=father,
+        prescription__status="collected",
+        medicine__name="Amlodipine",
+        medicine__strength="5 mg",
+        long_term=True,
+    ).exists()
+    if not exists:
+        rana = get_user_model().objects.get(username="rana")
+        amlodipine = demo_prescription("Omar's Father", "Amlodipine", "5 mg", 30, 30, True)
+        collect_in_the_past(rana, amlodipine, 15, 14)
 
 
 def demo_counter_sale(karim, days, payment_method, lines):
@@ -374,6 +389,7 @@ class Command(BaseCommand):
         create_stock()
         create_passports()
         create_prescriptions()
+        create_caregiver_demo_medicine()
         create_counter_sales()
         create_reservations()
         create_refill_requests()

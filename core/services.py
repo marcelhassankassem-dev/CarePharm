@@ -28,15 +28,35 @@ def activity_log(today_only=False):
 
 
 def notify(user, text, link):
-    return Notification.objects.create(user=user, text=text, link=link)
+    return Notification.objects.create(user=user, text=str(text)[:200], link=link)
 
 
-def notify_patient(patient, text, link):
-    told = [patient.user] if patient.user else []
-    told += [caregiver_link.caregiver for caregiver_link in caregiver_links_of(patient)]
-    for user in told:
-        notify(user, text, link)
+def notify_patient(patient, text, link, caregiver_link=None):
+    """Tell the patient and linked caregivers once, with an optional caregiver destination."""
+    told = []
+    if patient.user:
+        notify(patient.user, text, link)
+        told.append(patient.user)
+    for connection in caregiver_links_of(patient):
+        notify(connection.caregiver, text, caregiver_link if caregiver_link is not None else link)
+        told.append(connection.caregiver)
     return told
+
+
+def notify_caregivers(patient, text, link="/family/"):
+    """Send private updates only to caregivers whose access is still active."""
+    from accounts.models import CaregiverLink
+
+    caregivers = (
+        CaregiverLink.objects.filter(patient=patient, active=True)
+        .select_related("caregiver")
+        .order_by("caregiver_id")
+    )
+    recipients = []
+    for connection in caregivers:
+        notify(connection.caregiver, text, link)
+        recipients.append(connection.caregiver)
+    return recipients
 
 
 def notifications_for(user):

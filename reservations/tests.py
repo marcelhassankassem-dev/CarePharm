@@ -774,9 +774,10 @@ class CaregiverRefillTests(RefillTestData):
         delay_refill(request_refill(self.omar, self.metformin_item), next_week())
         self.assertEqual(set(Notification.objects.values_list("user__username", flat=True)), {"omars_father", "omar"})
         self.assertEqual(
-            Notification.objects.get(user=self.omar).text,
+            Notification.objects.get(user=self.omar, text__contains="is delayed").text,
             f"Omar's Father's refill of Metformin 500 mg is delayed, expected {next_week():%d %b %Y}.",
         )
+        self.assertEqual(Notification.objects.filter(user=self.omar, text__startswith="Refill requested").count(), 1)
 
     def test_12_2_each_row_says_which_caregiver_asked(self):
         request_refill(self.omar, self.metformin_item)

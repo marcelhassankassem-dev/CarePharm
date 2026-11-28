@@ -175,6 +175,7 @@ def mark_ready(user, prescription):
     prescription.status = "ready"
     prescription.ready_at = timezone.now()
     prescription.save()
+    # notify_patient also sends to authorized caregivers; avoid duplicates.
     notify_patient(prescription.patient, ready_text(prescription, items), PATIENT_PRESCRIPTIONS_LINK)
 
 

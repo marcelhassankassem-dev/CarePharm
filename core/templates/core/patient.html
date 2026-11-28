@@ -19,7 +19,7 @@
             {% include "core/text_size_control.html" %}
             <a href="{% url 'notifications' %}" class="patient-bell{% if unread_count %} unread{% endif %}"><img src="{% static 'core/images/patient-bell.svg' %}" alt="Notifications"></a>
             {% with words=patient_name.split %}
-            <span class="profile-initials">{{ words.0|first|upper }}{{ words.1|first|upper }}</span>
+            <span class="profile-initials">{% if user.profile_photo %}<img class="profile-nav-photo" src="{{ user.profile_photo.url }}" alt="{{ patient_name }} profile photo">{% else %}{{ words.0|first|upper }}{{ words.1|first|upper }}{% endif %}</span>
             {% endwith %}
             <span class="profile-name">{{ patient_name }}</span>
             <form method="post" action="/logout/">
