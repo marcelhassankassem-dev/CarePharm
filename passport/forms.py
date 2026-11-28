@@ -71,3 +71,29 @@ class PatientChoiceForm(forms.Form):
         queryset=Patient.objects.order_by("name"),
         empty_label="Select a patient",
     )
+
+
+class PassportShareForm(forms.Form):
+    include_contact = forms.BooleanField(label="Contact details", required=False)
+    include_allergies = forms.BooleanField(label="Allergies", required=False)
+    include_medicines = forms.BooleanField(label="Active medicines", required=False)
+    include_history = forms.BooleanField(label="Dispensing history", required=False)
+    access_days = forms.TypedChoiceField(
+        label="Access lasts",
+        choices=[(1, "1 day"), (3, "3 days"), (7, "7 days"), (14, "14 days"), (30, "30 days")],
+        coerce=int,
+        initial=7,
+        required=False,
+        empty_value=7,
+    )
+    consent = forms.BooleanField(
+        label="I explicitly consent to sharing the selected information with this pharmacy.",
+        required=True,
+        error_messages={"required": "Confirm your consent before sharing your passport."},
+    )
+
+    def clean(self):
+        data = super().clean()
+        if not any(data.get(key) for key in ("include_contact", "include_allergies", "include_medicines", "include_history")):
+            raise forms.ValidationError("Select at least one section to share.")
+        return data

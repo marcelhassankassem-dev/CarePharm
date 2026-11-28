@@ -1,11 +1,17 @@
+from datetime import timedelta
+
+from django.conf import settings
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Count, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
+from accounts.services import staff_members
 from accounts.services import create_patient_login
-from core.services import unread_count
-from passport.models import Allergy, CurrentMedicine, Patient
+from core.services import notify, unread_count
+from passport.models import Allergy, CurrentMedicine, PassportShare, Patient
 
 
 @transaction.atomic
@@ -37,7 +43,11 @@ def create_patient(
 def find_patients(search=""):
     patients = Patient.objects.annotate(allergy_count=Count("allergy")).order_by("name")
     if search:
-        patients = patients.filter(Q(name__icontains=search) | Q(phone__icontains=search))
+        term = search.strip()
+        conditions = Q(name__icontains=term) | Q(phone__icontains=term)
+        if term.upper().startswith("CP-") and term[3:].isdigit():
+            conditions |= Q(pk=int(term[3:]))
+        patients = patients.filter(conditions)
     return patients
 
 
@@ -101,3 +111,45 @@ def add_current_medicine(patient, medicine):
 
 def current_medicines_of(patient):
     return CurrentMedicine.objects.filter(patient=patient).select_related("medicine")
+
+
+def active_passport_share(patient):
+    if patient is None:
+        return None
+    return (
+        PassportShare.objects.filter(
+            patient=patient, pharmacy_name=settings.PHARMACY_NAME, revoked_at__isnull=True
+        )
+        .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now()))
+        .order_by("-consented_at", "-pk")
+        .first()
+    )
+
+
+@transaction.atomic
+def share_passport(
+    patient, user, *, include_contact=False, include_allergies=False,
+    include_medicines=False, include_history=False, access_days=7,
+):
+    if patient is None or patient.user_id != user.pk:
+        raise PermissionDenied("Only the patient can consent to share their passport.")
+    if not any((include_contact, include_allergies, include_medicines, include_history)):
+        raise ValidationError("Select at least one section to share.")
+    if access_days not in (1, 3, 7, 14, 30):
+        raise ValidationError("Choose a valid access duration.")
+
+    # Replacing a previous share must not leave its broader permissions active.
+    PassportShare.objects.filter(patient=patient, revoked_at__isnull=True).update(revoked_at=timezone.now())
+    share = PassportShare.objects.create(
+        patient=patient,
+        consented_by=user,
+        pharmacy_name=settings.PHARMACY_NAME,
+        include_contact=include_contact,
+        include_allergies=include_allergies,
+        include_medicines=include_medicines,
+        include_history=include_history,
+        expires_at=timezone.now() + timedelta(days=access_days),
+    )
+    for staff in staff_members().filter(is_active=True):
+        notify(staff, f"{patient.name} shared a medication passport with the pharmacy.", f"/patients/{patient.pk}/")
+    return share
