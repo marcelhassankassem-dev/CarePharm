@@ -1743,6 +1743,14 @@ body {
     color: #c8102e;
 }
 
+.refill-requested-by {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #14756f;
+}
+
 .prescription-table th:last-child,
 .prescription-action {
     text-align: right;
@@ -4522,6 +4530,40 @@ button.family-profile {
 
 .family-permissions .family-card-header {
     margin-bottom: 15px;
+}
+
+.family-side {
+    display: grid;
+    gap: 16px;
+}
+
+.family-notifications .family-card-header {
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.family-notifications .family-card-header h2 {
+    margin: 0;
+}
+
+.family-view-all {
+    margin-left: auto;
+    font-size: 13px;
+    color: #14756f;
+    text-decoration: none;
+}
+
+.family-view-all::after {
+    content: " \2192";
+}
+
+.family-notifications .notification {
+    padding: 14px 16px;
+    font-size: 13px;
+}
+
+.family-notifications .notification + .notification {
+    margin-top: 10px;
 }
 
 .family-permission-box {
