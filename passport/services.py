@@ -116,11 +116,15 @@ def current_medicines_of(patient):
 def active_passport_share(patient):
     if patient is None:
         return None
+    # Expiration is checked when staff requests the passport, so no background
+    # job is needed. An older grant with no expiry must fail closed as well.
     return (
         PassportShare.objects.filter(
-            patient=patient, pharmacy_name=settings.PHARMACY_NAME, revoked_at__isnull=True
+            patient=patient,
+            pharmacy_name=settings.PHARMACY_NAME,
+            revoked_at__isnull=True,
+            expires_at__gt=timezone.now(),
         )
-        .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now()))
         .order_by("-consented_at", "-pk")
         .first()
     )
@@ -139,7 +143,8 @@ def share_passport(
         raise ValidationError("Choose a valid access duration.")
 
     # Replacing a previous share must not leave its broader permissions active.
-    PassportShare.objects.filter(patient=patient, revoked_at__isnull=True).update(revoked_at=timezone.now())
+    now = timezone.now()
+    PassportShare.objects.filter(patient=patient, revoked_at__isnull=True).update(revoked_at=now)
     share = PassportShare.objects.create(
         patient=patient,
         consented_by=user,
@@ -148,7 +153,7 @@ def share_passport(
         include_allergies=include_allergies,
         include_medicines=include_medicines,
         include_history=include_history,
-        expires_at=timezone.now() + timedelta(days=access_days),
+        expires_at=now + timedelta(days=access_days),
     )
     for staff in staff_members().filter(is_active=True):
         notify(staff, f"{patient.name} shared a medication passport with the pharmacy.", f"/patients/{patient.pk}/")
