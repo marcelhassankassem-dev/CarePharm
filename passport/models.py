@@ -36,20 +36,16 @@ class CurrentMedicine(models.Model):
 
 
 class PassportShare(models.Model):
-    """Patient consent to share selected passport sections with CarePharm staff."""
-
-    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="passport_shares")
-    consented_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="passport_consents"
-    )
-    pharmacy_name = models.CharField(max_length=100)
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE)
+    token = models.CharField(max_length=50, unique=True)
+    pharmacy_name = models.CharField(max_length=100, blank=True)
     include_contact = models.BooleanField(default=False)
     include_allergies = models.BooleanField(default=False)
     include_medicines = models.BooleanField(default=False)
     include_history = models.BooleanField(default=False)
-    consented_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField(null=True, blank=True)
-    revoked_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    revoked = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"{self.patient} shared with {self.pharmacy_name}"
+        return f"{self.patient} shared with {self.pharmacy_name or 'a pharmacy'}"
