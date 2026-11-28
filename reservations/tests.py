@@ -8,6 +8,7 @@ from django.http import Http404
 from django.test import TestCase
 from django.utils import timezone
 
+from accounts.models import CaregiverLink
 from core.models import ActivityLog, Notification
 from core.services import notify
 from inventory.models import Batch, DrugClass, Medicine
@@ -722,7 +723,10 @@ class DelayRefillTests(RefillTestData):
         delay_refill(request_refill(self.father_user, self.metformin_item), next_week())
         notification = Notification.objects.get()
         self.assertEqual(notification.user, self.father_user)
-        self.assertEqual(notification.text, f"Refill delayed: Metformin 500 mg, expected {next_week():%d %b %Y}.")
+        self.assertEqual(
+            notification.text,
+            f"Omar's Father's refill of Metformin 500 mg is delayed, expected {next_week():%d %b %Y}.",
+        )
         self.assertEqual(notification.link, "/")
 
     def test_11_4_the_expected_date_must_be_after_today(self):
@@ -754,6 +758,38 @@ class DelayRefillTests(RefillTestData):
         approve_refill(refill_request)
         refill_request.refresh_from_db()
         self.assertEqual(refill_request.status, "approved")
+
+
+class CaregiverRefillTests(RefillTestData):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.omar = get_user_model().objects.create(username="omar", role="patient", first_name="Omar")
+
+    def setUp(self):
+        super().setUp()
+        CaregiverLink.objects.create(patient=self.father, caregiver=self.omar)
+
+    def test_12_2_the_caregiver_is_told_about_a_delay_too(self):
+        delay_refill(request_refill(self.omar, self.metformin_item), next_week())
+        self.assertEqual(set(Notification.objects.values_list("user__username", flat=True)), {"omars_father", "omar"})
+        self.assertEqual(
+            Notification.objects.get(user=self.omar).text,
+            f"Omar's Father's refill of Metformin 500 mg is delayed, expected {next_week():%d %b %Y}.",
+        )
+
+    def test_12_2_each_row_says_which_caregiver_asked(self):
+        request_refill(self.omar, self.metformin_item)
+        request_refill(self.father_user, self.losartan_item)
+        self.assertEqual([row["requested_by_caregiver"] for row in refill_rows()], ["Omar", ""])
+
+    def test_12_2_the_refill_requests_tab_shows_the_caregiver(self):
+        request_refill(self.omar, self.metformin_item)
+        request_refill(self.father_user, self.losartan_item)
+        self.client.force_login(self.rana)
+        response = self.client.get("/prescriptions/", {"show": "refills"})
+        self.assertContains(response, '<small class="refill-requested-by">By caregiver Omar</small>', html=True)
+        self.assertContains(response, "By caregiver", count=1)
 
 
 class DelayRefillPageTests(RefillPagesTestData):

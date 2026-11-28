@@ -19,7 +19,7 @@ from accounts.services import (
     staff_members,
     update_staff_member,
 )
-from core.services import activity_log, pharmacy_details
+from core.services import activity_log, latest_notifications, pharmacy_details
 from passport.services import patient_name_for, patient_of, patients_cared_for, viewable_patient
 from passport.views import VIEWING_PATIENT, patient_page_data, selected_patient
 from reservations.services import patient_refill_requests, refill_reminders
@@ -80,6 +80,7 @@ def family_page_data(request):
         "own_record": own_record,
         "family_members": family_members,
         "cared_for": patients_cared_for(request.user),
+        "notifications": latest_notifications(request.user),
     }
 
 

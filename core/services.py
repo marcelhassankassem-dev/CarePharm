@@ -1,7 +1,10 @@
 from django.conf import settings
 from django.utils import timezone
 
+from accounts.services import caregiver_links_of
 from core.models import ActivityLog, Notification
+
+LATEST_NOTIFICATIONS = 3
 
 
 def pharmacy_details():
@@ -29,15 +32,19 @@ def notify(user, text, link):
 
 
 def notify_patient(patient, text, link):
-    told = []
-    if patient.user:
-        notify(patient.user, text, link)
-        told.append(patient.user)
+    told = [patient.user] if patient.user else []
+    told += [caregiver_link.caregiver for caregiver_link in caregiver_links_of(patient)]
+    for user in told:
+        notify(user, text, link)
     return told
 
 
 def notifications_for(user):
     return Notification.objects.filter(user=user).order_by("read", "-id")
+
+
+def latest_notifications(user):
+    return notifications_for(user)[:LATEST_NOTIFICATIONS]
 
 
 def unread_count(user):
