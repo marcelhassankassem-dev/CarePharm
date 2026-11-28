@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -893,3 +894,67 @@ class PassportSharingConsentTests(TestCase):
         response = self.share(access_days="999")
         self.assertEqual(response.status_code, 200)
         self.assertFalse(PassportShare.objects.exists())
+
+    def test_3_4b_access_ends_at_exact_expiration_instant(self):
+        self.client.force_login(self.maya_user)
+        self.share(access_days="1")
+        share = PassportShare.objects.get(patient=self.maya)
+
+        with patch("passport.services.timezone.now", return_value=share.expires_at - timedelta(microseconds=1)):
+            self.assertEqual(active_passport_share(self.maya), share)
+        with patch("passport.services.timezone.now", return_value=share.expires_at):
+            self.assertIsNone(active_passport_share(self.maya))
+
+    def test_3_4b_expiry_automatically_hides_all_four_private_sections(self):
+        self.client.force_login(self.maya_user)
+        self.share(include_contact="on", include_medicines="on", include_history="on", access_days="1")
+        share = PassportShare.objects.get(patient=self.maya)
+
+        self.client.force_login(self.staff)
+        before = self.client.get(f"/patients/{self.maya.pk}/")
+        self.assertContains(before, "03 100 002")
+        self.assertContains(before, "Penicillins Share")
+        self.assertContains(before, "Atorvastatin Share")
+        self.assertContains(before, "<td>3</td>", html=True)
+
+        PassportShare.objects.filter(pk=share.pk).update(expires_at=timezone.now() - timedelta(seconds=1))
+        after = self.client.get(f"/patients/{self.maya.pk}/")
+        self.assertContains(after, "Pharmacy access has expired")
+        self.assertNotContains(after, "03 100 002")
+        self.assertNotContains(after, "Penicillins Share")
+        self.assertNotContains(after, "Atorvastatin Share")
+        self.assertNotContains(after, "<td>3</td>", html=True)
+        self.assertContains(after, "Not shared by patient", count=4)
+
+    def test_3_4b_patient_can_see_expired_status_and_share_again(self):
+        self.client.force_login(self.maya_user)
+        self.share(access_days="1")
+        previous = PassportShare.objects.get(patient=self.maya)
+        PassportShare.objects.filter(pk=previous.pk).update(expires_at=timezone.now() - timedelta(seconds=1))
+
+        patient_page = self.client.get("/patients/my/")
+        self.assertContains(patient_page, "Expired")
+        self.assertContains(patient_page, "Share again to restore access")
+
+        self.share(include_allergies="", include_medicines="on", access_days="7")
+        current = active_passport_share(self.maya)
+        self.assertIsNotNone(current)
+        self.assertNotEqual(current.pk, previous.pk)
+        self.client.force_login(self.staff)
+        staff_page = self.client.get(f"/patients/{self.maya.pk}/")
+        self.assertContains(staff_page, "Atorvastatin Share")
+        self.assertNotContains(staff_page, "Penicillins Share")
+
+    def test_3_4b_undated_legacy_consent_does_not_grant_indefinite_access(self):
+        self.client.force_login(self.maya_user)
+        self.share()
+        PassportShare.objects.filter(patient=self.maya).update(expires_at=None)
+        self.assertIsNone(active_passport_share(self.maya))
+
+        self.client.force_login(self.staff)
+        response = self.client.get(f"/patients/{self.maya.pk}/")
+        self.assertContains(response, "Pharmacy access has expired")
+        self.assertNotContains(response, "Penicillins Share")
+
+        self.client.force_login(self.maya_user)
+        self.assertContains(self.client.get("/patients/my/"), "Expired")

@@ -49,7 +49,7 @@ def my_passport(request):
         for share in PassportShare.objects.filter(patient=patient).order_by("-consented_at", "-pk"):
             status = (
                 "Removed" if share.revoked_at else
-                "Expired" if share.expires_at and share.expires_at <= now else "Active"
+                "Expired" if share.expires_at is None or share.expires_at <= now else "Active"
             )
             share_history.append({"share": share, "status": status})
     share_initial = {}
@@ -129,6 +129,17 @@ def patient_list(request, patient_id=None):
     # A logged-in patient's passport requires their explicit section-level consent.
     legacy_record = selected is not None and selected.user_id is None
     share = active_passport_share(selected) if selected and not legacy_record else None
+    most_recent_share = (
+        PassportShare.objects.filter(patient=selected, pharmacy_name=settings.PHARMACY_NAME)
+        .order_by("-consented_at", "-pk")
+        .first()
+        if selected and not legacy_record and share is None else None
+    )
+    share_expired = bool(
+        most_recent_share
+        and most_recent_share.revoked_at is None
+        and (most_recent_share.expires_at is None or most_recent_share.expires_at <= timezone.now())
+    )
     allow_allergies = bool(legacy_record or (share and share.include_allergies))
     allow_contact = bool(legacy_record or (share and share.include_contact))
     allow_medicines = bool(legacy_record or (share and share.include_medicines))
@@ -146,6 +157,8 @@ def patient_list(request, patient_id=None):
             "search": search,
             "selected": selected,
             "selected_share": share,
+            "selected_share_expired": share_expired,
+            "selected_latest_share": most_recent_share,
             "allow_contact": allow_contact,
             "allow_allergies": allow_allergies,
             "allow_medicines": allow_medicines,

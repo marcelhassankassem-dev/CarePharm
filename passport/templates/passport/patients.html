@@ -79,7 +79,10 @@
             </div>
             <div class="passport-card staff-patients-sharing-card">
                 <h3>Passport Sharing</h3>
-                {% if selected.user_id and not selected_share %}
+                {% if selected_share_expired %}
+                <p>Pharmacy access has expired. The patient must share their passport again to restore access.</p>
+                {% if selected_latest_share.expires_at %}<small>Expired {{ selected_latest_share.expires_at|date:"j M Y, H:i" }}</small>{% endif %}
+                {% elif selected.user_id and not selected_share %}
                 <p>This patient has not shared their Medication Passport with the pharmacy.</p>
                 {% elif selected_share %}
                 <p>Shared with {{ selected_share.pharmacy_name }}</p>
